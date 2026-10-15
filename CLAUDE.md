@@ -59,6 +59,9 @@ bash scripts/deploy-pages.sh
 - 배포:
   - 저장소는 https://github.com/mhsssshin/ChromaFrontier 다.
   - 소스는 `main`, 빌드 결과물은 `gh-pages` 브랜치에 둔다. `scripts/deploy-pages.sh`가 매번 단일 커밋으로 덮어쓴다.
+  - 배포용 빌드는 파일 이름을 내용 해시로 짓는다(`nameFilesAsHashes`). 이름이 같으면 이전 버전을 받아 둔 브라우저가 옛 파일과 새 파일을 섞어 실행해 `RangeError: Maximum call stack size exceeded`로 시작하지 못한다(실제로 겪음).
+  - GitHub Pages는 index.html을 최대 10분 캐시한다. 그래서 배포 스크립트는 직전 배포의 index.html이 가리키던 `Build/` 파일을 함께 남긴다.
+  - `mhsssshin.github.io`의 localStorage는 사용자의 다른 Pages 프로젝트와 공유된다. 그래서 키는 반드시 `cf.` 접두사를 쓰고, `LocalStore.Clear()`도 `cf.`로 시작하는 것만 지운다.
   - 서비스 주소는 https://mhsssshin.github.io/ChromaFrontier/ 다.
   - Unity 빌드에 로컬 라이선스가 필요해서 CI가 아니라 로컬에서 만들어 올린다.
 - `ProjectSettings`가 없는 상태로 Unity를 처음 열면 `Packages/manifest.json`이 기본 템플릿(Purchasing, Analytics 등)으로 덮어써진다. 그러면 WebGL 빌드가 51MB까지 커진다. 최소 구성(31MB)을 유지할 것.
