@@ -373,7 +373,7 @@ namespace ChromaFrontier.Core.Tests
                 var g = Game.CreateDefault(seed * 7919 + 13);
                 var rng = new Rng(seed + 1);
                 for (var guard = 0; !g.IsOver && guard < 200; guard++)
-                    AiBrain.Apply(g, AiBrain.Choose(g, rng, g.Current == Side.Player ? AiLevel.Hard : aiLevel));
+                    AiBrain.Apply(g, AiBrain.Choose(g, rng, g.Current == Side.Player ? AiLevel.Perfect : aiLevel));
                 wins += g.Winner == Side.Player ? 1f : g.Winner == Side.None ? 0.5f : 0f;
             }
             return wins / games;
@@ -382,12 +382,16 @@ namespace ChromaFrontier.Core.Tests
         [Test]
         public void AiLevels_EasierLevelsLoseMoreOften()
         {
-            var easy = PlayerWinRate(AiLevel.Easy, 40);
-            var normal = PlayerWinRate(AiLevel.Normal, 40);
-            var hard = PlayerWinRate(AiLevel.Hard, 40);
-            TestContext.WriteLine($"player(hard AI) win rate vs easy {easy:P0}, normal {normal:P0}, hard {hard:P0}");
+            var beginner = PlayerWinRate(AiLevel.Beginner, 60);
+            var easy = PlayerWinRate(AiLevel.Easy, 60);
+            var normal = PlayerWinRate(AiLevel.Normal, 60);
+            var hard = PlayerWinRate(AiLevel.Hard, 60);
+            var perfect = PlayerWinRate(AiLevel.Perfect, 60);
+            TestContext.WriteLine($"player(perfect AI) win rate vs beginner {beginner:P0}, easy {easy:P0}, normal {normal:P0}, hard {hard:P0}, perfect {perfect:P0}");
+            Assert.GreaterOrEqual(beginner, easy);
             Assert.Greater(easy, normal);
             Assert.Greater(normal, hard);
+            Assert.Greater(hard, perfect);
         }
 
         [Test]

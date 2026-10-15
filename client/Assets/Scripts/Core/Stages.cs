@@ -88,7 +88,7 @@ namespace ChromaFrontier.Core
         }
 
         /// <summary>대기실 난이도 보정(-1 쉬움, 0 보통, +1 어려움)을 더한 실제 AI 난이도.</summary>
-        public static AiLevel LevelFor(StageDef s, int offset) => (AiLevel)Math.Max(0, Math.Min(2, (int)s.Level + offset));
+        public static AiLevel LevelFor(StageDef s, int offset) => (AiLevel)Math.Max(0, Math.Min((int)AiLevel.Hard, (int)s.Level + offset));
 
         private static StageDef[] Build()
         {
@@ -107,8 +107,9 @@ namespace ChromaFrontier.Core
                     Opponent = "떠돌이 원소술사",
                     OpponentNote = "평범하게 가장 이득인 수를 둔다.",
                 };
-                var baseLevel = i < 12 ? AiLevel.Easy : i < 32 ? AiLevel.Normal : AiLevel.Hard;
-                s.Level = s.IsBoss ? (AiLevel)Math.Min(2, (int)baseLevel + 1) : baseLevel;
+                // 완만하게: 1~2장 초반 입문, 2장 후반~3장 쉬움, 4~5장 보통, 5장 막바지 어려움. 보스는 한 단계 위.
+                var baseLevel = i < 15 ? AiLevel.Beginner : i < 30 ? AiLevel.Easy : i < 45 ? AiLevel.Normal : AiLevel.Hard;
+                s.Level = s.IsBoss ? (AiLevel)Math.Min((int)AiLevel.Hard, (int)baseLevel + 1) : baseLevel;
                 switch (ch)
                 {
                     case 0: Meadow(s, k); break;
@@ -154,6 +155,7 @@ namespace ChromaFrontier.Core
             var size = k < 3 ? 7 : 8;
             s.Map = MakeMap(size, size, (x, y) => '.');
             s.MapNote = k < 3 ? "작은 7x7 평원. 기본 규칙을 익히자." : "기믹 없는 8x8 평원.";
+            s.AiDeck = Deck(5, 5, 5, 0, 0, 0, 0); // 1장 상대는 스킬 없이 유닛만
             if (!s.IsBoss) return;
             s.Name = "불꽃의 이그니스";
             s.Opponent = "이그니스";

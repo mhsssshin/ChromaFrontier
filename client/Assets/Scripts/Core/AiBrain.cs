@@ -12,7 +12,8 @@ namespace ChromaFrontier.Core
     /// 난이도(AiLevel)는 점수에 섞는 무작위·실수 확률·공간 왜곡 사용 여부로 낮춘다 (Profile).
     /// 성향(AiPersona)은 점수 가중치로 보스의 개성을 낸다.
     /// </summary>
-    public enum AiLevel : byte { Easy, Normal, Hard }
+    /// <summary>게임에 쓰는 난이도는 Beginner~Hard. Perfect 는 실수 없는 기준 AI (테스트에서 플레이어 자리 대역).</summary>
+    public enum AiLevel : byte { Beginner, Easy, Normal, Hard, Perfect }
 
     /// <summary>
     /// AI 성향: 수 점수에 더하는 가중치. 기본값(0, 1)이면 보통 탐욕 AI.
@@ -40,8 +41,10 @@ namespace ChromaFrontier.Core
         /// </summary>
         private static (float noise, float mistake, int warpCandidates) Profile(AiLevel level) => level switch
         {
-            AiLevel.Easy => (8f, 0.45f, 0),
-            AiLevel.Normal => (4f, 0.2f, 12),
+            AiLevel.Beginner => (12f, 0.65f, 0),
+            AiLevel.Easy => (9f, 0.5f, 0),
+            AiLevel.Normal => (6f, 0.35f, 8),
+            AiLevel.Hard => (3f, 0.15f, 24),
             _ => (0f, 0f, 40),
         };
 
@@ -56,7 +59,7 @@ namespace ChromaFrontier.Core
             public float Score;
         }
 
-        public static Move Choose(Game game, Rng tieBreak, AiLevel level = AiLevel.Hard, AiPersona persona = null)
+        public static Move Choose(Game game, Rng tieBreak, AiLevel level = AiLevel.Perfect, AiPersona persona = null)
         {
             persona ??= AiPersona.Default;
             var (noise, mistake, warpCandidates) = Profile(level);

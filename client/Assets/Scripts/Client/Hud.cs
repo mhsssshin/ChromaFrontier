@@ -163,7 +163,7 @@ namespace ChromaFrontier.Client
             }
         }
 
-        private static string LevelName(AiLevel l) => l switch { AiLevel.Easy => "쉬움", AiLevel.Normal => "보통", _ => "어려움" };
+        private static string LevelName(AiLevel l) => l switch { AiLevel.Beginner => "입문", AiLevel.Easy => "쉬움", AiLevel.Normal => "보통", _ => "어려움" };
 
         private static string OffsetName(int o) => o < 0 ? "쉬움" : o > 0 ? "어려움" : "보통";
 

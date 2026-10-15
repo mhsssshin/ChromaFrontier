@@ -134,7 +134,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
 - **스테이지**(`Stages.cs`): `StageCatalog.All`에 50개(5챕터 × 10, 각 챕터 10번째가 보스)가 있다. `StageDef`는 맵, `StageRules`, 상대 성향(`AiPersona`), 기본 난이도, AI 덱을 갖는다.
   - 1장 초원(기믹 없음, 7x7 → 8x8) → 2장 화산(용암) → 3장 얼음성(얼음) → 4장 끊어진 다리(낭떠러지) → 5장 공허의 탑(9x9, 컨베이어·블랙홀·침묵, 22턴).
   - 보스: 1장 이그니스(화염 덱, 어그로), 2장 각성 이그니스, 3장 글라시아(물·잠금·탈색, 통제), 4장 호문클루스(약탈), 5장 각성 호문클루스.
-  - 기본 난이도는 스테이지 0~11이 쉬움, 12~31이 보통, 32 이상이 어려움이다. 보스는 한 단계 위다. 대기실의 난이도 보정(−1/0/+1)을 더한다(`StageCatalog.LevelFor`).
+  - 기본 난이도는 스테이지 0~14가 입문, 15~29가 쉬움, 30~44가 보통, 45 이상이 어려움이다. 보스는 한 단계 위다. 1장 일반 스테이지의 AI 덱은 유닛만 있다(스킬 없음). 대기실의 난이도 보정(−1/0/+1)을 더한다(`StageCatalog.LevelFor`).
   - 별(`StageCatalog.Stars`): 승리 1개, 점유율 50% 이상 2개, 65% 이상 3개.
   - 테스트 `EveryStage_StartsWithMovesForBothSides_AndPlaysToTheEnd`가 50개 스테이지를 모두 AI끼리 끝까지 돌려 본다. 맵을 고치면 이 테스트로 확인한다.
 - 배치 규칙(`Game.CanPlace`, `Board.IsFrontline`): 빈 칸이어야 하고, 내 타일이거나 내 타일과 상하좌우로 맞닿은 칸이어야 한다.
@@ -156,9 +156,9 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 공간 왜곡: 2수까지 본다. 유닛을 내 전선 옆으로 끌어온 뒤 그 옆에 유닛을 놓는 후속 수까지 계산한다. 후보 수는 난이도별 `Profile`의 warpCandidates로 제한한다.
   - 테스트 `AiVsAi_UsesEverySkillAcrossGames`가 AI가 스킬 4종을 모두 쓰는지 확인한다.
   - **성향**(`AiPersona`)은 점수 가중치다. StealWeight는 빼앗은 칸, CatalystSteal은 상대 유닛 촉매, LoneUnitPenalty는 상대 유닛과 안 맞닿은 배치 감점, ShieldWeight는 보호 칸, Lock/Bleach/MineWeight는 스킬 배율, WarpBonus는 공간 왜곡 가산이다.
-  - 난이도 `AiLevel`(쉬움, 보통, 어려움)은 `AiBrain.Profile`에서 정한다. 후보 점수에 무작위를 섞고(noise), 일정 확률로 아무 수나 두게 하고(mistake), 공간 왜곡 탐색 후보 수를 줄여서 AI를 약하게 만든다.
+  - 난이도 `AiLevel`(입문, 쉬움, 보통, 어려움)은 `AiBrain.Profile`에서 정한다. `Perfect`는 실수 없는 기준 AI로, 게임에서는 쓰지 않고 테스트에서 플레이어 자리 대역으로만 쓴다. 플레이어들이 너무 어렵다고 해서 전체를 순하게 낮췄다. 후보 점수에 무작위를 섞고(noise), 일정 확률로 아무 수나 두게 하고(mistake), 공간 왜곡 탐색 후보 수를 줄여서 AI를 약하게 만든다.
   - 실제 난이도는 스테이지 기본값에 대기실 난이도 보정을 더한 값이다.
-  - 테스트 `AiLevels_EasierLevelsLoseMoreOften`이 어려움 AI를 플레이어 자리에 두고 승률을 잰다. 측정값은 대 쉬움 약 82%, 대 보통 약 62%, 대 어려움 약 52%다. 난이도 숫자를 바꾸면 상세 출력(`--logger "console;verbosity=detailed"`)으로 승률을 다시 확인한다.
+  - 테스트 `AiLevels_EasierLevelsLoseMoreOften`이 Perfect AI를 플레이어 자리에 두고 승률을 잰다. 측정값은 대 입문 98%, 대 쉬움 93%, 대 보통 80%, 대 어려움 67%, 대 Perfect 48%다(각 60판). 난이도 숫자를 바꾸면 상세 출력(`--logger "console;verbosity=detailed"`)으로 승률을 다시 확인한다.
 
 **Client**
 - `GameBootstrap`이 유일한 진입점이다. 씬에는 카메라와 이것뿐이고 오브젝트는 모두 코드로 만든다. partial 클래스로 세 파일에 나뉜다.
