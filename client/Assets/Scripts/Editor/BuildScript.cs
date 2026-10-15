@@ -20,6 +20,7 @@ namespace ChromaFrontier.Editor
             // 압축을 끄면 아무 정적 서버로나 띄울 수 있다.
             PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
             PlayerSettings.WebGL.decompressionFallback = false;
+            PlayerSettings.WebGL.nameFilesAsHashes = false;
             Build(BuildTarget.WebGL, Path.Combine(BuildRoot, "webgl"), BuildOptions.Development);
         }
 
@@ -33,6 +34,9 @@ namespace ChromaFrontier.Editor
         {
             PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
             PlayerSettings.WebGL.decompressionFallback = true;
+            // 빌드 파일 이름을 내용 해시로: 이름이 매번 같으면 이전 버전을 받아 둔 브라우저가 옛 파일과 새 파일을 섞어
+            // 실행해 터진다 (실제로 겪음: RangeError Maximum call stack size exceeded).
+            PlayerSettings.WebGL.nameFilesAsHashes = true;
             Build(BuildTarget.WebGL, Path.Combine(BuildRoot, "webgl-release"), BuildOptions.None);
         }
 
