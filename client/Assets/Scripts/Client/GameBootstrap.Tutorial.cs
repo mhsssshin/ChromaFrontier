@@ -80,8 +80,10 @@ namespace ChromaFrontier.Client
             LessonDone = false;
             _tips.Clear();
             var l = Lesson;
+            Progress.TutorialLesson = LessonIndex; // 중간에 나가도 이 레슨부터 이어서
             BeginBattle(new StageDef { Index = -1, Name = l.Title, MapNote = "" }, l.CreateGame());
-            Select(0); // 레슨 카드를 미리 골라 두면 목표 칸이 처음부터 빛나고 그쪽으로 확대된다
+            // 카드는 미리 골라 두지 않는다: 실제 게임처럼 카드를 끌어 놓거나, 카드를 누른 뒤 칸을 눌러야 놓인다.
+            // 목표 칸은 카드를 고르기 전부터 빛난다 (BuildHighlight).
             Message = l.Intro;
         }
 
@@ -146,6 +148,9 @@ namespace ChromaFrontier.Client
             {
                 LessonDone = true;
                 Message = Lesson.Outro;
+                // 마지막 레슨을 마치면 바로 완료로 기록 → 다음 접속부터 튜토리얼이 안 나온다
+                if (LessonIndex + 1 >= TutorialCatalog.Count) Progress.TutorialDone = true;
+                else Progress.TutorialLesson = LessonIndex + 1;
             }
             else
             {
@@ -159,6 +164,12 @@ namespace ChromaFrontier.Client
             from = to = default;
             fromCard = false;
             if (!Tutorial || LessonDone || !PlayerTurn || DraggingCard >= 0 || _boardPress || ActiveTip != null) return false;
+            if (Selected >= 0 && !_blueAt.HasValue)
+            {
+                // 카드를 눌러 골랐으면: 목표 칸을 누르라는 손가락
+                from = to = WorldToGui(_view.ToWorld(Lesson.Target)) + new Vector2(0f, 10f * UiScale);
+                return true;
+            }
             if (_blueAt is { } at)
             {
                 if (!(Lesson.WaterDir is { } dir)) return false;

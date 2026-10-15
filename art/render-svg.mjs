@@ -39,6 +39,7 @@ export function renderSvgSprites(sprites) {
   writeFileSync(htmlPath, html);
   execFileSync(chrome, [
     '--headless=new', '--disable-gpu', '--hide-scrollbars', '--force-device-scale-factor=1',
+    '--virtual-time-budget=3000', // 웹 글꼴(로고)이 다 불러와진 뒤 찍도록
     `--user-data-dir=${join(dir, 'profile')}`, '--default-background-color=00000000',
     `--window-size=${W},${H}`, `--screenshot=${pngPath}`, `file:///${htmlPath.replace(/\\/g, '/')}`,
   ], { stdio: 'ignore' });

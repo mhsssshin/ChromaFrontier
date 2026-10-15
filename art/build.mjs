@@ -10,15 +10,20 @@ import { tiles, boardFoam } from './tiles.mjs';
 import { units } from './units.mjs';
 import { fx } from './fx.mjs';
 import { ui } from './ui.mjs';
+import { logo } from './logo.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'client', 'Assets', 'Resources', 'Art');
 
-const sprites = [...tiles(), boardFoam(), ...units(), ...fx(), ...ui()];
+const sprites = [...tiles(), boardFoam(), ...units(), ...fx(), ...ui(), logo()];
 const t0 = Date.now();
 const rendered = renderSvgSprites(sprites);
 for (const { name, image } of rendered) image.save(join(outDir, `${name}.png`));
 console.log(`[art] ${rendered.length} sprites → ${outDir} (${Date.now() - t0} ms)`);
+
+// 웹 로딩 화면(WebGL 템플릿)도 같은 로고를 쓴다
+const logoImage = rendered.find((r) => r.name === 'UI/logo_title').image;
+logoImage.save(join(root, 'client', 'Assets', 'WebGLTemplates', 'Portrait', 'logo.png'));
 
 // 미리보기: 배경·거품을 뺀 전부를 어두운 바탕에 격자로
 const items = rendered.filter((r) => !r.name.startsWith('Bg/'));

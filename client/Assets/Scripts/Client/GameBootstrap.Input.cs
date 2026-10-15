@@ -61,6 +61,8 @@ namespace ChromaFrontier.Client
 
         public void PointerDown(Vector2 gui)
         {
+            if (PlayerTurn && Selected < 0 && Tutorial)
+                Message = "먼저 아래 카드를 고르세요.\n카드를 끌어서 빛나는 칸에 놓거나, 카드를 누른 뒤 칸을 누르면 돼요.";
             if (!PlayerTurn || Selected < 0) return;
             _boardPress = true;
             _pressGui = _pointerGui = gui;
@@ -149,7 +151,16 @@ namespace ChromaFrontier.Client
             _hl.Clear();
             if (!PlayerTurn) return;
             _hl.Hover = _dragCard >= 0 || _boardPress ? _aim : _hover;
-            if (!(SelectedCard is { } card)) return;
+            if (!(SelectedCard is { } card))
+            {
+                // 튜토리얼: 카드를 고르기 전에도 목표 칸을 보여 준다
+                if (Tutorial && !LessonDone)
+                {
+                    _hl.Dim = true;
+                    _hl.Legal.Add(Lesson.Target);
+                }
+                return;
+            }
             _hl.Dim = true;
 
             if (card.IsUnit && _blueAt is { } at)

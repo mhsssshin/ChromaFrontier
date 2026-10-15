@@ -63,7 +63,7 @@ namespace ChromaFrontier.Core
             new()
             {
                 Title = "카드 놓기",
-                Intro = "아래 화염 카드를 손가락으로 끌어서\n빛나는 칸에 놓아 보세요.",
+                Intro = "아래 화염 카드를 끌어서 빛나는 칸에 놓아 보세요.\n(카드를 눌러 고른 뒤 빛나는 칸을 눌러도 돼요)",
                 Outro = "좋아요! 화염은 놓인 칸과 십자 방향으로 땅을 넓혀요.\n카드는 내 땅(파랑)이나 그 바로 옆 칸에만 놓을 수 있어요.",
                 Map = BaseMap,
                 Card = Card.Unit(Element.Red),
@@ -74,7 +74,7 @@ namespace ChromaFrontier.Core
             {
                 Title = "물의 방향",
                 Intro = "이번엔 물 카드예요.\n빛나는 칸에 끌어다 놓아 보세요.",
-                WaterIntro = "이제 화살표 쪽(오른쪽 아래)으로\n보드를 쓸어 넘겨 물을 흘려 보세요.",
+                WaterIntro = "이제 오른쪽 아래로 보드를 쓸어 넘기거나\n화살표 칸을 눌러 물을 흘려 보세요.",
                 Outro = "물은 고른 방향으로 3칸 흘러요.\n길게 뻗어 나가 상대 쪽으로 다가갈 때 좋아요.",
                 Map = BaseMap,
                 Card = Card.Unit(Element.Blue),
@@ -149,7 +149,7 @@ namespace ChromaFrontier.Core
             new()
             {
                 Title = "스킬 카드",
-                Intro = "스킬은 보드 어디에나 쓸 수 있어요.\n상대 물 유닛에 탈색을 써서 재료로 못 쓰게 만들어요.",
+                Intro = "스킬은 보드 어디에나 쓸 수 있어요.\n탈색 카드를 상대 물 유닛에 놓아 재료로 못 쓰게 만들어요.",
                 Outro = "스킬은 탈색, 영역 잠금, 잠복 지뢰, 공간 왜곡(턴을 안 씀) 4가지.\n20턴이 끝났을 때 땅을 더 많이 차지하면 승리예요. 이제 실전으로!",
                 Map = BaseMap,
                 Setup = b =>

@@ -14,7 +14,7 @@ namespace ChromaFrontier.Client
             _aiTimer = AiDelay;
             if (r == null)
             {
-                Message = $"{who}: 멀리건 (손패 교체)";
+                Message = $"{who}: 패 버리기 — 손패를 모두 버리고 새로 뽑았다";
                 return;
             }
             if (r.Skill == Skill.None) at = r.At; // 얼음에서 미끄러졌으면 실제로 놓인 칸

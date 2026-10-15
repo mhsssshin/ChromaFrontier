@@ -74,7 +74,10 @@ bash scripts/deploy-pages.sh
     - `tiles.mjs`: 타일 4종, 윗면 오버레이(glow/select/lock/shield), 장식, 바다, 거품
     - `units.mjs`: 원소 유닛 9종, 팀 링, 지뢰
     - `fx.mjs`: 프레임 이펙트 `<이름>_<n>`
-    - `ui.mjs`: 카드 틀, 아이콘, 바, 버튼, 패널
+    - `ui.mjs`: 카드 틀, 아이콘, 바, 버튼, 패널, 스플래시 엠블럼
+    - `logo.mjs`: 영문 로고 "CHROMA FRONTIER"(`UI/logo_title`). 스플래시와 대기실에 쓰고, 빌드할 때 WebGL 템플릿(`WebGLTemplates/Portrait/logo.png`, 웹 로딩 화면)에도 복사한다.
+      - 글꼴은 `art/vendor/fonts/Jua-Regular.ttf`(SIL OFL, `Jua-OFL.txt`)다. base64로 SVG에 넣고, Chrome은 `--virtual-time-budget`으로 글꼴이 다 불러와진 뒤 찍는다.
+      - 게임 제목은 한글 텍스트 대신 이 로고 이미지로 보여 준다.
 - **캔버스 규칙은 Unity 임포터와 맞물린다.** 타일은 136x104에 윗면 중심이 (68, 34), 유닛은 96x112에 바닥점이 (48, 100), 장식은 64x80에 바닥점이 (32, 72)다. `Editor/ArtImporter.cs`가 이 값으로 피벗을 정한다. PPU 64, 밉맵 없음, 무압축, Bilinear다. 캔버스를 바꾸면 임포터 상수도 같이 바꾼다.
 - 런타임 로드는 `Art.Sprite("폴더/이름")`, `Art.Texture(...)`(HUD용), `Art.Anim(prefix, 프레임 수)`로 한다. 프레임 수를 바꾸면 `FxView`의 상수도 맞춘다.
 - UI 텍스처는 기준 좌표(540x960)의 2배 해상도로 그린다. `Hud.Nine(rect, tex, border)`의 border(텍스처 px)는 `ui.mjs` 주석의 9-slice 값과 같아야 한다.
@@ -142,7 +145,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
 - `Deck`: 스몰 덱 순환이다.
   - 덱이 비면 무덤을 섞어 다시 덱으로 쓰고, 손패는 항상 5장을 유지한다.
   - 드로우 보정: 손패에 유닛이 한 장도 없으면 스킬 한 장을 덱 맨 아래로 돌리고 유닛을 대신 넣는다.
-  - 멀리건은 손패를 덱에 넣고 섞은 뒤 새로 뽑는다.
+  - 패 버리기(코드 이름 `Mulligan`, 턴 소모)는 손패를 덱에 넣고 섞은 뒤 새로 뽑는다. 화면 문구는 "패 버리기"로 쓴다(멀리건이라는 말은 쓰지 않음).
 - `AiBrain`: 탐욕 AI다. 모든 후보 수에 점수를 매겨 최고점을 둔다.
   - 유닛: 실제로 시뮬레이션해서 (내 칸 − 상대 칸)이 얼마나 늘었는지로 점수를 매긴다.
   - 탈색, 잠금, 지뢰: 휴리스틱 점수를 쓴다. 손패에 스킬이 쌓일수록 가산해서 손패가 막히지 않게 한다.
@@ -160,14 +163,16 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - `GameBootstrap.Effects.cs`: 메시지, 이펙트, 라운드 기믹 연출.
   - `GameBootstrap.Tutorial.cs`: 튜토리얼 진행과 상황 팁.
 - **대기실**: 고른 스테이지의 맵을 실제 `BoardView`로 미리 보여 준다(`_previewBoard`). 챕터 탭, 스테이지 노드(별·잠금·보스 왕관), 상대 정보, 난이도 보정, 출격 버튼이 있다.
-  - 진행 저장은 `Progress`(PlayerPrefs `cf.unlocked`, `cf.stars`, `cf.levelOffset`)가 맡는다. 이기면 다음 스테이지가 해금된다.
+  - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`, `cf.levelOffset`, `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`다. 이기면 다음 스테이지가 해금된다.
+  - `LocalStore`는 WebGL에서 브라우저 **localStorage**에 직접 쓴다(`Plugins/WebGL/LocalStorage.jslib`). 동기 저장이라 탭을 바로 닫아도 남는다. 에디터와 Android에서는 PlayerPrefs를 쓴다.
+  - 예전 PlayerPrefs(IndexedDB) 값은 처음 읽을 때 localStorage로 옮긴다. PlayerPrefs를 직접 쓰지 말고 `LocalStore`를 쓴다.
   - 개발 빌드 전용 단축: 주소에 `?unlock`(전체 해금), `?reset`(진행·튜토리얼·팁 전부 초기화), 대기실에서 `U` 키(전체 해금)를 쓸 수 있다.
 - **튜토리얼**: 레슨 데이터는 Core의 `TutorialCatalog`에 있다(8단계: 화염 → 물 방향 → 번개 → 융합 → 가로채기 → 3차 조합(흑색) → 공명 → 탈색).
   - 레슨은 6x6 연습 보드에 카드 한 장(`Lesson.Card`, 섞지 않은 덱 `Game.Create(..., shuffle: false)`)을 목표 칸(`Target`, 물은 `WaterDir`까지)에 내는 것이다. 테스트 `EveryLesson_TargetIsPlayable_AndProducesTheLessonResult`가 목표 수가 `Check`를 만족하는지 검증한다. 레슨을 고치면 이 테스트로 확인한다.
-  - 놓을 수 있는 칸은 목표로만 좁힌다(`RestrictToLesson`). AI는 두지 않는다. 레슨 카드는 미리 선택돼 있어서 목표 칸이 처음부터 빛나고 그쪽으로 확대된다.
+  - 놓을 수 있는 칸은 목표로만 좁힌다(`RestrictToLesson`). AI는 두지 않는다. 카드는 미리 고르지 않는다. 실제 게임과 똑같이 카드를 끌어 놓거나, 카드를 누른 뒤 칸을 눌러야 놓인다. 목표 칸은 카드를 고르기 전부터 빛나고 그쪽으로 확대된다. 카드 없이 칸을 누르면 카드를 먼저 고르라는 안내가 뜬다.
   - 가이드 방울이 말풍선(`Hud.DrawCoach`)과, 카드에서 목표 칸까지 끄는(물은 쓸어 넘기는) 손가락 시범(`HintGesture`, `Hud.DrawFinger`, `UI/finger`)이 있다.
-  - 처음 실행(`Progress.TutorialDone` false)이면 자동으로 시작한다. 대기실 배우기로 다시 볼 수 있다. 마치면 1-1로 바로 이어진다.
-- **상황 팁**(`TipDef`, `Tips`): 스테이지를 시작할 때 처음 보는 챕터 기믹(ch2~ch5)이나 보스(ignis, glacia, homunculus)가 있으면 설명 카드를 띄운다. 본 팁은 PlayerPrefs `cf.tip.<id>`에 남는다. 카드가 떠 있는 동안은 입력을 막는다.
+  - 처음 실행(`Progress.TutorialDone` false)이면 자동으로 시작한다. 마지막 레슨을 마치는 순간 완료로 기록되어 다시 나오지 않는다. 중간에 나가면 `cf.tutorialLesson`의 레슨부터 이어진다. 대기실 배우기로 다시 볼 수 있다. 마치면 1-1로 바로 이어진다.
+- **상황 팁**(`TipDef`, `Tips`): 스테이지를 시작할 때 처음 보는 챕터 기믹(ch2~ch5)이나 보스(ignis, glacia, homunculus)가 있으면 설명 카드를 띄운다. 본 팁은 `cf.tip.<id>`에 남는다. 카드가 떠 있는 동안은 입력을 막는다.
 - **전투 입력(드래그 앤 드롭)**:
   - 카드를 끌어 보드에 떼면 낸다. 끄는 동안 노리는 칸(`_aim`)은 손가락보다 `CardLift`만큼 위다. 그래서 손가락이 칸을 가리지 않는다.
   - 노리는 칸은 가장 가까운 고를 수 있는 칸에 자석처럼 붙는다(`Snap`, 반경 `CardSnap`/`BoardSnap`). 손을 뗀 순간의 위치로 다시 계산한다.
@@ -179,7 +184,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
 - **카메라**(`FitCamera`, `Frame`): 보드를 HUD 사이의 화면 띠에 맞춘다. 전투 띠는 위 21.5%~75%, 대기실 띠는 17%~48.5%다.
   - 카드를 고르면 고를 수 있는 칸들이 꽉 차게 **자동 확대**한다(최대 1.8배). 내려놓으면 전체 보기로 부드럽게 돌아간다.
 - `HandView`는 손패의 화면상 움직임을 맡는다. 기준 좌표는 540x960이다. 끄는 카드는 손가락 바로 아래를 작게 따라온다.
-  - Core 손패와 순서대로 맞춰서 바뀐 카드를 찾는다. 새 카드는 덱 더미에서 뒷면으로 날아와 뒤집히고, 낸 카드는 보드 쪽으로(멀리건이면 덱으로) 날아가며 사라진다.
+  - Core 손패와 순서대로 맞춰서 바뀐 카드를 찾는다. 새 카드는 덱 더미에서 뒷면으로 날아와 뒤집히고, 낸 카드는 보드 쪽으로(패 버리기면 덱으로) 날아가며 사라진다.
   - 손패는 부채꼴로 놓인다. 마우스를 올린 카드와 고른 카드는 위로 올라온다.
   - 카드가 회전돼 있어서 `Hud`는 `GUI.Button` 대신 `HitCard`로 직접 클릭을 판정한다. 위에 그려진 카드가 먼저 클릭을 받는다.
   - 지뢰는 플레이어 자신의 것만 보인다. AI의 지뢰는 메시지로만 알린다.

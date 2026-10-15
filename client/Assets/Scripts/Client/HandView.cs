@@ -125,7 +125,7 @@ namespace ChromaFrontier.Client
                     });
                 }
             }
-            var toDeck = next.TrueForAll(v => v.Age == 0f && v.Delay >= 0f) && Cards.Count > 0; // 전부 새 카드 = 멀리건
+            var toDeck = next.TrueForAll(v => v.Age == 0f && v.Delay >= 0f) && Cards.Count > 0; // 전부 새 카드 = 패 버리기
             for (var k = j; k < Cards.Count; k++) Leave(Cards[k], toDeck);
             Cards.Clear();
             Cards.AddRange(next);

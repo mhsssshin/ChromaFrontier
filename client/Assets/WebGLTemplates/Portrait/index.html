@@ -28,8 +28,8 @@
     #loading .orb:nth-child(2) { background: radial-gradient(circle at 35% 30%, #bfe8ff, #1f6fd8); animation-delay: .2s; }
     #loading .orb:nth-child(3) { background: radial-gradient(circle at 35% 30%, #fff3a0, #e8a01f); animation-delay: .4s; }
     @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.6vmin); } }
-    #loading .title { font-size: 5.4vmin; font-weight: 800; text-shadow: 0 .4vmin 0 #1c2a5a, 0 0 1.2vmin #1c2a5a; }
-    #loading .sub { font-size: 1.8vmin; letter-spacing: .6vmin; opacity: .85; }
+    #loading .logo { width: 82%; max-width: 480px; height: auto; }
+    #loading .sub { font-size: 2vmin; font-weight: 700; text-shadow: 0 .3vmin 0 #1c2a5a; }
     #loading .bar {
       width: 52%; height: 2.4vmin; margin-top: 2vmin; border-radius: 2vmin;
       background: #1c2a44; border: .4vmin solid #fff; box-shadow: 0 .4vmin 0 rgba(0,0,0,.25); overflow: hidden;
@@ -42,8 +42,8 @@
   <canvas id="unity-canvas" tabindex="-1"></canvas>
   <div id="loading">
     <div class="orbs"><div class="orb"></div><div class="orb"></div><div class="orb"></div></div>
-    <div class="title">크로마 프론티어</div>
-    <div class="sub">CHROMA FRONTIER</div>
+    <img class="logo" src="logo.png" alt="Chroma Frontier">
+    <div class="sub">원소를 섞어 땅을 빼앗아라!</div>
     <div class="bar"><div class="fill"></div></div>
     <div class="pct">불러오는 중 0%</div>
   </div>

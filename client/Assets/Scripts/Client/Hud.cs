@@ -191,25 +191,18 @@ namespace ChromaFrontier.Client
 
             // 엠블럼: 0.0~0.6초 튀어 오르며 등장, 이후 둥실둥실
             var k = Appear(0.05f, 0.6f);
-            var pop = k < 1f ? 1f + 2.70158f * Mathf.Pow(k - 1f, 3f) + 1.70158f * Mathf.Pow(k - 1f, 2f) : 1f;
-            var bob = Mathf.Sin(t * 2f) * 6f;
-            var size = 330f * pop;
-            Image(R(RefW * 0.5f - size * 0.5f, 40f + (330f - size) * 0.5f + bob, size, size), "UI/logo_emblem", new Color(1f, 1f, 1f, k));
+            var bob = Mathf.Sin(t * 2f) * 5f;
+            var size = 270f * EaseOutBack(k);
+            Image(R(RefW * 0.5f - size * 0.5f, 28f + (270f - size) * 0.5f + bob, size, size), "UI/logo_emblem", new Color(1f, 1f, 1f, k));
 
-            // 제목 (외곽선을 여러 방향으로 겹쳐 그려 굵게)
-            var ta = Appear(0.45f, 0.5f);
-            var rise = (1f - ta) * 24f;
-            var titleRect = R(0, 362 + rise, RefW, 70);
-            var outline = new Color(0.12f, 0.16f, 0.36f, ta);
-            for (var dx = -2; dx <= 2; dx += 2)
-                for (var dy = -2; dy <= 2; dy += 2)
-                    if (dx != 0 || dy != 0)
-                        Text(new Rect(titleRect.x + dx * _s, titleRect.y + dy * _s, titleRect.width, titleRect.height), "크로마 프론티어", 54, outline, TextAnchor.MiddleCenter, 0f);
-            Text(titleRect, "크로마 프론티어", 54, new Color(1f, 0.95f, 0.7f, ta), TextAnchor.MiddleCenter, 0.6f);
+            // 영문 로고 (art/logo.mjs): 엠블럼 뒤를 이어 통통 튀며 등장
+            var ta = Appear(0.4f, 0.55f);
+            var lw = 480f * EaseOutBack(ta);
+            var lh = lw * 440f / 1024f;
+            Image(R(RefW * 0.5f - lw * 0.5f, 268f + (206f - lh) * 0.5f, lw, lh), "UI/logo_title", new Color(1f, 1f, 1f, ta));
 
-            var sa = Appear(0.75f, 0.5f);
-            Text(R(0, 430 + (1f - sa) * 16f, RefW, 28), "C H R O M A   F R O N T I E R", 17, new Color(0.85f, 0.95f, 1f, sa), TextAnchor.MiddleCenter, 0.6f);
-            Text(R(0, 460 + (1f - sa) * 16f, RefW, 28), "원소를 섞어 땅을 빼앗아라!", 18, new Color(1f, 1f, 1f, sa), TextAnchor.MiddleCenter, 0.6f);
+            var sa = Appear(0.8f, 0.5f);
+            Text(R(0, 474 + (1f - sa) * 14f, RefW, 28), "원소를 섞어 땅을 빼앗아라!", 19, new Color(1f, 1f, 1f, sa), TextAnchor.MiddleCenter, 0.7f);
 
             // 터치 안내: 1.2초 뒤부터 깜빡임
             if (t > 1.2f)
@@ -222,12 +215,18 @@ namespace ChromaFrontier.Client
             Text(R(0, 930, RefW - 12, 22), $"v{Application.version}" + (Debug.isDebugBuild ? " · 개발 빌드" : ""), 12, new Color(1f, 1f, 1f, 0.6f), TextAnchor.MiddleRight, 0f);
 
             var e = Event.current;
-            if (e.type == EventType.MouseUp || (e.type == EventType.KeyDown && e.keyCode != KeyCode.None))
+            if (e.type == EventType.MouseDown || e.type == EventType.MouseUp || (e.type == EventType.KeyDown && e.keyCode != KeyCode.None))
             {
                 gb.FinishSplash();
                 e.Use();
             }
-            else if (e.type == EventType.MouseDown) e.Use();
+        }
+
+        private static float EaseOutBack(float k)
+        {
+            if (k >= 1f) return 1f;
+            const float c1 = 1.70158f, c3 = c1 + 1f;
+            return 1f + c3 * Mathf.Pow(k - 1f, 3f) + c1 * Mathf.Pow(k - 1f, 2f);
         }
 
         // ---------------------------------------------------------------- 대기실
@@ -246,8 +245,7 @@ namespace ChromaFrontier.Client
             var chapter = StageCatalog.Chapters[stage.Chapter];
 
             // 제목 + 별 합계
-            Text(R(16, 14, 360, 52), "크로마 프론티어", 34, Color.white, TextAnchor.MiddleLeft, 0.7f);
-            Text(R(18, 58, 360, 22), "쿼터뷰 픽셀 영토전", 15, Soft, TextAnchor.MiddleLeft);
+            Image(R(8, 4, 200, 86), "UI/logo_title", Color.white);
             if (Button(R(RefW - 254, 22, 96, 44), new Color(0.3f, 0.7f, 0.55f), "배우기", 18)) gb.StartTutorial(0);
             var starPill = R(RefW - 150, 22, 136, 44);
             Nine(starPill, "UI/panel", 28, Color.white);
@@ -328,7 +326,7 @@ namespace ChromaFrontier.Client
 
             var stagePill = R(238, 14, 150, 44);
             Nine(stagePill, "UI/panel", 28, gb.Stage.IsBoss ? new Color(1f, 0.75f, 0.7f) : Color.white);
-            Text(stagePill, gb.Stage.IsBoss ? $"{gb.Stage.Code} {gb.Stage.Opponent}" : $"스테이지 {gb.Stage.Code}", 16, gb.Stage.IsBoss ? Gold : Color.white);
+            Text(stagePill, gb.Stage.IsBoss ? $"보스 {gb.Stage.Code}" : $"스테이지 {gb.Stage.Code}", 17, gb.Stage.IsBoss ? Gold : Color.white);
 
             var who = R(RefW - 144, 14, 130, 44);
             var mine = g.Current == Side.Player; // 팁 카드가 떠 있어도 실제 차례를 보여 준다
@@ -369,7 +367,7 @@ namespace ChromaFrontier.Client
 
             if (gb.Tutorial)
             {
-                // 튜토리얼: 멀리건 대신, 레슨을 마치면 "다음" 버튼
+                // 튜토리얼: 패 버리기 대신, 레슨을 마치면 "다음" 버튼
                 if (gb.LessonDone)
                 {
                     var last = gb.LessonIndex + 1 >= TutorialCatalog.Count;
@@ -379,7 +377,7 @@ namespace ChromaFrontier.Client
             else
             {
                 GUI.enabled = gb.PlayerTurn;
-                if (Button(R(RefW - 214, 712, 200, 48), new Color(0.55f, 0.5f, 0.95f), "멀리건 (턴 소모)", 18))
+                if (Button(R(RefW - 214, 712, 200, 48), new Color(0.55f, 0.5f, 0.95f), "패 버리기 (턴 소모)", 18))
                     gb.Mulligan();
                 GUI.enabled = true;
             }

@@ -33,7 +33,7 @@ namespace ChromaFrontier.Core
         public int Turn { get; private set; }  // 끝난 턴 수 (추가 턴은 세지 않음)
         public int Round { get; private set; } // 끝난 라운드 수
         public StageRules Rules { get; private set; } = new();
-        public PlayResult LastResult { get; private set; } // 멀리건이면 null
+        public PlayResult LastResult { get; private set; } // 패 버리기(멀리건)면 null
         public readonly List<RoundEvent> RoundEvents = new(); // 직전 라운드 끝에 일어난 기믹
 
         private Rng _rng;

@@ -97,13 +97,16 @@ namespace ChromaFrontier.Client
         public void FinishSplash()
         {
             if (Mode != AppScreen.Splash || SplashTime < 0.8f) return;
-            if (!Progress.TutorialDone) StartTutorial(0);
+            if (!Progress.TutorialDone) StartTutorial(Progress.TutorialLesson);
             else ShowLobby(Mathf.Min(Progress.Unlocked - 1, StageCatalog.Count - 1));
         }
 
         private void UpdateSplash()
         {
             SplashTime += Time.deltaTime;
+            // IMGUI 이벤트가 빠지는 경우(웹에서 아주 빠른 탭 등)에도 넘어가도록 입력도 직접 확인
+            if (Input.GetMouseButtonDown(0) || Input.touchCount > 0 || Input.anyKeyDown) FinishSplash();
+            if (Mode != AppScreen.Splash) return;
             _hl.Clear();
             _view.Sync(_previewBoard, _hl, Time.time, Time.deltaTime);
             // 0.7초마다 유닛 하나가 반짝인다
@@ -279,7 +282,7 @@ namespace ChromaFrontier.Client
             var targetSize = full;
             var targetPos = fullPos;
 
-            if (!lobby && Selected >= 0 && _hl.Legal.Count > 0)
+            if (!lobby && (Selected >= 0 || Tutorial) && _hl.Legal.Count > 0)
             {
                 var min = new Vector2(float.MaxValue, float.MaxValue);
                 var max = new Vector2(float.MinValue, float.MinValue);

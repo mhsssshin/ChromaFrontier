@@ -64,7 +64,7 @@ namespace ChromaFrontier.Core
             return c;
         }
 
-        /// <summary>전술적 멀리건: 손패 전부를 덱에 섞어 넣고 새로 뽑는다.</summary>
+        /// <summary>패 버리기(전술적 멀리건): 손패 전부를 덱에 섞어 넣고 새로 뽑는다.</summary>
         public void Mulligan(Rng rng)
         {
             _draw.AddRange(Hand);
