@@ -207,6 +207,34 @@ namespace ChromaFrontier.Core.Tests
         }
 
         [Test]
+        public void EarlyHands_NeverHoldAreaLock()
+        {
+            for (var seed = 0; seed < 40; seed++)
+            {
+                var g = Game.CreateDefault(seed);
+                var rng = new Rng(seed + 3);
+                while (!g.IsOver && g.Turn < Balance.LockFromTurn)
+                {
+                    foreach (var c in g.DeckOf(g.Current).Hand)
+                        Assert.AreNotEqual(Skill.Lock, c.Skill, $"seed {seed} turn {g.Turn}");
+                    AiBrain.Apply(g, AiBrain.Choose(g, rng));
+                }
+            }
+        }
+
+        [Test]
+        public void LockingOpponentsWholeFrontline_DoesNotEndTheGame()
+        {
+            var g = Game.Create(Game.CreateDefault(1).Board, new[] { Card.Of(Skill.Lock), Card.Unit(Element.Red) },
+                Game.StarterDeck(), 1, new StageRules { LockFromTurn = 0 });
+            var lockIndex = g.DeckOf(Side.Player).Hand.FindIndex(c => c.Skill == Skill.Lock);
+            g.Cast(lockIndex, new Cell(6, 1)); // AI 시작 땅(6~7, 0~1)과 그 이웃을 전부 잠금
+            Assert.AreEqual(0, g.LegalCells(Side.Ai).Count);
+            Assert.IsFalse(g.IsOver);
+            Assert.AreEqual(Side.None, g.Stuck);
+        }
+
+        [Test]
         public void Deck_RecyclesDiscardAndKeepsHandFull()
         {
             var rng = new Rng(3);
@@ -244,7 +272,7 @@ namespace ChromaFrontier.Core.Tests
             b[new Cell(7, 0)].Owner = Side.Ai;
             var deck = new System.Collections.Generic.List<Card>();
             for (var i = 0; i < 8; i++) deck.Add(card);
-            return Game.Create(b, deck, Game.StarterDeck(), 1);
+            return Game.Create(b, deck, Game.StarterDeck(), 1, new StageRules { LockFromTurn = 0 });
         }
 
         [Test]

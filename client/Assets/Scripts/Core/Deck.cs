@@ -13,14 +13,15 @@ namespace ChromaFrontier.Core
         public readonly List<Card> Hand;
 
         /// <param name="shuffle">false 면 섞지 않고 목록 순서대로 뽑는다 (튜토리얼처럼 손패를 정해 둘 때)</param>
-        public Deck(IEnumerable<Card> cards, Rng rng, bool shuffle = true)
+        /// <param name="holdLock">true 면 첫 손패에 영역 잠금을 넣지 않는다 (초반 잠금 금지, Balance.LockFromTurn)</param>
+        public Deck(IEnumerable<Card> cards, Rng rng, bool shuffle = true, bool holdLock = false)
         {
             _draw = new List<Card>(cards);
             _discard = new List<Card>();
             Hand = new List<Card>();
             if (shuffle) Shuffle(_draw, rng);
             else _draw.Reverse(); // 뒤에서부터 뽑으므로 뒤집어 두면 목록 순서대로 손패에 들어온다
-            Refill(rng);
+            Refill(rng, holdLock);
         }
 
         private Deck(Deck src)
@@ -45,15 +46,30 @@ namespace ChromaFrontier.Core
             }
         }
 
-        public void Refill(Rng rng)
+        /// <param name="holdLock">true 면 영역 잠금은 뽑지 않고 덱에 남겨 둔다 (초반 잠금 금지). 덱에 잠금만 남으면 덜 뽑는다.</param>
+        public void Refill(Rng rng, bool holdLock = false)
         {
             while (Hand.Count < Balance.HandSize)
             {
                 if (_draw.Count == 0 && !Recycle(rng)) break;
+                if (holdLock && IsLock(_draw[_draw.Count - 1]) && !BringNonLockToTop(rng)) break;
                 Hand.Add(_draw[_draw.Count - 1]);
                 _draw.RemoveAt(_draw.Count - 1);
             }
             GuaranteeUnit(rng);
+        }
+
+        private static bool IsLock(Card c) => c.Skill == Skill.Lock;
+
+        /// <summary>덱 맨 위(뽑을 차례)에 잠금이 아닌 카드를 올린다. 덱에 없으면 무덤을 섞어 넣고 다시 찾는다.</summary>
+        private bool BringNonLockToTop(Rng rng)
+        {
+            var i = _draw.FindLastIndex(c => !IsLock(c));
+            if (i < 0 && Recycle(rng)) i = _draw.FindLastIndex(c => !IsLock(c));
+            if (i < 0) return false;
+            var top = _draw.Count - 1;
+            (_draw[i], _draw[top]) = (_draw[top], _draw[i]);
+            return true;
         }
 
         public Card Play(int handIndex)
@@ -65,12 +81,12 @@ namespace ChromaFrontier.Core
         }
 
         /// <summary>패 버리기(전술적 멀리건): 손패 전부를 덱에 섞어 넣고 새로 뽑는다.</summary>
-        public void Mulligan(Rng rng)
+        public void Mulligan(Rng rng, bool holdLock = false)
         {
             _draw.AddRange(Hand);
             Hand.Clear();
             Shuffle(_draw, rng);
-            Refill(rng);
+            Refill(rng, holdLock);
         }
 
         private void GuaranteeUnit(Rng rng)

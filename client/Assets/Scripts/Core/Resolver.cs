@@ -26,6 +26,7 @@ namespace ChromaFrontier.Core
         public const int YellowSurgeRange = 3; //   반경 3
         public const int LockTurns = 2 * TicksPerRound;    // 영역 잠금: 2턴
         public const int LockRadius = 1;       // 영역 잠금: 체비쇼프 반경 (1 = 3x3)
+        public const int LockFromTurn = 6;     // 영역 잠금은 양측 합산 6턴째(각자 4번째 턴)부터 손패에 들어오고 쓸 수 있다
         public const int MineRadius = 1;       // 잠복 지뢰: 폭발 체비쇼프 반경
     }
 

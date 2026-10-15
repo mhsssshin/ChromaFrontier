@@ -245,6 +245,8 @@ namespace ChromaFrontier.Client
                     var move = AiBrain.Choose(Game, _aiRng, StageLevel(Stage), Stage.Persona);
                     AiBrain.Apply(Game, move);
                     AfterMove(Side.Ai, move.At, move.Target2);
+                    if (Game.Current == Side.Player && !Game.IsOver && Game.LegalCells(Side.Player).Count == 0)
+                        Message += "\n잠긴 칸 때문에 놓을 곳이 없어요. 스킬을 쓰거나 패 버리기를 하세요.";
                 }
             }
             PlayRoundEffects();

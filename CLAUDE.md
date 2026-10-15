@@ -105,7 +105,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - `CloneFor(viewer)`는 viewer가 모르는 상대 지뢰를 지운 복제본이다. AI와 물 방향 계산은 반드시 이걸로 시뮬레이션해서 숨은 지뢰를 엿보지 않게 한다.
   - `Turn`은 양측을 합친 턴 수이고 `MaxTurns`(스테이지 규칙, 기본 20)가 되면 끝난다. 흑색의 추가 턴은 `Turn`을 늘리지 않는다.
   - 플레이어 → AI가 한 라운드다. 라운드가 끝날 때(`EndRound`) 맵 기믹이 움직인다. 순서는 컨베이어 이동 → 블랙홀 흡입 → (`StageRules.LavaEvery`마다) 중앙 용암 분출이다. 일어난 일은 `Game.RoundEvents`에 남아 뷰가 연출한다.
-  - 차례가 된 쪽이 유닛을 놓을 칸이 하나도 없으면(`LegalCells` 비어 있음) 그 자리에서 끝나고 점유 칸 수로 승패를 가린다(`Game.Stuck`). 잠긴 칸도 놓을 수 없는 칸으로 친다. 공간 왜곡 직후에도 검사한다.
+  - 차례가 된 쪽이 유닛을 놓을 칸이 하나도 없으면(`LegalCells` 비어 있음) 그 자리에서 끝나고 점유 칸 수로 승패를 가린다(`Game.Stuck`). 잠금은 곧 풀리므로 **잠금 때문에만 막힌 것은 치지 않는다**(`CanPlaceIgnoringLock`). 그 턴에는 스킬이나 패 버리기를 하면 된다. 공간 왜곡 직후에도 검사한다.
   - `Clone()`은 보드, 덱, Rng를 통째로 복제한다. AI와 물 방향 계산이 이걸로 시뮬레이션한다.
 - `Resolver.PlaceUnit`이 원소 반응의 전부다. 순서는 다음과 같다.
   0. 얼음 칸이면 밀고 나온 방향으로 한 칸 더 미끄러진다(`SlideDir`, `CanLand`). 실제로 놓인 칸은 `PlayResult.At`이다.
@@ -142,6 +142,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
 - 스킬은 전선 규칙 없이 보드 어디에나 쓴다. 효과는 `Resolver.CastSkill`에 있다.
   - 공간 왜곡: 두 칸의 내용(소유, 유닛, 보호막, 잠금, 지뢰)을 맞바꾼다(`Tile.SwapContents`). 지형은 제자리에 남는다. 턴을 끝내지 않는다.
   - 영역 잠금: 3x3 칸의 `Tile.Lock`을 설정한다. 잠긴 칸에는 양쪽 모두 유닛을 놓을 수 없다.
+    - 초반에는 쓸 수 없다(`StageRules.LockFromTurn`, 기본 6 = 각자 4번째 턴). 그 전에는 손패에 아예 들어오지 않는다(`Deck.Refill(holdLock)`가 덱에 남겨 둠). 시작하자마자 상대의 2x2 시작 땅을 잠가 판을 끝내는 것을 막기 위해서다.
   - 탈색: 유닛을 `Element.Grey`로 바꾼다. 회색 유닛은 융합 촉매가 될 수 없다.
   - 잠복 지뢰: 내 빈 땅의 `Tile.Mine`을 설정한다. 상대가 그 칸에 유닛을 놓으면 유닛은 사라지고 주변 3x3이 지뢰 주인의 것이 된다(`PlayResult.MineTriggered`).
   - 지속 효과(잠금, 보라 침묵, 백색 성역)는 "내 턴 기준"으로 센다. 타이머는 양측 턴마다 1씩 줄어들기 때문에 상수는 `턴 수 × Balance.TicksPerRound`(2)로 정의한다. 예를 들어 잠금 2턴은 상대 턴 2번 동안 유지되고, 그사이 내 다음 턴에도 잠겨 있다.

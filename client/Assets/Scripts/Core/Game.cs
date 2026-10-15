@@ -9,6 +9,7 @@ namespace ChromaFrontier.Core
         public int LavaEvery;                   // 화산: N 라운드마다 중앙에 용암 분출 (0 = 없음)
         public int LavaCount = 1;               //   한 번에 터지는 칸 수
         public int LavaRounds = 2;              //   용암이 남는 라운드 수
+        public int LockFromTurn = Balance.LockFromTurn; // 영역 잠금을 뽑고 쓸 수 있는 첫 턴 (양측 합산)
     }
 
     public enum RoundEventKind : byte { Lava, BlackHole, Conveyor }
@@ -58,14 +59,16 @@ namespace ChromaFrontier.Core
         public static Game Create(Board board, IEnumerable<Card> playerDeck, IEnumerable<Card> aiDeck, int seed, StageRules rules = null, bool shuffle = true)
         {
             var rng = new Rng(seed);
+            rules ??= new StageRules();
             return new Game
             {
                 Board = board,
                 Current = Side.Player,
-                Rules = rules ?? new StageRules(),
+                Rules = rules,
                 _rng = rng,
-                _player = new Deck(playerDeck, rng, shuffle),
-                _ai = new Deck(aiDeck, rng, shuffle),
+                // 첫 손패: 플레이어는 0턴, AI 는 1턴에 쓴다
+                _player = new Deck(playerDeck, rng, shuffle, holdLock: 0 < rules.LockFromTurn),
+                _ai = new Deck(aiDeck, rng, shuffle, holdLock: 1 < rules.LockFromTurn),
             };
         }
 
@@ -146,7 +149,7 @@ namespace ChromaFrontier.Core
             return skill switch
             {
                 Skill.Warp => !t.IsProtectedFrom(s),
-                Skill.Lock => true,
+                Skill.Lock => Turn >= Rules.LockFromTurn, // 초반에는 못 쓴다 (손패에도 안 들어오지만 만일을 위해)
                 Skill.Bleach => t.HasUnit && t.Unit != Element.Grey && !t.IsProtectedFrom(s),
                 Skill.Mine => t.Owner == s && !t.HasUnit && t.Mine == Side.None,
                 _ => false,
@@ -184,7 +187,7 @@ namespace ChromaFrontier.Core
 
         public void Mulligan()
         {
-            DeckOf(Current).Mulligan(_rng);
+            DeckOf(Current).Mulligan(_rng, HoldLockFor(false));
             LastResult = null;
             EndTurn(false);
         }
@@ -210,7 +213,7 @@ namespace ChromaFrontier.Core
 
         private void EndTurn(bool extraTurn)
         {
-            DeckOf(Current).Refill(_rng);
+            DeckOf(Current).Refill(_rng, HoldLockFor(extraTurn));
             Board.TickTimers();
             if (!extraTurn)
             {
@@ -221,9 +224,29 @@ namespace ChromaFrontier.Core
             CheckStuck();
         }
 
+        /// <summary>
+        /// 지금 채우는 손패는 이 쪽의 다음 차례에 쓰인다: 보통은 Turn + 2, 추가 턴이면 지금 바로(Turn).
+        /// 그때가 아직 LockFromTurn 전이면 영역 잠금을 뽑지 않는다 (시작하자마자 상대 시작 땅을 잠그는 것을 막는다).
+        /// </summary>
+        private bool HoldLockFor(bool extraTurn) => (extraTurn ? Turn : Turn + 2) < Rules.LockFromTurn;
+
+        /// <summary>
+        /// 놓을 칸이 없으면 판을 끝낸다. 단, 영역 잠금은 곧 풀리므로 잠금 때문에만 막힌 것은 치지 않는다
+        /// (그 턴에는 스킬을 쓰거나 패 버리기를 하면 된다).
+        /// </summary>
         private void CheckStuck()
         {
-            if (Turn < MaxTurns && Stuck == Side.None && LegalCells(Current).Count == 0) Stuck = Current;
+            if (Turn >= MaxTurns || Stuck != Side.None) return;
+            foreach (var c in Board.Cells())
+                if (CanPlaceIgnoringLock(Current, c)) return;
+            Stuck = Current;
+        }
+
+        private bool CanPlaceIgnoringLock(Side s, Cell c)
+        {
+            ref var t = ref Board[c];
+            if (t.Blocked || t.HasUnit || t.IsProtectedFrom(s)) return false;
+            return Board.IsFrontline(c, s);
         }
 
         /// <summary>라운드 끝 기믹: 컨베이어 이동 → 블랙홀 흡입 → (주기마다) 용암 분출.</summary>
