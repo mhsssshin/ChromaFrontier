@@ -1,0 +1,17 @@
+# Build output
+/build/
+
+# Unity
+/client/[Ll]ibrary/
+/client/[Tt]emp/
+/client/[Oo]bj/
+/client/[Ll]ogs/
+/client/[Uu]ser[Ss]ettings/
+/client/*.csproj
+/client/*.sln
+/client/.vs/
+/client/.vscode/
+
+# dotnet test project
+/tests/**/bin/
+/tests/**/obj/

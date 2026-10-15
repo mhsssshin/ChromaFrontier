@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, user-scalable=no">
+  <title>{{{ PRODUCT_NAME }}}</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #1d2a44; overflow: hidden; touch-action: none; }
+    /* 9:16 세로 비율을 유지하면서 화면에 꽉 맞춘다 (남는 쪽은 레터박스). */
+    #unity-canvas, #loading {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: min(100vw, calc(100vh * 9 / 16)); height: min(100vh, calc(100vw * 16 / 9));
+    }
+    #unity-canvas { background: #5c9edb; outline: none; }
+    /* 로딩 화면: 게임 스플래시와 같은 바다색 배경 + 제목 + 진행 바 */
+    #loading {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.2vmin;
+      background: linear-gradient(#7fd3f5, #4fb4ea 55%, #3a8fd6);
+      font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; color: #fff;
+      transition: opacity .4s;
+    }
+    #loading .orbs { display: flex; gap: 2.4vmin; margin-bottom: 1vmin; }
+    #loading .orb {
+      width: 6vmin; height: 6vmin; border-radius: 50%; border: .5vmin solid #2a1838;
+      animation: bob 1.2s ease-in-out infinite;
+    }
+    #loading .orb:nth-child(1) { background: radial-gradient(circle at 35% 30%, #ffd0a0, #e2381a); }
+    #loading .orb:nth-child(2) { background: radial-gradient(circle at 35% 30%, #bfe8ff, #1f6fd8); animation-delay: .2s; }
+    #loading .orb:nth-child(3) { background: radial-gradient(circle at 35% 30%, #fff3a0, #e8a01f); animation-delay: .4s; }
+    @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.6vmin); } }
+    #loading .title { font-size: 5.4vmin; font-weight: 800; text-shadow: 0 .4vmin 0 #1c2a5a, 0 0 1.2vmin #1c2a5a; }
+    #loading .sub { font-size: 1.8vmin; letter-spacing: .6vmin; opacity: .85; }
+    #loading .bar {
+      width: 52%; height: 2.4vmin; margin-top: 2vmin; border-radius: 2vmin;
+      background: #1c2a44; border: .4vmin solid #fff; box-shadow: 0 .4vmin 0 rgba(0,0,0,.25); overflow: hidden;
+    }
+    #loading .fill { height: 100%; width: 0; border-radius: 2vmin; background: linear-gradient(90deg, #3d8ff0, #ffd23a, #ef4f4f); transition: width .2s; }
+    #loading .pct { font-size: 1.8vmin; opacity: .9; }
+  </style>
+</head>
+<body>
+  <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <div id="loading">
+    <div class="orbs"><div class="orb"></div><div class="orb"></div><div class="orb"></div></div>
+    <div class="title">크로마 프론티어</div>
+    <div class="sub">CHROMA FRONTIER</div>
+    <div class="bar"><div class="fill"></div></div>
+    <div class="pct">불러오는 중 0%</div>
+  </div>
+  <script src="Build/{{{ LOADER_FILENAME }}}"></script>
+  <script>
+    const loading = document.querySelector('#loading');
+    const fill = loading.querySelector('.fill');
+    const pct = loading.querySelector('.pct');
+    createUnityInstance(document.querySelector('#unity-canvas'), {
+      dataUrl: 'Build/{{{ DATA_FILENAME }}}',
+      frameworkUrl: 'Build/{{{ FRAMEWORK_FILENAME }}}',
+      codeUrl: 'Build/{{{ CODE_FILENAME }}}',
+      streamingAssetsUrl: 'StreamingAssets',
+      companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+      productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+      productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+    }, (p) => {
+      fill.style.width = `${Math.round(p * 100)}%`;
+      pct.textContent = `불러오는 중 ${Math.round(p * 100)}%`;
+    })
+      .then(() => { loading.style.opacity = '0'; setTimeout(() => loading.remove(), 400); })
+      .catch((e) => { pct.textContent = e; });
+  </script>
+</body>
+</html>
