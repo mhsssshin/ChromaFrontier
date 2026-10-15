@@ -17,6 +17,7 @@ namespace ChromaFrontier.Client
 
         private static float _s = 1f, _ox, _oy;
         private static Font _font;
+        private static float _retryArmedUntil; // 전투 상단 '다시' 버튼: 이 시각까지 한 번 더 누르면 다시 시작
         private static GUIStyle _label, _button;
 
         private static readonly Color Gold = new(1f, 0.88f, 0.3f);
@@ -318,15 +319,27 @@ namespace ChromaFrontier.Client
             var p = b.Count(Side.Player);
             var a = b.Count(Side.Ai);
 
-            if (Button(R(14, 14, 80, 44), new Color(0.4f, 0.42f, 0.58f), "나가기", 17)) gb.ExitToLobby();
+            if (Button(R(14, 14, 66, 44), new Color(0.4f, 0.42f, 0.58f), "나가기", 16)) gb.ExitToLobby();
 
-            var turnPill = R(102, 14, 128, 44);
+            // 다시하기: 같은 스테이지를 새 판으로. 실수로 눌러 판을 날리지 않게 3초 안에 한 번 더 눌러야 한다.
+            // (튜토리얼에서는 숨김. 게임이 끝났으면 결과 창에 다시 하기가 있다.)
+            if (!gb.Tutorial)
+            {
+                var armed = Time.unscaledTime < _retryArmedUntil;
+                if (Button(R(86, 14, 66, 44), armed ? new Color(0.95f, 0.45f, 0.3f) : new Color(0.4f, 0.42f, 0.58f), armed ? "한 번 더" : "다시", armed ? 14 : 16))
+                {
+                    if (armed || g.IsOver) { _retryArmedUntil = 0f; gb.Retry(); }
+                    else _retryArmedUntil = Time.unscaledTime + 3f;
+                }
+            }
+
+            var turnPill = R(160, 14, 112, 44);
             Nine(turnPill, "UI/panel", 28, Color.white);
-            Text(turnPill, $"턴 {Mathf.Min(g.Turn + 1, g.MaxTurns)} / {g.MaxTurns}", 19, Color.white);
+            Text(turnPill, $"턴 {Mathf.Min(g.Turn + 1, g.MaxTurns)} / {g.MaxTurns}", 17, Color.white);
 
-            var stagePill = R(238, 14, 150, 44);
+            var stagePill = R(278, 14, 112, 44);
             Nine(stagePill, "UI/panel", 28, gb.Stage.IsBoss ? new Color(1f, 0.75f, 0.7f) : Color.white);
-            Text(stagePill, gb.Stage.IsBoss ? $"보스 {gb.Stage.Code}" : $"스테이지 {gb.Stage.Code}", 17, gb.Stage.IsBoss ? Gold : Color.white);
+            Text(stagePill, gb.Stage.IsBoss ? $"보스 {gb.Stage.Code}" : $"스테이지 {gb.Stage.Code}", 15, gb.Stage.IsBoss ? Gold : Color.white);
 
             var who = R(RefW - 144, 14, 130, 44);
             var mine = g.Current == Side.Player; // 팁 카드가 떠 있어도 실제 차례를 보여 준다

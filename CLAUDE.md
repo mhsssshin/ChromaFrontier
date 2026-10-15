@@ -206,6 +206,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 기준 해상도는 540x960이다. `GUI.matrix`를 쓰지 않고 사각형과 글자 크기를 직접 키운다. 행렬로 확대하면 글자가 흐려지기 때문이다.
   - 한글은 `Resources/Fonts/Pretendard-Bold`로 그린다(OFL, `ThirdParty/Pretendard`). WebGL 기본 폰트에는 한글이 없다.
   - 버튼이 쓰지 않은 클릭만 보드로 보낸다.
+  - 전투 상단에는 나가기, 다시(같은 스테이지 새 판, `GameBootstrap.Retry`) 버튼이 있다. 다시는 실수로 판을 날리지 않도록 3초 안에 한 번 더 눌러야 한다("한 번 더"로 바뀜). 튜토리얼에서는 숨긴다.
 - 씬(`Assets/Scenes/Main.unity`)과 PlayerSettings(세로 모드, WebGL 템플릿, 패키지 ID)는 `ProjectSetup.Run()`이 만들고 적용한다. ProjectSettings는 손으로 고치지 말고 여기에 추가한다.
 
 ## 아직 안 된 것 (PRD 대비)
