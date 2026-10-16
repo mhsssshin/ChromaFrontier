@@ -511,7 +511,16 @@ namespace ChromaFrontier.Client
                 GUI.enabled = true;
             }
 
-            if (Button(R(170, 822, 200, 56), new Color(1f, 0.55f, 0.2f), "닫기", 22)) gb.OpenPanel(LobbyPanel.None);
+            // 모두 받기: 받을 보상이 있는 퀘스트를 한 번에 (넘은 단계까지 이어서)
+            var readyCount = Progress.QuestsReady();
+            GUI.enabled = readyCount > 0;
+            if (Button(R(50, 822, 210, 56), new Color(0.3f, 0.75f, 0.4f), readyCount > 0 ? $"모두 받기 ({readyCount})" : "모두 받기", 20))
+            {
+                var got = Progress.ClaimAllQuests(out var claims);
+                if (got > 0) gb.PanelMessage = $"보상 {claims}개, 결정 {got}개를 받았어요!";
+            }
+            GUI.enabled = true;
+            if (Button(R(280, 822, 210, 56), new Color(1f, 0.55f, 0.2f), "닫기", 22)) gb.OpenPanel(LobbyPanel.None);
             Text(R(24, 880, RefW - 48, 44), gb.PanelMessage, 16, Gold, TextAnchor.MiddleCenter, 0f);
             SwallowInput();
         }

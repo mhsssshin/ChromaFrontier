@@ -136,6 +136,20 @@ namespace ChromaFrontier.Client
             return q.Rewards[k];
         }
 
+        /// <summary>받을 수 있는 퀘스트 보상을 모두 받는다. 기록이 여러 단계를 넘었으면 그 단계들도 이어서 받는다.</summary>
+        public static int ClaimAllQuests(out int claims)
+        {
+            var total = 0;
+            claims = 0;
+            foreach (var q in QuestCatalog.Lines)
+                while (QuestReady(q))
+                {
+                    total += ClaimQuest(q);
+                    claims++;
+                }
+            return total;
+        }
+
         /// <summary>
         /// 판 결과 기록: 별·해금(Record) + 판 기록을 퀘스트 누적에 더하고 결정을 준다. 받은 결정 수.
         /// </summary>
