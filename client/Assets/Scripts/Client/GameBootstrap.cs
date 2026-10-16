@@ -7,7 +7,7 @@ namespace ChromaFrontier.Client
     public enum AppScreen { Splash, Lobby, Battle }
 
     /// <summary>대기실 위에 뜨는 창.</summary>
-    public enum LobbyPanel { None, Deck, Quest }
+    public enum LobbyPanel { None, Deck, Quest, Prep }
 
     /// <summary>
     /// 씬의 유일한 진입점 (씬에는 카메라 + 이것뿐). 대기실(스테이지 선택) ↔ 전투를 오가며,
@@ -32,6 +32,11 @@ namespace ChromaFrontier.Client
         // 대기실 창 (덱 편성·퀘스트)
         public LobbyPanel Panel { get; private set; }
         public string PanelMessage { get; set; } = "";
+        public readonly HashSet<Boost> Boosts = new(); // 출격 준비 창에서 고른 소모품 (출격할 때 값을 낸다)
+
+        // 무르기: 내 차례가 시작될 때마다 판을 복제해 둔다
+        private readonly List<Game> _history = new();
+        private int _snapKey = -1;
 
         // 대기실
         public int LobbyStage { get; private set; }
@@ -186,16 +191,69 @@ namespace ChromaFrontier.Client
 
         public AiLevel StageLevel(StageDef s) => StageCatalog.LevelFor(s, Progress.LevelOffset);
 
-        public void StartStage(int index)
+        public int BoostCost
+        {
+            get
+            {
+                var n = 0;
+                foreach (var b in BoostShop.All)
+                    if (Boosts.Contains(b.Boost)) n += b.Price;
+                return n;
+            }
+        }
+
+        /// <summary>출격 준비 창의 출격: 고른 소모품 값을 내고 판을 시작한다.</summary>
+        public void Sortie()
+        {
+            if (!Progress.IsUnlocked(LobbyStage)) return;
+            if (!Progress.SpendGems(BoostCost))
+            {
+                PanelMessage = $"결정이 {BoostCost - Progress.Gems}개 모자라요. 소모품을 빼고 출격하세요.";
+                return;
+            }
+            var loadout = new Loadout { Levels = Progress.Cards.Levels() };
+            foreach (var b in Boosts) loadout.Boosts.Add(b);
+            Boosts.Clear();
+            Panel = LobbyPanel.None;
+            StartStage(LobbyStage, loadout);
+        }
+
+        /// <param name="loadout">없으면 카드 강화만 (다시·다음 스테이지는 소모품 없이)</param>
+        public void StartStage(int index, Loadout loadout = null)
         {
             if (!Progress.IsUnlocked(index)) return;
             Tutorial = false;
             var stage = StageCatalog.Get(index);
             var seed = System.Environment.TickCount;
-            BeginBattle(stage, stage.CreateGame(seed, Progress.Cards.BuildDeck()));
+            loadout ??= new Loadout { Levels = Progress.Cards.Levels() };
+            BeginBattle(stage, stage.CreateGame(seed, Progress.Cards.BuildDeck(), loadout));
             _aiRng = new Rng(seed * 31 + 7);
             Message = $"{Stage.Code} {Stage.Name} — {Stage.MapNote}";
+            var used = new List<string>();
+            foreach (var b in BoostShop.All)
+                if (loadout.Boosts.Contains(b.Boost)) used.Add(b.Name);
+            if (used.Count > 0) Message = $"{Stage.Code} {Stage.Name}\n소모품: " + string.Join(" · ", used);
+            if (Game.PioneerCells.Count > 0) _view.Flash(Game.PioneerCells);
             QueueTips(stage);
+        }
+
+        /// <summary>되돌아갈 판: 이번 차례에 스킬을 썼으면 이번 차례 처음, 아니면 내 지난 차례 처음. 없으면 -1.</summary>
+        private int UndoTarget => Game.SkillUsed ? _history.Count - 1 : _history.Count - 2;
+
+        public bool CanUndo => PlayerTurn && !Tutorial && Progress.Undos > 0 && UndoTarget >= 0;
+
+        /// <summary>무르기: 내 지난 수(와 그 뒤 AI 의 수)를 되돌린다. 무르기 1회를 쓴다.</summary>
+        public void Undo()
+        {
+            if (!CanUndo) return;
+            var i = UndoTarget;
+            if (!Progress.UseUndo()) return;
+            _history.RemoveRange(i + 1, _history.Count - i - 1);
+            Game = _history[i].Clone();
+            _snapKey = Game.TurnsTaken;
+            _lastRound = Game.Round;
+            Deselect();
+            Message = $"무르기: 내 지난 수 전으로 돌아갔어요 (남은 무르기 {Progress.Undos})";
         }
 
         private void BeginBattle(StageDef stage, Game game)
@@ -216,6 +274,8 @@ namespace ChromaFrontier.Client
             LastGems = 0;
             LastFirstClear = false;
             ObjectiveFlash.Clear();
+            _history.Clear();
+            _snapKey = -1;
             SnapCamera();
         }
 
@@ -273,6 +333,14 @@ namespace ChromaFrontier.Client
                 }
             }
             PlayRoundEffects();
+
+            // 무르기용: 내 차례가 새로 시작되면 판을 복제해 둔다
+            if (!Tutorial && !Game.IsOver && Game.Current == Side.Player && Game.TurnsTaken != _snapKey)
+            {
+                _snapKey = Game.TurnsTaken;
+                _history.Add(Game.Clone());
+                if (_history.Count > 40) _history.RemoveAt(0);
+            }
 
             if (!Tutorial && Game.IsOver && !_recorded)
             {

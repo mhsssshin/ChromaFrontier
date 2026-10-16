@@ -41,11 +41,14 @@ namespace ChromaFrontier.Core
         public readonly List<Objective> Objectives = new();   // 플레이어의 게임 중 목표 (달성하면 바로 효과 발동)
         public readonly List<ObjectiveEvent> ObjectiveEvents = new(); // 직전 수에서 달성한 목표
         public bool BonusTurnTaken { get; private set; }     // 직전 수 뒤에 목표 보상으로 한 번 더 두게 됐다
+        public int TurnsTaken { get; private set; }          // 끝난 차례 수 (추가 턴 포함). 뷰가 차례가 바뀐 것을 알아챈다
+        public readonly List<Cell> PioneerCells = new();     // 소모품 개척으로 시작할 때 받은 칸
 
         private Rng _rng;
         private Deck _player, _ai;
         private MatchStats _playerStats = new(), _aiStats = new();
-        private bool _bonusTurn; // 목표 보상: 플레이어가 다음에 유닛을 놓은 뒤 한 번 더
+        private bool _bonusTurn; // 목표 보상·선공: 플레이어가 다음에 유닛을 놓은 뒤 한 번 더
+        private Dictionary<Card, int> _levels; // 플레이어 카드 강화 단계 (판 중에 안 바뀌어 복제본과 공유). AI 는 늘 Lv1
 
         private Game() { }
 
@@ -108,6 +111,8 @@ namespace ChromaFrontier.Core
                 _playerStats = _playerStats.Clone(),
                 _aiStats = _aiStats.Clone(),
                 _bonusTurn = _bonusTurn,
+                _levels = _levels,
+                TurnsTaken = TurnsTaken,
             };
             foreach (var o in Objectives) g.Objectives.Add(o.Clone());
             return g;
@@ -121,6 +126,17 @@ namespace ChromaFrontier.Core
         }
 
         public MatchStats StatsOf(Side s) => s == Side.Player ? _playerStats : _aiStats;
+
+        /// <summary>그 쪽 카드의 강화 단계 (AI 는 1).</summary>
+        public int LevelOf(Side s, Card c) => s == Side.Player && _levels != null && _levels.TryGetValue(c, out var n) ? n : 1;
+
+        /// <summary>판 시작 때 플레이어의 강화 단계와 소모품을 적용한다 (목표 추가는 StageDef.CreateGame 이 목표를 뽑을 때).</summary>
+        public void ApplyLoadout(Loadout l)
+        {
+            _levels = l.Levels;
+            if (l.Boosts.Contains(Boost.Pioneer)) PioneerCells.AddRange(ClaimFrontier(Side.Player, BoostShop.PioneerCells));
+            if (l.Boosts.Contains(Boost.FirstStrike)) _bonusTurn = true;
+        }
 
         /// <summary>viewer 가 알 수 있는 정보만 남긴 복제본 (상대 지뢰 제거). AI 시뮬레이션용.</summary>
         public Game CloneFor(Side viewer)
@@ -200,7 +216,7 @@ namespace ChromaFrontier.Core
             var element = deck.Hand[handIndex].Element;
             var dir = blueDir ?? (element == Element.Blue ? BestBlueDirection(handIndex, at) : Cell.Orthogonal[0]);
             deck.Play(handIndex);
-            var r = Resolver.PlaceUnit(Board, _rng, Current, at, element, dir);
+            var r = Resolver.PlaceUnit(Board, _rng, Current, at, element, dir, LevelOf(Current.Opponent(), Card.Of(Skill.Mine)));
             LastResult = r;
             AfterResolve(r);
             var extra = r.ExtraTurn;
@@ -224,7 +240,7 @@ namespace ChromaFrontier.Core
             var card = deck.Hand[handIndex];
             var echoDir = card.Skill == Skill.Echo && Board[target].Unit == Element.Blue ? BestEchoDirection(target) : Cell.Orthogonal[0];
             deck.Play(handIndex);
-            var r = Resolver.CastSkill(Board, _rng, Current, card, target, target2, echoDir);
+            var r = Resolver.CastSkill(Board, _rng, Current, card, target, target2, echoDir, LevelOf(Current, card));
             LastResult = r;
             SkillUsed = true;
             AfterResolve(r);
@@ -239,7 +255,7 @@ namespace ChromaFrontier.Core
             foreach (var d in Cell.Orthogonal)
             {
                 var b = Board.Clone();
-                Resolver.CastSkill(b, _rng.Clone(), Current, Card.Of(Skill.Echo), at, default, d);
+                Resolver.CastSkill(b, _rng.Clone(), Current, Card.Of(Skill.Echo), at, default, d, LevelOf(Current, Card.Of(Skill.Echo)));
                 var score = b.Count(Current) - b.Count(Current.Opponent());
                 if (score > bestScore)
                 {
@@ -363,23 +379,7 @@ namespace ChromaFrontier.Core
             switch (d.Reward)
             {
                 case ObjectiveReward.Claim:
-                    // 한 칸씩: 내 땅과 맞닿은 칸 중 상대 땅을 먼저, 없으면 빈 땅
-                    for (var i = 0; i < d.Amount; i++)
-                    {
-                        var enemy = new List<Cell>();
-                        var neutral = new List<Cell>();
-                        foreach (var c in Board.Cells())
-                        {
-                            ref var t = ref Board[c];
-                            if (t.Blocked || t.Owner == me || t.IsProtectedFrom(me) || !Board.IsFrontline(c, me)) continue;
-                            (t.Owner == Side.None ? neutral : enemy).Add(c);
-                        }
-                        var pool = enemy.Count > 0 ? enemy : neutral;
-                        if (pool.Count == 0) break;
-                        var pick = pool[_rng.Next(pool.Count)];
-                        Board[pick].SetOwner(me);
-                        cells.Add(pick);
-                    }
+                    cells.AddRange(ClaimFrontier(me, d.Amount));
                     break;
                 case ObjectiveReward.Shield:
                     foreach (var c in Board.Cells())
@@ -426,8 +426,32 @@ namespace ChromaFrontier.Core
             return cells;
         }
 
+        /// <summary>한 칸씩 n 칸: 내 땅과 맞닿은 칸 중 상대 땅을 먼저, 없으면 빈 땅.</summary>
+        private List<Cell> ClaimFrontier(Side me, int n)
+        {
+            var cells = new List<Cell>();
+            for (var i = 0; i < n; i++)
+            {
+                var enemy = new List<Cell>();
+                var neutral = new List<Cell>();
+                foreach (var c in Board.Cells())
+                {
+                    ref var t = ref Board[c];
+                    if (t.Blocked || t.Owner == me || t.IsProtectedFrom(me) || !Board.IsFrontline(c, me)) continue;
+                    (t.Owner == Side.None ? neutral : enemy).Add(c);
+                }
+                var pool = enemy.Count > 0 ? enemy : neutral;
+                if (pool.Count == 0) break;
+                var pick = pool[_rng.Next(pool.Count)];
+                Board[pick].SetOwner(me);
+                cells.Add(pick);
+            }
+            return cells;
+        }
+
         private void EndTurn(bool extraTurn)
         {
+            TurnsTaken++;
             DeckOf(Current).Refill(_rng, HoldLockFor(extraTurn));
             Board.TickTimers();
             SkillUsed = false;
@@ -539,7 +563,7 @@ namespace ChromaFrontier.Core
         }
 
         /// <summary>
-        /// 거점마다 주변 8칸 중 아직 내 것이 아닌 칸을 BeaconClaims 개 무작위로 점유한다 (상대 땅 포함, 보호된 칸은 못 함).
+        /// 거점마다 주변 8칸 중 아직 내 것이 아닌 칸을 BeaconClaims × 강화 단계 개 무작위로 점유한다 (상대 땅 포함, 보호된 칸은 못 함).
         /// 칸 주인이 바뀌면 거점은 이미 무너졌다 (Tile.SetOwner). 거점끼리는 칸 순서대로 처리한다.
         /// </summary>
         private void GrowBeacons()
@@ -562,7 +586,8 @@ namespace ChromaFrontier.Core
                     var c = at + d;
                     if (Board.InBounds(c) && !Board[c].Blocked && Board[c].Owner != side && !Board[c].IsProtectedFrom(side)) pool.Add(c);
                 }
-                for (var i = 0; i < Balance.BeaconClaims && pool.Count > 0; i++)
+                var claims = Balance.BeaconClaims * LevelOf(side, Card.Of(Skill.Beacon));
+                for (var i = 0; i < claims && pool.Count > 0; i++)
                 {
                     var k = _rng.Next(pool.Count);
                     Board[pool[k]].SetOwner(side);

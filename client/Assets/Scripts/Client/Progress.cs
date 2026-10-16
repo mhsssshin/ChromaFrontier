@@ -75,7 +75,7 @@ namespace ChromaFrontier.Client
 
         // ---------------------------------------------------------------- 재화·덱·퀘스트
 
-        private const string GemsKey = "cf.gems", CardsKey = "cf.cards", StatPrefix = "cf.stat.", QuestPrefix = "cf.quest.";
+        private const string GemsKey = "cf.gems", CardsKey = "cf.cards", StatPrefix = "cf.stat.", QuestPrefix = "cf.quest.", UndoKey = "cf.items.undo";
 
         private static Collection _cards;
 
@@ -99,6 +99,47 @@ namespace ChromaFrontier.Client
             Gems -= e.Price;
             Cards.Buy(card);
             SaveCards();
+            return true;
+        }
+
+        /// <summary>카드를 한 단계 강화한다. 결정이 모자라거나 더 못 올리면 false.</summary>
+        public static bool UpgradeCard(Card card)
+        {
+            var e = CardShop.Find(card);
+            if (e == null || !Cards.CanUpgrade(card)) return false;
+            var price = CardShop.UpgradePrice(e, Cards.Level(card) + 1);
+            if (Gems < price) return false;
+            Gems -= price;
+            Cards.Upgrade(card);
+            SaveCards();
+            return true;
+        }
+
+        public static bool SpendGems(int n)
+        {
+            if (Gems < n) return false;
+            Gems -= n;
+            return true;
+        }
+
+        /// <summary>모아 둔 무르기 횟수 (출격 준비 창에서 산다).</summary>
+        public static int Undos
+        {
+            get => Mathf.Max(0, LocalStore.GetInt(UndoKey, 0));
+            private set => LocalStore.SetInt(UndoKey, Mathf.Max(0, value));
+        }
+
+        public static bool BuyUndo()
+        {
+            if (!SpendGems(BoostShop.UndoPrice)) return false;
+            Undos++;
+            return true;
+        }
+
+        public static bool UseUndo()
+        {
+            if (Undos <= 0) return false;
+            Undos--;
             return true;
         }
 

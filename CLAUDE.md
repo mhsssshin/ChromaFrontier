@@ -150,11 +150,14 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 거점: 내 땅에 깃발(`Tile.Beacon`)을 꽂는다. 라운드 끝마다 주변 8칸 중 내 것이 아닌 칸을 `Balance.BeaconClaims`(1)개 무작위로 점유한다. 칸 주인이 바뀌면 무너진다(소유 변경은 `Tile.SetOwner`로 해야 거점이 같이 정리된다).
   - 잠복 지뢰: 유닛이 없는 칸이면 어디든(상대 땅, 빈 땅 포함) `Tile.Mine`을 설정한다. 상대 지뢰가 있는지는 모르므로 그 위에도 묻을 수 있고 덮어쓴다(내 지뢰 위에는 불가). 상대가 그 칸에 유닛을 놓으면 유닛은 사라지고 주변 3x3이 지뢰 주인의 것이 된다(`PlayResult.MineTriggered`).
   - 지속 효과(잠금, 보라 침묵, 백색 성역)는 "내 턴 기준"으로 센다. 타이머는 양측 턴마다 1씩 줄어들기 때문에 상수는 `턴 수 × Balance.TicksPerRound`(2)로 정의한다. 예를 들어 잠금 2턴은 상대 턴 2번 동안 유지되고, 그사이 내 다음 턴에도 잠겨 있다.
-- **메타 성장**(`Meta.cs`): 재화(크로마 결정), 덱 편성, 퀘스트.
+- **메타 성장**(`Meta.cs`): 재화(크로마 결정), 덱 편성, 카드 강화, 소모품, 퀘스트.
   - 덱 편성은 **스킬 카드만** 한다. 유닛은 원소별 4장 고정이고, 스킬은 `CardShop.SkillSlots`(9)장까지, 한 종류는 `CardShop.MaxCopies`(2)장까지다. 덱이 9장보다 적어도 된다.
   - `CardShop.All`: 9종의 값과 처음 가진 장수. 처음에는 변환 3색·탈색·지뢰·재점화를 1장씩 갖고(스킬 6장, 총 18장), 거점(120)·공간 왜곡(160)·영역 잠금(200)은 결정으로 해금한다. 두 번째 장도 같은 값으로 산다.
-  - `Collection`이 소장(종류별 장수)과 덱을 갖는다. `Serialize`/`Parse`로 저장하고, 가진 장수를 넘는 덱 카드는 읽을 때 버린다.
-  - 판 보상(`Rewards.ForBattle`): 패배 10, 승리 20 + 별당 10, 첫 클리어 +30(보스 +100), 게임 중 목표 하나당 +5.
+  - `Collection`이 소장(종류별 장수), 덱, 강화 단계를 갖는다. `Serialize`/`Parse`로 저장(`owned|deck|levels`, 강화 전 두 칸짜리 저장도 읽음)하고, 가진 장수를 넘는 덱 카드는 읽을 때 버린다.
+  - **카드 강화**: 종류마다 Lv1~`CardShop.MaxLevel`(3). 값은 한 장 값의 1.5배(Lv2), 3배(Lv3)(`UpgradePrice`). 효과는 `CardShop.LevelText`에 적혀 있고 실제 처리는 `Resolver.CastSkill(level)`, 지뢰는 터질 때 `PlaceUnit(mineLevel)`, 거점은 `Game.GrowBeacons`(단계 × 1칸)다. 판에는 `Loadout.Levels`로 넘기고 `Game.LevelOf(side, card)`로 읽는다. **AI 는 늘 Lv1**이다.
+    - 변환·탈색: Lv2 바꾼 칸 점유, Lv3 + 상하좌우 점유. 재점화: Lv2 + 상하좌우 점유, Lv3 공명급(업화·해일·뇌우). 지뢰: 3x3 → 3x3+십자 2칸 → 5x5. 거점: 라운드마다 1/2/3칸. 공간 왜곡: Lv2 두 칸 점유, Lv3 + 두 칸의 상하좌우. 영역 잠금: 2/3/4턴(`Balance.LockTurnsAt`).
+  - **소모품**(`BoostShop`): 판 시작 전 고르고 출격할 때 값을 낸다(이번 판에만). 개척(시작 땅 옆 3칸, 20), 목표 추가(게임 중 목표 4개, 15), 선공(첫 턴에 유닛 두 번, 25). `Loadout.Boosts` → `StageDef.CreateGame` / `Game.ApplyLoadout`. 무르기(15)는 사서 모아 두고 판 중에 쓴다(클라이언트가 처리).
+  - 판 보상(`Rewards.ForBattle`): 패배 5, 승리 10 + 별당 5, 첫 클리어 +15(보스 +50), 게임 중 목표 하나당 +3. 카드를 금방 다 사서 쓸 곳이 없다는 의견에 퀘스트 보상과 함께 절반으로 낮췄다.
   - 퀘스트(`QuestCatalog.Lines`): 누적 기록(`Stat`: 판 수, 승리, 융합, 3단계, 공명, 상대 유닛 융합, 스킬, 차지한 칸, 게임 중 목표)으로 채우는 단계형 목표다. 보상을 받으면 같은 줄의 다음 단계(더 큰 목표)가 열린다. 퀘스트 창의 모두 받기(`Progress.ClaimAllQuests`)는 받을 수 있는 보상을 한 번에 받고, 기록이 여러 단계를 넘었으면 그 단계들까지 이어서 받는다.
 - **게임 중 목표**(`Objectives.cs`): 판마다 플레이어에게 목표 3개(`ObjectiveCatalog.Pick`, seed로 결정적)를 준다. 덱으로 못 이루는 목표(지뢰가 없는데 지뢰 폭발 등)는 뽑지 않는다. `StageDef.CreateGame`이 뽑는다. AI에게는 없다.
   - 수가 끝날 때마다(`Game.AfterResolve`) 한 판 기록(`Game.StatsOf`, `MatchStats`)을 쌓고 목표를 확인한다. 달성하면 **그 자리에서 효과가 발동**한다: 땅 N칸 흡수(내 땅과 맞닿은 칸, 상대 땅 우선), 전선 2턴 보호, 거점 세우기, 한 번 더 두기(다음에 유닛을 놓은 뒤, `Game.BonusTurnTaken`).
@@ -183,10 +186,11 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - `GameBootstrap.Effects.cs`: 메시지, 이펙트, 라운드 기믹 연출.
   - `GameBootstrap.Tutorial.cs`: 튜토리얼 진행과 상황 팁.
 - **대기실**: 고른 스테이지의 맵을 실제 `BoardView`로 미리 보여 준다(`_previewBoard`). 챕터 탭, 스테이지 노드(별·잠금·보스 왕관), 상대 정보, 난이도 보정, 출격 버튼이 있다.
-  - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`, `cf.levelOffset`, `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`, `cf.gems`(결정), `cf.cards`(소장·덱, `Collection.Serialize`), `cf.stat.<stat>`(퀘스트 누적 기록), `cf.quest.<id>`(받은 단계 수)다. 이기면 다음 스테이지가 해금된다.
+  - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`, `cf.levelOffset`, `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`, `cf.gems`(결정), `cf.cards`(소장·덱, `Collection.Serialize`), `cf.stat.<stat>`(퀘스트 누적 기록), `cf.quest.<id>`(받은 단계 수), `cf.items.undo`(모아 둔 무르기)다. 이기면 다음 스테이지가 해금된다.
   - 판이 끝나면 `Progress.RecordBattle`이 별·해금 기록, 누적 기록 더하기, 결정 지급을 한 번에 한다. 결과 창에 받은 결정과 목표 달성 수를 보여 준다.
   - 위쪽 줄에 로고, 보유 결정, 별 합계, 배우기가 있다. 아래 줄은 난이도 보정, 덱, 퀘스트(받을 보상 수 배지), 출격이다.
-  - 덱·퀘스트 창(`LobbyPanel`)은 대기실 위에 뜬다. 창이 떠 있으면 대기실은 Repaint 때만 그려서 아래 버튼이 클릭을 받지 않는다. 덱 창은 9종 카드를 3x3으로 보여 주고, −/+로 넣고 빼고, 결정으로 산다.
+  - 출격을 누르면 출격 준비 창(`LobbyPanel.Prep`)이 뜬다. 소모품을 켜고 끄고(`GameBootstrap.Boosts`), 무르기를 사고, 출격(`Sortie`)하면 값을 낸다. 다시·다음 스테이지는 소모품 없이 시작한다.
+  - 덱·퀘스트 창(`LobbyPanel`)은 대기실 위에 뜬다. 창이 떠 있으면 대기실은 Repaint 때만 그려서 아래 버튼이 클릭을 받지 않는다. 덱 창은 9종 카드를 3x3으로 보여 주고, −/+로 넣고 빼고, 결정으로 사고 강화한다. 강화 버튼은 처음 누르면 다음 단계 효과를 보여 주고 4초 안에 한 번 더 눌러야 강화한다. 손패 카드에도 Lv2 이상이면 단계 배지가 붙는다.
   - 개발 빌드의 대기실에서 `G` 키를 누르면 결정 500개를 받는다.
   - `LocalStore`는 WebGL에서 브라우저 **localStorage**에 직접 쓴다(`Plugins/WebGL/LocalStorage.jslib`). 동기 저장이라 탭을 바로 닫아도 남는다. 에디터와 Android에서는 PlayerPrefs를 쓴다.
   - 예전 PlayerPrefs(IndexedDB) 값은 처음 읽을 때 localStorage로 옮긴다. PlayerPrefs를 직접 쓰지 말고 `LocalStore`를 쓴다.
@@ -230,6 +234,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 한글은 `Resources/Fonts/Pretendard-Bold`로 그린다(OFL, `ThirdParty/Pretendard`). WebGL 기본 폰트에는 한글이 없다.
   - 버튼이 쓰지 않은 클릭만 보드로 보낸다.
   - 전투 상단 메시지 아래에 게임 중 목표 3칸이 있다(`DrawObjectives`). 진행은 n/목표, 점유율은 현재 %, 한 수 목표는 최고 칸 수로 보인다. 이루면 초록이 되고, 이룬 순간 금빛으로 반짝인다(`GameBootstrap.ObjectiveFlash`). 그래서 전투 카메라 띠는 위 27%부터다.
+  - **무르기**: 손패 위 패 버리기 옆 버튼. 내 차례가 시작될 때마다(`Game.TurnsTaken`이 바뀌면) 판을 복제해 둔다(`_history`). 이번 차례에 스킬을 썼으면 이번 차례 처음으로, 아니면 내 지난 차례 처음으로(그사이 AI 수까지) 되돌리고 무르기 1회를 쓴다.
   - 전투 상단에는 나가기, 다시(같은 스테이지 새 판, `GameBootstrap.Retry`) 버튼이 있다. 다시는 실수로 판을 날리지 않도록 3초 안에 한 번 더 눌러야 한다("한 번 더"로 바뀜). 튜토리얼에서는 숨긴다.
 - 씬(`Assets/Scenes/Main.unity`)과 PlayerSettings(세로 모드, WebGL 템플릿, 패키지 ID)는 `ProjectSetup.Run()`이 만들고 적용한다. ProjectSettings는 손으로 고치지 말고 여기에 추가한다.
 
@@ -237,7 +242,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
 
 - 공간 왜곡으로 옮긴 유닛이 그 자리에서 바로 융합하는 것. 지금은 옮기기만 하고, 융합은 다음에 놓는 유닛이 일으킨다.
 - 융합 결과가 다시 다른 반응을 일으키는 다단 연쇄. 2단계 유닛을 재료로 쓰는 3차 조합은 구현했다.
-- 유닛 카드 편성, 보드 스킨 같은 꾸미기 보상(PRD §6), 사운드. 스킬 카드 덱 편성·결정·퀘스트·게임 중 목표는 구현했다.
+- 유닛 카드 편성, 보드 스킨 같은 꾸미기 보상(PRD §6), 사운드. 스킬 카드 덱 편성·강화·소모품·결정·퀘스트·게임 중 목표는 구현했다.
 - 날마다 바뀌는 일일 퀘스트는 없다. 퀘스트는 누적 단계형뿐이다.
 - 스킬을 덱 대신 융합·공명으로 차는 에너지 게이지로 쓰는 안(설계안 C)은 아직 검토만 했다.
 - 스테이지 이름은 아직 "챕터명 + 번호"다(보스만 고유 이름).

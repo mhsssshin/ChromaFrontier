@@ -31,7 +31,7 @@ namespace ChromaFrontier.Client
                     if (ev.Def.Reward != ObjectiveReward.Shield) _fx.Spawn(FxView.Sparkle, p + lift, gold, 1.1f, delay + 0.05f);
                 }
             }
-            if (Game.BonusTurnTaken) Message += "\n목표 보상: 한 번 더 두세요!";
+            if (Game.BonusTurnTaken) Message += "\n보너스: 한 번 더 두세요!";
         }
 
         private void DescribeMove(Side actor, Cell at, Cell at2)
@@ -61,7 +61,7 @@ namespace ChromaFrontier.Client
                         foreach (var c in Game.Board.Cells())
                             if (c.Chebyshev(at) <= Balance.LockRadius) area.Add(c);
                         _view.Flash(area);
-                        Message += $" — {Balance.LockTurns / Balance.TicksPerRound}턴 동안 배치 금지";
+                        Message += $" — {Balance.LockTurnsAt(Game.LevelOf(actor, Card.Of(Skill.Lock))) / Balance.TicksPerRound}턴 동안 배치 금지";
                         break;
                     case Skill.Bleach:
                         _view.Flash(new[] { at });

@@ -23,11 +23,14 @@ namespace ChromaFrontier.Core
         public string Code => $"{Chapter + 1}-{InChapter + 1}";
 
         /// <summary>판을 만든다. 플레이어 덱을 안 주면 기본 덱. 플레이어의 게임 중 목표도 이때 뽑는다.</summary>
-        public Game CreateGame(int seed, List<Card> playerDeck = null)
+        /// <param name="loadout">플레이어의 카드 강화 단계와 소모품 (없으면 기본)</param>
+        public Game CreateGame(int seed, List<Card> playerDeck = null, Loadout loadout = null)
         {
             playerDeck ??= Game.StarterDeck();
             var g = Game.Create(Board.Parse(Map), playerDeck, AiDeck, seed, Rules);
-            g.SetObjectives(ObjectiveCatalog.Pick(seed, playerDeck));
+            var extra = loadout != null && loadout.Boosts.Contains(Boost.ExtraObjective) ? 1 : 0;
+            g.SetObjectives(ObjectiveCatalog.Pick(seed, playerDeck, ObjectiveCatalog.PerGame + extra));
+            if (loadout != null) g.ApplyLoadout(loadout);
             return g;
         }
     }

@@ -24,11 +24,13 @@ namespace ChromaFrontier.Core
         public const int BlueSurgeLength = 4;  // 해일(물+물): 길이 4, 폭 3
         public const int YellowSurgeBolts = 8; // 뇌우(번개+번개): 무작위 8칸
         public const int YellowSurgeRange = 3; //   반경 3
-        public const int LockTurns = 2 * TicksPerRound;    // 영역 잠금: 2턴
+        public const int LockTurns = 2 * TicksPerRound;    // 영역 잠금: 2턴 (강화하면 한 단계마다 +1턴, LockTurnsAt)
         public const int LockRadius = 1;       // 영역 잠금: 체비쇼프 반경 (1 = 3x3)
         public const int LockFromTurn = 6;     // 영역 잠금은 양측 합산 6턴째(각자 4번째 턴)부터 손패에 들어오고 쓸 수 있다
         public const int MineRadius = 1;       // 잠복 지뢰: 폭발 체비쇼프 반경
-        public const int BeaconClaims = 1;     // 거점: 라운드마다 주변(8칸)에서 점유하는 칸 수
+        public const int BeaconClaims = 1;     // 거점: 라운드마다 주변(8칸)에서 점유하는 칸 수 (강화 단계마다 배)
+
+        public static int LockTurnsAt(int level) => LockTurns + (level - 1) * TicksPerRound;
     }
 
     public sealed class PlayResult
@@ -56,7 +58,8 @@ namespace ChromaFrontier.Core
     /// </summary>
     public static class Resolver
     {
-        public static PlayResult PlaceUnit(Board board, Rng rng, Side side, Cell at, Element element, Cell blueDir)
+        /// <param name="mineLevel">상대(지뢰 주인)의 지뢰 강화 단계 — 폭발 범위</param>
+        public static PlayResult PlaceUnit(Board board, Rng rng, Side side, Cell at, Element element, Cell blueDir, int mineLevel = 1)
         {
             var r = new PlayResult { Actor = side, Placed = element };
 
@@ -79,7 +82,7 @@ namespace ChromaFrontier.Core
                 t.Mine = Side.None;
                 r.MineTriggered = true;
                 foreach (var c in board.Cells())
-                    if (c.Chebyshev(at) <= Balance.MineRadius) Claim(board, c, owner, r);
+                    if (InMineBlast(c, at, mineLevel)) Claim(board, c, owner, r);
                 return r;
             }
             t.Unit = element;
@@ -103,6 +106,21 @@ namespace ChromaFrontier.Core
 
             if (fuses) ApplyFusion(board, at, side, element, tier3, tier2, r);
             return r;
+        }
+
+        /// <summary>지뢰 폭발 범위: Lv1 3x3, Lv2 3x3 + 십자 2칸, Lv3 5x5.</summary>
+        public static bool InMineBlast(Cell c, Cell at, int level)
+        {
+            var d = c.Chebyshev(at);
+            if (level >= 3) return d <= Balance.MineRadius + 1;
+            if (level == 2 && (c.X == at.X || c.Y == at.Y)) return d <= Balance.MineRadius + 1;
+            return d <= Balance.MineRadius;
+        }
+
+        private static void ClaimAround(Board board, Cell at, Side side, PlayResult r)
+        {
+            foreach (var d in Cell.Orthogonal)
+                if (board.InBounds(at + d)) Claim(board, at + d, side, r);
         }
 
         /// <summary>1단계 원소의 기본 효과 (surge = 공명으로 강화된 업화·해일·뇌우).</summary>
@@ -155,8 +173,11 @@ namespace ChromaFrontier.Core
             return cells;
         }
 
-        /// <summary>스킬 효과. target2 는 공간 왜곡의 두 번째 칸, echoDir 는 물 유닛 재점화의 방향에만 쓴다.</summary>
-        public static PlayResult CastSkill(Board board, Rng rng, Side side, Card card, Cell target, Cell target2 = default, Cell echoDir = default)
+        /// <summary>
+        /// 스킬 효과. target2 는 공간 왜곡의 두 번째 칸, echoDir 는 물 유닛 재점화의 방향에만 쓴다.
+        /// level 은 카드 강화 단계 (CardShop.LevelText). 지뢰·거점의 강화는 터질 때·자랄 때 적용된다.
+        /// </summary>
+        public static PlayResult CastSkill(Board board, Rng rng, Side side, Card card, Cell target, Cell target2 = default, Cell echoDir = default, int level = 1)
         {
             var skill = card.Skill;
             var r = new PlayResult { Actor = side, Skill = skill, At = target };
@@ -164,15 +185,27 @@ namespace ChromaFrontier.Core
             {
                 case Skill.Warp:
                     board[target].SwapContents(ref board[target2]); // 지형은 제자리
+                    if (level >= 2)
+                    {
+                        Claim(board, target, side, r);
+                        Claim(board, target2, side, r);
+                    }
+                    if (level >= 3)
+                    {
+                        ClaimAround(board, target, side, r);
+                        ClaimAround(board, target2, side, r);
+                    }
                     break;
                 case Skill.Lock:
                     foreach (var c in board.Cells())
                         if (c.Chebyshev(target) <= Balance.LockRadius && !board[c].Blocked)
-                            board[c].Lock = Balance.LockTurns;
+                            board[c].Lock = Balance.LockTurnsAt(level);
                     break;
                 case Skill.Bleach:
                     r.Bleached = board[target].Unit;
                     board[target].Unit = Element.Grey;
+                    if (level >= 2) Claim(board, target, side, r);
+                    if (level >= 3) ClaimAround(board, target, side, r);
                     break;
                 case Skill.Mine:
                     board[target].Mine = side;
@@ -180,10 +213,13 @@ namespace ChromaFrontier.Core
                 case Skill.Transmute:
                     r.Bleached = board[target].Unit;
                     board[target].Unit = card.Element;
+                    if (level >= 2) Claim(board, target, side, r);
+                    if (level >= 3) ClaimAround(board, target, side, r);
                     break;
                 case Skill.Echo:
                     r.Placed = board[target].Unit;
-                    BaseEffect(board, rng, side, target, board[target].Unit, echoDir, false, r);
+                    BaseEffect(board, rng, side, target, board[target].Unit, echoDir, level >= 3, r);
+                    if (level == 2) ClaimAround(board, target, side, r);
                     break;
                 case Skill.Beacon:
                     board[target].Beacon = side;

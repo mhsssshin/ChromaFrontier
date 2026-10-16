@@ -199,5 +199,93 @@ namespace ChromaFrontier.Core.Tests
             var d = g.DeckOf(Side.Player);
             Assert.AreEqual(deck.Count, d.Hand.Count + d.DrawCount);
         }
+
+        // ---------------------------------------------------------------- 강화·소모품
+
+        [Test]
+        public void Collection_Upgrade_UpToMaxLevel_AndSurvivesSave()
+        {
+            var c = Collection.Starter();
+            Assert.IsFalse(c.CanUpgrade(Warp), "안 가진 카드는 강화 못 한다");
+            Assert.IsTrue(c.Upgrade(Mine));
+            Assert.IsTrue(c.Upgrade(Mine));
+            Assert.IsFalse(c.Upgrade(Mine), "MaxLevel 까지");
+            Assert.AreEqual(CardShop.MaxLevel, c.Level(Mine));
+            var back = Collection.Parse(c.Serialize());
+            Assert.AreEqual(3, back.Level(Mine));
+            Assert.AreEqual(1, back.Level(Card.Of(Skill.Echo)));
+            Assert.AreEqual(3, back.Levels()[Mine]);
+            // 강화가 생기기 전 저장 (두 칸짜리)도 읽힌다
+            Assert.AreEqual(1, Collection.Parse("mine:1|mine").Level(Mine));
+            Assert.Greater(CardShop.UpgradePrice(CardShop.Find(Mine), 3), CardShop.UpgradePrice(CardShop.Find(Mine), 2));
+        }
+
+        [Test]
+        public void MineLevel3_BlastsFiveByFive()
+        {
+            var b = Board.Parse(
+                ".....",
+                ".....",
+                ".....",
+                ".....",
+                ".....");
+            var at = new Cell(2, 2);
+            b[at].Mine = Side.Player;
+            var r = Resolver.PlaceUnit(b, new Rng(1), Side.Ai, at, Element.Red, Cell.Orthogonal[0], mineLevel: 3);
+            Assert.IsTrue(r.MineTriggered);
+            Assert.AreEqual(25, b.Count(Side.Player));
+        }
+
+        [Test]
+        public void TransmuteLevels_ClaimMoreLand()
+        {
+            int Claimed(int level)
+            {
+                var b = Board.Parse(
+                    "...",
+                    "...",
+                    "...");
+                var at = new Cell(1, 1);
+                b[at].Unit = Element.Red;
+                b[at].UnitOwner = Side.Ai;
+                var r = Resolver.CastSkill(b, new Rng(1), Side.Player, Card.Transmute(Element.Blue), at, default, default, level);
+                Assert.AreEqual(Element.Blue, b[at].Unit);
+                return r.Captured.Count;
+            }
+            Assert.AreEqual(0, Claimed(1));
+            Assert.AreEqual(1, Claimed(2));
+            Assert.AreEqual(5, Claimed(3));
+        }
+
+        [Test]
+        public void Loadout_PioneerFirstStrikeAndExtraObjective()
+        {
+            var stage = StageCatalog.Get(0);
+            var plain = stage.CreateGame(9, CardShop.BuildDeck(new Card[0]));
+            var l = new Loadout();
+            l.Boosts.Add(Boost.Pioneer);
+            l.Boosts.Add(Boost.FirstStrike);
+            l.Boosts.Add(Boost.ExtraObjective);
+            var g = stage.CreateGame(9, CardShop.BuildDeck(new Card[0]), l);
+            Assert.AreEqual(plain.Board.Count(Side.Player) + BoostShop.PioneerCells, g.Board.Count(Side.Player));
+            Assert.AreEqual(ObjectiveCatalog.PerGame + 1, g.Objectives.Count);
+            var hand = g.DeckOf(Side.Player).Hand;
+            var i = 0;
+            while (!hand[i].IsUnit) i++;
+            g.Play(i, g.LegalCells(Side.Player)[0]);
+            Assert.AreEqual(Side.Player, g.Current, "선공: 첫 턴에 한 번 더");
+        }
+
+        [Test]
+        public void BeaconLevel_ClaimsMorePerRound_OnlyForPlayer()
+        {
+            var g = FusionGame(Def(ObjectiveGoal.Tier3, 99, ObjectiveReward.Claim, 1));
+            var l = new Loadout();
+            l.Levels[Card.Of(Skill.Beacon)] = 2;
+            g.ApplyLoadout(l);
+            Assert.AreEqual(2, g.LevelOf(Side.Player, Card.Of(Skill.Beacon)));
+            Assert.AreEqual(1, g.LevelOf(Side.Ai, Card.Of(Skill.Beacon)));
+            Assert.AreEqual(2, g.Clone().LevelOf(Side.Player, Card.Of(Skill.Beacon)), "복제본도 같은 단계");
+        }
     }
 }

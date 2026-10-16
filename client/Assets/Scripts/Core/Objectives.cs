@@ -92,7 +92,7 @@ namespace ChromaFrontier.Core
         /// 이번 판의 목표 PerGame 개를 고른다 (seed 로 결정적). 덱으로 이룰 수 없는 목표는 뺀다:
         /// 지뢰가 없으면 지뢰 목표, 스킬이 3장 미만이면 스킬 목표.
         /// </summary>
-        public static List<ObjectiveDef> Pick(int seed, IReadOnlyCollection<Card> deck)
+        public static List<ObjectiveDef> Pick(int seed, IReadOnlyCollection<Card> deck, int count = PerGame)
         {
             int skills = 0, mines = 0;
             foreach (var c in deck)
@@ -109,7 +109,7 @@ namespace ChromaFrontier.Core
             }
             var rng = new Rng(seed * 7919 + 13);
             var picked = new List<ObjectiveDef>();
-            while (picked.Count < PerGame && pool.Count > 0)
+            while (picked.Count < count && pool.Count > 0)
             {
                 var k = rng.Next(pool.Count);
                 picked.Add(pool[k]);

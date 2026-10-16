@@ -36,6 +36,7 @@ namespace ChromaFrontier.Client
                 if (gb.Panel == LobbyPanel.None || Event.current.type == EventType.Repaint) DrawLobby(gb);
                 if (gb.Panel == LobbyPanel.Deck) DrawDeckPanel(gb);
                 else if (gb.Panel == LobbyPanel.Quest) DrawQuestPanel(gb);
+                else if (gb.Panel == LobbyPanel.Prep) DrawPrepPanel(gb);
                 return;
             }
 
@@ -324,7 +325,7 @@ namespace ChromaFrontier.Client
                 Text(badge, ready.ToString(), 15, Color.white, TextAnchor.MiddleCenter, 0f);
             }
             GUI.enabled = Progress.IsUnlocked(gb.LobbyStage);
-            if (Button(R(348, 854, 178, 76), new Color(1f, 0.55f, 0.2f), "출격!", 30)) gb.StartStage(gb.LobbyStage);
+            if (Button(R(348, 854, 178, 76), new Color(1f, 0.55f, 0.2f), "출격!", 30)) gb.OpenPanel(LobbyPanel.Prep);
             GUI.enabled = true;
         }
 
@@ -388,7 +389,7 @@ namespace ChromaFrontier.Client
             GemPill(R(RefW - 150, 50, 124, 40));
             var units = CardShop.UnitsPerElement * Elements.Base.Length;
             Text(R(24, 96, RefW - 48, 24), $"유닛 {units}장(원소별 {CardShop.UnitsPerElement}장) + 스킬 {cards.Skills.Count}/{CardShop.SkillSlots}장 = 총 {units + cards.Skills.Count}장", 15, Soft, TextAnchor.MiddleLeft, 0f);
-            Text(R(24, 120, RefW - 48, 22), $"결정으로 카드를 사서 덱에 넣으세요. 같은 카드는 {CardShop.MaxCopies}장까지.", 13, new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft, 0f);
+            Text(R(24, 120, RefW - 48, 22), $"결정으로 카드를 사고 강화하세요. 같은 카드는 {CardShop.MaxCopies}장까지, 강화는 Lv{CardShop.MaxLevel}까지.", 13, new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft, 0f);
 
             const float cw = 160f, ch = 212f, gap = 8f;
             var x0 = (RefW - (3 * cw + 2 * gap)) * 0.5f;
@@ -412,19 +413,46 @@ namespace ChromaFrontier.Client
             var card = entry.Card;
             var owned = cards.Owned(card);
             var inDeck = cards.InDeck(card);
+            var level = cards.Level(card);
 
             if (inDeck > 0) Nine(Inset(r, -4), "UI/button", 22, new Color(1f, 0.85f, 0.3f));
             Nine(r, "UI/card_skill", 28, owned > 0 ? Color.white : new Color(0.6f, 0.6f, 0.68f));
-            var art = new Rect(r.x + 10 * _s, r.y + 9 * _s, r.width - 20 * _s, 62 * _s);
+            var art = new Rect(r.x + 10 * _s, r.y + 8 * _s, r.width - 20 * _s, 52 * _s);
             Image(art, "UI/card_art", Color.Lerp(Palette.Of(card), Color.white, 0.25f));
-            Image(Inset(art, 4), IconFor(card), owned > 0 ? Color.white : new Color(1f, 1f, 1f, 0.55f));
+            Image(Inset(art, 3), IconFor(card), owned > 0 ? Color.white : new Color(1f, 1f, 1f, 0.55f));
             if (owned == 0) Image(new Rect(art.xMax - 26 * _s, art.y + 2 * _s, 24 * _s, 24 * _s), "UI/icon_lock", Color.white);
-            Text(new Rect(r.x, r.y + 74 * _s, r.width, 22 * _s), Palette.Name(card), 16, Color.white, TextAnchor.MiddleCenter, 0f);
-            Text(new Rect(r.x + 6 * _s, r.y + 96 * _s, r.width - 12 * _s, 32 * _s), Palette.Hint(card), 11, new Color(0.78f, 0.8f, 0.95f), TextAnchor.UpperCenter, 0f);
-            Text(new Rect(r.x, r.y + 128 * _s, r.width, 20 * _s), owned == 0 ? "아직 없음" : $"덱 {inDeck}  ·  보유 {owned}/{CardShop.MaxCopies}", 13, owned == 0 ? new Color(0.85f, 0.85f, 0.9f) : Gold, TextAnchor.MiddleCenter, 0f);
+            else LevelBadge(new Rect(art.x + 3 * _s, art.y + 3 * _s, 38 * _s, 20 * _s), level);
+            Text(new Rect(r.x, r.y + 62 * _s, r.width, 22 * _s), Palette.Name(card), 16, Color.white, TextAnchor.MiddleCenter, 0f);
+            var hint = level > 1 ? $"Lv{level}: " + CardShop.LevelText(card)[level - 1] : Palette.Hint(card);
+            Text(new Rect(r.x + 4 * _s, r.y + 84 * _s, r.width - 8 * _s, 20 * _s), hint, 11, level > 1 ? Gold : new Color(0.78f, 0.8f, 0.95f), TextAnchor.MiddleCenter, 0f);
+            Text(new Rect(r.x, r.y + 104 * _s, r.width, 20 * _s), owned == 0 ? "아직 없음" : $"덱 {inDeck}  ·  보유 {owned}/{CardShop.MaxCopies}", 13, owned == 0 ? new Color(0.85f, 0.85f, 0.9f) : Soft, TextAnchor.MiddleCenter, 0f);
 
-            var y = r.y + 154 * _s;
-            var h = 46 * _s;
+            // 강화 (Lv1 → MaxLevel). 실수로 결정을 쓰지 않게, 처음 누르면 효과를 보여 주고 한 번 더 누르면 강화한다.
+            var up = new Rect(r.x + 8 * _s, r.y + 170 * _s, r.width - 16 * _s, 34 * _s);
+            if (owned > 0 && level < CardShop.MaxLevel)
+            {
+                var price = CardShop.UpgradePrice(entry, level + 1);
+                var armed = _upgradeArmed.HasValue && _upgradeArmed.Value.Equals(card) && Time.unscaledTime < _upgradeArmedUntil;
+                if (PriceButton(up, armed ? new Color(0.95f, 0.45f, 0.3f) : new Color(0.62f, 0.42f, 0.95f), armed ? "확인" : $"Lv{level + 1}", price, 14))
+                {
+                    var next = $"{Palette.Name(card)} Lv{level + 1}: {CardShop.LevelText(card)[level]}";
+                    if (!armed)
+                    {
+                        _upgradeArmed = card;
+                        _upgradeArmedUntil = Time.unscaledTime + 4f;
+                        gb.PanelMessage = next + "\n한 번 더 누르면 강화해요.";
+                    }
+                    else
+                    {
+                        _upgradeArmed = null;
+                        gb.PanelMessage = Progress.UpgradeCard(card) ? "강화 완료! " + next : $"결정이 {price - Progress.Gems}개 모자라요.";
+                    }
+                }
+            }
+            else if (owned > 0) Text(up, $"강화 완료 (Lv{CardShop.MaxLevel})", 13, Gold, TextAnchor.MiddleCenter, 0f);
+
+            var y = r.y + 128 * _s;
+            var h = 38 * _s;
             if (owned == 0)
             {
                 if (PriceButton(new Rect(r.x + 8 * _s, y, r.width - 16 * _s, h), new Color(0.95f, 0.55f, 0.25f), "해금", entry.Price, 16))
@@ -452,6 +480,66 @@ namespace ChromaFrontier.Client
                     Buy(gb, card, entry.Price);
             }
             else Text(new Rect(r.x + 94 * _s, y, r.width - 100 * _s, h), "최대", 14, new Color(0.85f, 0.85f, 0.9f), TextAnchor.MiddleCenter, 0f);
+        }
+
+        private static Card? _upgradeArmed;
+        private static float _upgradeArmedUntil;
+
+        private static void LevelBadge(Rect r, int level)
+        {
+            Nine(r, "UI/button", 22, level >= CardShop.MaxLevel ? new Color(1f, 0.6f, 0.2f) : level > 1 ? new Color(0.62f, 0.42f, 0.95f) : new Color(0.35f, 0.38f, 0.5f));
+            Text(r, $"Lv{level}", 12, Color.white, TextAnchor.MiddleCenter, 0f);
+        }
+
+        // ---------------------------------------------------------------- 출격 준비
+
+        /// <summary>출격 준비: 이번 판에만 쓰는 소모품을 고르고(출격할 때 값을 낸다), 판 중에 쓸 무르기를 사 둔다.</summary>
+        private static void DrawPrepPanel(GameBootstrap gb)
+        {
+            Dim(0.6f);
+            var stage = StageCatalog.Get(gb.LobbyStage);
+            Nine(R(20, 150, RefW - 40, 650), "UI/panel", 28, Color.white);
+            Text(R(36, 162, 300, 44), "출격 준비", 30, Gold, TextAnchor.MiddleLeft, 0.7f);
+            GemPill(R(RefW - 160, 166, 124, 40));
+            Text(R(36, 208, RefW - 72, 24), $"{stage.Code} {stage.Name} — 소모품은 이번 판에만 쓰고, 출격할 때 결정을 내요.", 13, new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft, 0f);
+
+            for (var i = 0; i < BoostShop.All.Length; i++)
+            {
+                var b = BoostShop.All[i];
+                var on = gb.Boosts.Contains(b.Boost);
+                var r = R(36, 240 + i * 90, RefW - 72, 82);
+                if (Button(r, on ? new Color(0.3f, 0.72f, 0.42f) : new Color(0.4f, 0.42f, 0.58f)))
+                {
+                    if (on) gb.Boosts.Remove(b.Boost); else gb.Boosts.Add(b.Boost);
+                    gb.PanelMessage = "";
+                }
+                var box = new Rect(r.x + 14 * _s, r.center.y - 18 * _s, 36 * _s, 36 * _s);
+                Nine(box, "UI/panel", 28, Color.white);
+                if (on) Image(Inset(box, 3), "UI/star_on", Color.white);
+                Text(new Rect(r.x + 62 * _s, r.y + 10 * _s, 260 * _s, 30 * _s), b.Name, 20, Color.white, TextAnchor.MiddleLeft);
+                Text(new Rect(r.x + 62 * _s, r.y + 44 * _s, 300 * _s, 26 * _s), b.Text, 14, Soft, TextAnchor.MiddleLeft, 0f);
+                var price = new Rect(r.xMax - 96 * _s, r.y, 84 * _s, r.height);
+                Image(new Rect(price.x, r.center.y - 15 * _s, 30 * _s, 30 * _s), "UI/icon_gem", Color.white);
+                Text(new Rect(price.x + 30 * _s, r.y, 54 * _s, r.height), b.Price.ToString(), 20, Color.white, TextAnchor.MiddleLeft);
+            }
+
+            // 무르기: 모아 두고 판 중에 쓴다 (손패 위 무르기 버튼)
+            var u = R(36, 240 + BoostShop.All.Length * 90, RefW - 72, 82);
+            Nine(u, "UI/panel", 28, new Color(0.75f, 0.95f, 1f));
+            Text(new Rect(u.x + 18 * _s, u.y + 10 * _s, 260 * _s, 30 * _s), $"무르기  (보유 {Progress.Undos})", 20, Color.white, TextAnchor.MiddleLeft);
+            Text(new Rect(u.x + 18 * _s, u.y + 44 * _s, 320 * _s, 26 * _s), "판 중에 내 지난 수를 되돌려요", 14, Soft, TextAnchor.MiddleLeft, 0f);
+            if (PriceButton(new Rect(u.xMax - 130 * _s, u.y + 16 * _s, 118 * _s, 50 * _s), new Color(0.3f, 0.65f, 0.8f), "+1", BoostShop.UndoPrice, 16))
+                gb.PanelMessage = Progress.BuyUndo() ? $"무르기를 샀어요 (보유 {Progress.Undos})" : $"결정이 {BoostShop.UndoPrice - Progress.Gems}개 모자라요.";
+
+            var cost = gb.BoostCost;
+            Text(R(36, 616, RefW - 72, 30), cost > 0 ? $"고른 소모품: 결정 {cost}개" : "소모품 없이 출격해도 돼요", 16, cost > 0 ? Gold : Soft, TextAnchor.MiddleCenter, 0f);
+            Text(R(36, 648, RefW - 72, 44), gb.PanelMessage, 15, Gold, TextAnchor.MiddleCenter, 0f);
+
+            if (Button(R(46, 704, 200, 66), new Color(0.4f, 0.42f, 0.58f), "취소", 22)) gb.OpenPanel(LobbyPanel.None);
+            var go = R(262, 704, 232, 66);
+            if (cost > 0 ? PriceButton(go, new Color(1f, 0.55f, 0.2f), "출격", cost, 24) : Button(go, new Color(1f, 0.55f, 0.2f), "출격!", 28))
+                gb.Sortie();
+            SwallowInput();
         }
 
         private static void Buy(GameBootstrap gb, Card card, int price)
@@ -596,8 +684,9 @@ namespace ChromaFrontier.Client
                 if (since < 1.5f) tint = Color.Lerp(tint, Gold, 0.5f + 0.5f * Mathf.Sin(since * 12f));
                 Nine(r, "UI/panel", 28, tint);
                 var head = o.Done ? "완료! " + o.Def.Text : $"{o.Def.Text} {ObjectiveProgress(g, o.Def)}";
-                Text(new Rect(r.x + 4 * _s, r.y + 3 * _s, r.width - 8 * _s, 22 * _s), head, 13, Color.white, TextAnchor.MiddleCenter, 0.6f);
-                Text(new Rect(r.x + 4 * _s, r.y + 23 * _s, r.width - 8 * _s, 20 * _s), "→ " + o.Def.RewardText, 12, o.Done ? new Color(0.85f, 1f, 0.85f) : Gold, TextAnchor.MiddleCenter, 0f);
+                var small = n > ObjectiveCatalog.PerGame; // 소모품 목표 추가로 4칸이면 글자를 줄인다
+                Text(new Rect(r.x + 4 * _s, r.y + 3 * _s, r.width - 8 * _s, 22 * _s), head, small ? 11 : 13, Color.white, TextAnchor.MiddleCenter, 0.6f);
+                Text(new Rect(r.x + 4 * _s, r.y + 23 * _s, r.width - 8 * _s, 20 * _s), "→ " + o.Def.RewardText, small ? 11 : 12, o.Done ? new Color(0.85f, 1f, 0.85f) : Gold, TextAnchor.MiddleCenter, 0f);
             }
         }
 
@@ -641,6 +730,9 @@ namespace ChromaFrontier.Client
                 GUI.enabled = gb.PlayerTurn;
                 if (Button(R(RefW - 214, 712, 200, 48), new Color(0.55f, 0.5f, 0.95f), "패 버리기 (턴 소모)", 18))
                     gb.Mulligan();
+                GUI.enabled = gb.CanUndo;
+                if (Button(R(RefW - 346, 712, 126, 48), new Color(0.3f, 0.65f, 0.8f), $"무르기 {Progress.Undos}", 18))
+                    gb.Undo();
                 GUI.enabled = true;
             }
 
@@ -657,8 +749,8 @@ namespace ChromaFrontier.Client
                 }
             }
 
-            foreach (var v in hv.Leaving) DrawCard(v, false, true);
-            foreach (var i in order) DrawCard(hv.Cards[i], i == gb.Selected, gb.PlayerTurn && gb.CanUse(hv.Cards[i].Card));
+            foreach (var v in hv.Leaving) DrawCard(v, false, true, g.LevelOf(Side.Player, v.Card));
+            foreach (var i in order) DrawCard(hv.Cards[i], i == gb.Selected, gb.PlayerTurn && gb.CanUse(hv.Cards[i].Card), g.LevelOf(Side.Player, hv.Cards[i].Card));
         }
 
         private static void DrawDeckPile(Deck deck)
@@ -715,7 +807,7 @@ namespace ChromaFrontier.Client
             GUI.matrix = saved;
         }
 
-        private static void DrawCard(HandView.Visual v, bool selected, bool enabled)
+        private static void DrawCard(HandView.Visual v, bool selected, bool enabled, int level)
         {
             if (v.Delay > 0f) return;
             if (!v.FaceUp)
@@ -739,6 +831,7 @@ namespace ChromaFrontier.Client
             artTint.a = a;
             Image(art, "UI/card_art", artTint);
             Image(Inset(art, 5), IconFor(card), new Color(1f, 1f, 1f, a));
+            if (level > 1) LevelBadge(new Rect(art.x + 3 * _s, art.y + 3 * _s, 38 * _s, 20 * _s), level);
 
             var ink = card.IsUnit ? new Color(0.3f, 0.18f, 0.08f, a) : new Color(0.95f, 0.95f, 1f, a);
             var subInk = card.IsUnit ? new Color(0.45f, 0.35f, 0.25f, a) : new Color(0.75f, 0.78f, 0.95f, a);
