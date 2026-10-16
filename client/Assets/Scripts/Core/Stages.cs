@@ -22,7 +22,14 @@ namespace ChromaFrontier.Core
 
         public string Code => $"{Chapter + 1}-{InChapter + 1}";
 
-        public Game CreateGame(int seed) => Game.Create(Board.Parse(Map), Game.StarterDeck(), AiDeck, seed, Rules);
+        /// <summary>판을 만든다. 플레이어 덱을 안 주면 기본 덱. 플레이어의 게임 중 목표도 이때 뽑는다.</summary>
+        public Game CreateGame(int seed, List<Card> playerDeck = null)
+        {
+            playerDeck ??= Game.StarterDeck();
+            var g = Game.Create(Board.Parse(Map), playerDeck, AiDeck, seed, Rules);
+            g.SetObjectives(ObjectiveCatalog.Pick(seed, playerDeck));
+            return g;
+        }
     }
 
     public sealed class ChapterDef

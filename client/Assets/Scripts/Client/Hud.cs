@@ -33,7 +33,9 @@ namespace ChromaFrontier.Client
             }
             if (gb.Mode == AppScreen.Lobby)
             {
-                DrawLobby(gb);
+                if (gb.Panel == LobbyPanel.None || Event.current.type == EventType.Repaint) DrawLobby(gb);
+                if (gb.Panel == LobbyPanel.Deck) DrawDeckPanel(gb);
+                else if (gb.Panel == LobbyPanel.Quest) DrawQuestPanel(gb);
                 return;
             }
 
@@ -241,17 +243,24 @@ namespace ChromaFrontier.Client
                 Progress.UnlockAll();
                 e.Use();
             }
+            // 개발 빌드: G = 결정 500 지급
+            if (Debug.isDebugBuild && e.type == EventType.KeyDown && e.keyCode == KeyCode.G)
+            {
+                Progress.AddGemsDebug(500);
+                e.Use();
+            }
 
             var stage = StageCatalog.Get(gb.LobbyStage);
             var chapter = StageCatalog.Chapters[stage.Chapter];
 
-            // 제목 + 별 합계
-            Image(R(8, 4, 200, 86), "UI/logo_title", Color.white);
-            if (Button(R(RefW - 254, 22, 96, 44), new Color(0.3f, 0.7f, 0.55f), "배우기", 18)) gb.StartTutorial(0);
-            var starPill = R(RefW - 150, 22, 136, 44);
+            // 제목 + 결정 + 별 합계
+            Image(R(4, 10, 172, 74), "UI/logo_title", Color.white);
+            GemPill(R(182, 22, 116, 44));
+            var starPill = R(304, 22, 124, 44);
             Nine(starPill, "UI/panel", 28, Color.white);
             Image(new Rect(starPill.x + 8 * _s, starPill.y + 6 * _s, 32 * _s, 32 * _s), "UI/star_on", Color.white);
-            Text(new Rect(starPill.x + 40 * _s, starPill.y, starPill.width - 44 * _s, starPill.height), $"{Progress.TotalStars()} / {StageCatalog.Count * 3}", 18, Color.white);
+            Text(new Rect(starPill.x + 40 * _s, starPill.y, starPill.width - 44 * _s, starPill.height), $"{Progress.TotalStars()}/{StageCatalog.Count * 3}", 17, Color.white);
+            if (Button(R(434, 22, 92, 44), new Color(0.3f, 0.7f, 0.55f), "배우기", 18)) gb.StartTutorial(0);
 
             // 챕터 탭
             for (var c = 0; c < StageCatalog.Chapters.Length; c++)
@@ -300,14 +309,211 @@ namespace ChromaFrontier.Client
                 if (s.IsBoss) Image(new Rect(r.xMax - 26 * _s, r.y - 10 * _s, 30 * _s, 30 * _s), "UI/crown", Color.white);
             }
 
-            // 난이도 보정 + 출격
+            // 난이도 보정 + 덱 + 퀘스트 + 출격
             var offset = Progress.LevelOffset;
-            if (Button(R(24, 854, 200, 76), OffsetColor(offset))) gb.CycleLevelOffset();
-            Text(R(24, 860, 200, 30), "난이도 보정", 15, Color.white);
-            Text(R(24, 888, 200, 34), OffsetName(Progress.LevelOffset), 22, Color.white);
+            if (Button(R(14, 854, 124, 76), OffsetColor(offset))) gb.CycleLevelOffset();
+            Text(R(14, 862, 124, 26), "난이도 보정", 14, Color.white);
+            Text(R(14, 888, 124, 34), OffsetName(Progress.LevelOffset), 21, Color.white);
+            if (IconButton(R(144, 854, 96, 76), new Color(0.35f, 0.5f, 0.9f), "UI/icon_deck", "덱")) gb.OpenPanel(LobbyPanel.Deck);
+            if (IconButton(R(246, 854, 96, 76), new Color(0.6f, 0.45f, 0.85f), "UI/icon_quest", "퀘스트")) gb.OpenPanel(LobbyPanel.Quest);
+            var ready = Progress.QuestsReady();
+            if (ready > 0)
+            {
+                var badge = R(318, 846, 30, 30);
+                Nine(badge, "UI/button", 22, new Color(0.95f, 0.25f, 0.3f));
+                Text(badge, ready.ToString(), 15, Color.white, TextAnchor.MiddleCenter, 0f);
+            }
             GUI.enabled = Progress.IsUnlocked(gb.LobbyStage);
-            if (Button(R(240, 854, 276, 76), new Color(1f, 0.55f, 0.2f), "출격!", 32)) gb.StartStage(gb.LobbyStage);
+            if (Button(R(348, 854, 178, 76), new Color(1f, 0.55f, 0.2f), "출격!", 30)) gb.StartStage(gb.LobbyStage);
             GUI.enabled = true;
+        }
+
+        /// <summary>아이콘 + 글자 버튼 (대기실 아래 줄).</summary>
+        private static bool IconButton(Rect r, Color tint, string icon, string label)
+        {
+            var clicked = Button(r, tint);
+            Image(new Rect(r.center.x - 20 * _s, r.y + 6 * _s, 40 * _s, 40 * _s), icon, Color.white);
+            Text(new Rect(r.x, r.yMax - 30 * _s, r.width, 26 * _s), label, 16, Color.white);
+            return clicked;
+        }
+
+        /// <summary>보유 결정 표시.</summary>
+        private static void GemPill(Rect r)
+        {
+            Nine(r, "UI/panel", 28, Color.white);
+            Image(new Rect(r.x + 6 * _s, r.y + (r.height - 34 * _s) * 0.5f, 34 * _s, 34 * _s), "UI/icon_gem", Color.white);
+            Text(new Rect(r.x + 38 * _s, r.y, r.width - 44 * _s, r.height), Progress.Gems.ToString(), 18, Color.white);
+        }
+
+        /// <summary>결정 아이콘 + 값을 얹은 버튼.</summary>
+        private static bool PriceButton(Rect r, Color tint, string prefix, int price, int size)
+        {
+            var clicked = Button(r, tint);
+            var label = string.IsNullOrEmpty(prefix) ? price.ToString() : $"{prefix} {price}";
+            var icon = size * 1.25f * _s;
+            var textW = (label.Length * size * 0.62f) * _s;
+            var x = r.center.x - (icon + textW) * 0.5f;
+            Image(new Rect(x, r.center.y - icon * 0.5f, icon, icon), "UI/icon_gem", GUI.enabled ? Color.white : new Color(1f, 1f, 1f, 0.5f));
+            Text(new Rect(x + icon, r.y, textW + 4 * _s, r.height), label, size, Color.white, TextAnchor.MiddleLeft);
+            return clicked;
+        }
+
+        private static void Dim(float alpha)
+        {
+            var prev = GUI.color;
+            GUI.color = new Color(0f, 0f, 0.05f, alpha);
+            GUI.DrawTexture(new Rect(0, 0, UnityEngine.Screen.width, UnityEngine.Screen.height), Texture2D.whiteTexture);
+            GUI.color = prev;
+        }
+
+        /// <summary>창이 떠 있는 동안 아래로 입력이 새지 않게.</summary>
+        private static void SwallowInput()
+        {
+            var e = Event.current;
+            if (e.type == EventType.MouseDown || e.type == EventType.MouseDrag || e.type == EventType.MouseUp) e.Use();
+        }
+
+        // ---------------------------------------------------------------- 덱 편성
+
+        /// <summary>
+        /// 덱 편성: 스킬 카드 9종을 3x3 으로. 가진 카드는 −/+ 로 덱에 넣고 빼고, 덜 가진 카드는 결정으로 산다.
+        /// 유닛은 원소별 4장 고정이고 스킬은 CardShop.SkillSlots 장까지.
+        /// </summary>
+        private static void DrawDeckPanel(GameBootstrap gb)
+        {
+            Dim(0.6f);
+            var cards = Progress.Cards;
+            Nine(R(10, 36, RefW - 20, 904), "UI/panel", 28, Color.white);
+            Text(R(24, 48, 300, 44), "덱 편성", 30, Gold, TextAnchor.MiddleLeft, 0.7f);
+            GemPill(R(RefW - 150, 50, 124, 40));
+            var units = CardShop.UnitsPerElement * Elements.Base.Length;
+            Text(R(24, 96, RefW - 48, 24), $"유닛 {units}장(원소별 {CardShop.UnitsPerElement}장) + 스킬 {cards.Skills.Count}/{CardShop.SkillSlots}장 = 총 {units + cards.Skills.Count}장", 15, Soft, TextAnchor.MiddleLeft, 0f);
+            Text(R(24, 120, RefW - 48, 22), $"결정으로 카드를 사서 덱에 넣으세요. 같은 카드는 {CardShop.MaxCopies}장까지.", 13, new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft, 0f);
+
+            const float cw = 160f, ch = 212f, gap = 8f;
+            var x0 = (RefW - (3 * cw + 2 * gap)) * 0.5f;
+            for (var i = 0; i < CardShop.All.Length; i++)
+                DrawShopCard(gb, CardShop.All[i], R(x0 + i % 3 * (cw + gap), 150 + i / 3 * (ch + gap), cw, ch));
+
+            if (Button(R(36, 814, 220, 56), new Color(0.4f, 0.42f, 0.58f), "가진 카드로 채우기", 17))
+            {
+                cards.FillDefault();
+                Progress.SaveCards();
+                gb.PanelMessage = "가진 카드로 덱을 다시 채웠어요.";
+            }
+            if (Button(R(284, 814, 220, 56), new Color(1f, 0.55f, 0.2f), "완료", 22)) gb.OpenPanel(LobbyPanel.None);
+            Text(R(24, 874, RefW - 48, 50), gb.PanelMessage, 15, Gold, TextAnchor.MiddleCenter, 0f);
+            SwallowInput();
+        }
+
+        private static void DrawShopCard(GameBootstrap gb, CardShop.Entry entry, Rect r)
+        {
+            var cards = Progress.Cards;
+            var card = entry.Card;
+            var owned = cards.Owned(card);
+            var inDeck = cards.InDeck(card);
+
+            if (inDeck > 0) Nine(Inset(r, -4), "UI/button", 22, new Color(1f, 0.85f, 0.3f));
+            Nine(r, "UI/card_skill", 28, owned > 0 ? Color.white : new Color(0.6f, 0.6f, 0.68f));
+            var art = new Rect(r.x + 10 * _s, r.y + 9 * _s, r.width - 20 * _s, 62 * _s);
+            Image(art, "UI/card_art", Color.Lerp(Palette.Of(card), Color.white, 0.25f));
+            Image(Inset(art, 4), IconFor(card), owned > 0 ? Color.white : new Color(1f, 1f, 1f, 0.55f));
+            if (owned == 0) Image(new Rect(art.xMax - 26 * _s, art.y + 2 * _s, 24 * _s, 24 * _s), "UI/icon_lock", Color.white);
+            Text(new Rect(r.x, r.y + 74 * _s, r.width, 22 * _s), Palette.Name(card), 16, Color.white, TextAnchor.MiddleCenter, 0f);
+            Text(new Rect(r.x + 6 * _s, r.y + 96 * _s, r.width - 12 * _s, 32 * _s), Palette.Hint(card), 11, new Color(0.78f, 0.8f, 0.95f), TextAnchor.UpperCenter, 0f);
+            Text(new Rect(r.x, r.y + 128 * _s, r.width, 20 * _s), owned == 0 ? "아직 없음" : $"덱 {inDeck}  ·  보유 {owned}/{CardShop.MaxCopies}", 13, owned == 0 ? new Color(0.85f, 0.85f, 0.9f) : Gold, TextAnchor.MiddleCenter, 0f);
+
+            var y = r.y + 154 * _s;
+            var h = 46 * _s;
+            if (owned == 0)
+            {
+                if (PriceButton(new Rect(r.x + 8 * _s, y, r.width - 16 * _s, h), new Color(0.95f, 0.55f, 0.25f), "해금", entry.Price, 16))
+                    Buy(gb, card, entry.Price);
+                return;
+            }
+            GUI.enabled = inDeck > 0;
+            if (Button(new Rect(r.x + 6 * _s, y, 40 * _s, h), new Color(0.45f, 0.48f, 0.65f), "−", 24))
+            {
+                cards.Remove(card);
+                Progress.SaveCards();
+                gb.PanelMessage = "";
+            }
+            GUI.enabled = cards.CanAdd(card);
+            if (Button(new Rect(r.x + 50 * _s, y, 40 * _s, h), new Color(0.3f, 0.6f, 1f), "+", 24))
+            {
+                cards.Add(card);
+                Progress.SaveCards();
+                gb.PanelMessage = "";
+            }
+            GUI.enabled = true;
+            if (owned < CardShop.MaxCopies)
+            {
+                if (PriceButton(new Rect(r.x + 94 * _s, y, r.width - 100 * _s, h), new Color(0.95f, 0.55f, 0.25f), "", entry.Price, 14))
+                    Buy(gb, card, entry.Price);
+            }
+            else Text(new Rect(r.x + 94 * _s, y, r.width - 100 * _s, h), "최대", 14, new Color(0.85f, 0.85f, 0.9f), TextAnchor.MiddleCenter, 0f);
+        }
+
+        private static void Buy(GameBootstrap gb, Card card, int price)
+        {
+            if (Progress.BuyCard(card))
+                gb.PanelMessage = $"{Palette.Name(card)} 카드를 얻었어요!" + (Progress.Cards.InDeck(card) < Progress.Cards.Owned(card) ? " (덱이 꽉 차서 보관함에 넣었어요)" : "");
+            else
+                gb.PanelMessage = $"결정이 {price - Progress.Gems}개 모자라요. 판을 하거나 퀘스트를 깨서 모으세요.";
+        }
+
+        // ---------------------------------------------------------------- 퀘스트
+
+        /// <summary>퀘스트: 누적 기록으로 채우는 단계형 목표. 채우면 받기 버튼으로 결정을 받고 다음 단계가 열린다.</summary>
+        private static void DrawQuestPanel(GameBootstrap gb)
+        {
+            Dim(0.6f);
+            Nine(R(10, 36, RefW - 20, 904), "UI/panel", 28, Color.white);
+            Text(R(24, 48, 300, 44), "퀘스트", 30, Gold, TextAnchor.MiddleLeft, 0.7f);
+            GemPill(R(RefW - 150, 50, 124, 40));
+            Text(R(24, 98, RefW - 48, 24), "판을 하며 목표를 채우면 결정을 받아요. 결정으로 덱에 넣을 카드를 사세요.", 13, new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft, 0f);
+
+            var lines = QuestCatalog.Lines;
+            for (var i = 0; i < lines.Length; i++)
+            {
+                var q = lines[i];
+                var r = R(22, 130 + i * 76, RefW - 44, 70);
+                var claimed = Progress.QuestClaimed(q);
+                var finished = q.Finished(claimed);
+                var ready = Progress.QuestReady(q);
+                Nine(r, "UI/panel", 28, ready ? new Color(1f, 0.92f, 0.6f) : finished ? new Color(0.7f, 0.72f, 0.8f) : Color.white);
+
+                var title = finished ? q.Title(claimed) + " — 모두 완료" : q.Title(claimed);
+                Text(new Rect(r.x + 14 * _s, r.y + 6 * _s, r.width - 150 * _s, 26 * _s), title, 16, Color.white, TextAnchor.MiddleLeft);
+                Text(new Rect(r.xMax - 210 * _s, r.y + 6 * _s, 80 * _s, 26 * _s), $"{Mathf.Min(claimed + 1, q.Targets.Length)}/{q.Targets.Length}단계", 12, Soft, TextAnchor.MiddleRight, 0f);
+
+                var target = q.Targets[Mathf.Min(claimed, q.Targets.Length - 1)];
+                var cur = finished ? target : Mathf.Min(Progress.StatOf(q.Stat), target);
+                var bar = new Rect(r.x + 14 * _s, r.y + 38 * _s, r.width - 150 * _s, 22 * _s);
+                Nine(bar, "UI/bar_frame", 30, Color.white);
+                var inner = Inset(bar, 4);
+                var fw = inner.width * cur / Mathf.Max(1, target);
+                if (fw > 1f) Nine(new Rect(inner.x, inner.y, Mathf.Max(fw, inner.height), inner.height), "UI/bar_fill", 22, ready || finished ? Gold : new Color(0.4f, 0.75f, 1f));
+                Text(bar, $"{cur} / {target}", 12, Color.white, TextAnchor.MiddleCenter, 0.7f);
+
+                var btn = new Rect(r.xMax - 124 * _s, r.y + 10 * _s, 112 * _s, 50 * _s);
+                if (finished)
+                {
+                    Text(btn, "완료", 18, new Color(0.85f, 0.85f, 0.9f));
+                    continue;
+                }
+                GUI.enabled = ready;
+                if (PriceButton(btn, new Color(1f, 0.55f, 0.2f), ready ? "받기" : "", q.Rewards[claimed], 15))
+                {
+                    var got = Progress.ClaimQuest(q);
+                    if (got > 0) gb.PanelMessage = $"결정 {got}개를 받았어요!";
+                }
+                GUI.enabled = true;
+            }
+
+            if (Button(R(170, 822, 200, 56), new Color(1f, 0.55f, 0.2f), "닫기", 22)) gb.OpenPanel(LobbyPanel.None);
+            Text(R(24, 880, RefW - 48, 44), gb.PanelMessage, 16, Gold, TextAnchor.MiddleCenter, 0f);
+            SwallowInput();
         }
 
         // ---------------------------------------------------------------- 전투 상단
@@ -361,6 +567,40 @@ namespace ChromaFrontier.Client
             var msg = R(24, 152, RefW - 48, 54);
             Nine(msg, "UI/panel", 28, new Color(1f, 1f, 1f, 0.85f));
             Text(Inset(msg, 5), gb.Message, 15, Soft, TextAnchor.MiddleCenter, 0f);
+
+            DrawObjectives(gb, g);
+        }
+
+        /// <summary>게임 중 목표 줄: 목표·진행·보상. 이루면 초록으로 바뀌고, 이룬 순간 금빛으로 반짝인다.</summary>
+        private static void DrawObjectives(GameBootstrap gb, Game g)
+        {
+            var n = g.Objectives.Count;
+            if (n == 0) return;
+            const float gap = 6f;
+            var w = (RefW - 24f - (n - 1) * gap) / n;
+            for (var i = 0; i < n; i++)
+            {
+                var o = g.Objectives[i];
+                var r = R(12 + i * (w + gap), 210, w, 46);
+                var since = gb.ObjectiveFlash.TryGetValue(o.Def.Id, out var t) ? Time.time - t : 99f;
+                var tint = o.Done ? new Color(0.55f, 0.95f, 0.6f, 0.92f) : new Color(1f, 1f, 1f, 0.8f);
+                if (since < 1.5f) tint = Color.Lerp(tint, Gold, 0.5f + 0.5f * Mathf.Sin(since * 12f));
+                Nine(r, "UI/panel", 28, tint);
+                var head = o.Done ? "완료! " + o.Def.Text : $"{o.Def.Text} {ObjectiveProgress(g, o.Def)}";
+                Text(new Rect(r.x + 4 * _s, r.y + 3 * _s, r.width - 8 * _s, 22 * _s), head, 13, Color.white, TextAnchor.MiddleCenter, 0.6f);
+                Text(new Rect(r.x + 4 * _s, r.y + 23 * _s, r.width - 8 * _s, 20 * _s), "→ " + o.Def.RewardText, 12, o.Done ? new Color(0.85f, 1f, 0.85f) : Gold, TextAnchor.MiddleCenter, 0f);
+            }
+        }
+
+        private static string ObjectiveProgress(Game g, ObjectiveDef d)
+        {
+            var v = g.ProgressOf(d);
+            return d.Goal switch
+            {
+                ObjectiveGoal.Share => $"(지금 {v}%)",
+                ObjectiveGoal.BigMove => $"(최고 {v}칸)",
+                _ => $"{Mathf.Min(v, d.Target)}/{d.Target}",
+            };
         }
 
         // ---------------------------------------------------------------- 손패
@@ -584,23 +824,33 @@ namespace ChromaFrontier.Client
             GUI.DrawTexture(new Rect(0, 0, UnityEngine.Screen.width, UnityEngine.Screen.height), Texture2D.whiteTexture);
             GUI.color = prev;
 
-            var panel = R(50, 270, 440, 400);
-            Nine(panel, "UI/panel", 28, Color.white);
             var w = g.Winner;
+            var hasNext = w == Side.Player && gb.Stage.Index + 1 < StageCatalog.Count;
+            Nine(R(50, 250, 440, hasNext ? 462 : 400), "UI/panel", 28, Color.white);
             var title = w == Side.Player ? "승리!" : w == Side.Ai ? "패배" : "무승부";
-            Text(R(50, 284, 440, 70), title, 54, w == Side.Player ? Gold : w == Side.Ai ? new Color(1f, 0.6f, 0.55f) : Color.white, TextAnchor.MiddleCenter, 0.7f);
-            Text(R(50, 350, 440, 28), $"{gb.Stage.Code} {gb.Stage.Name}", 17, Soft);
-            Stars(R(50, 384, 440, 56), gb.LastStars, 50);
+            Text(R(50, 264, 440, 70), title, 54, w == Side.Player ? Gold : w == Side.Ai ? new Color(1f, 0.6f, 0.55f) : Color.white, TextAnchor.MiddleCenter, 0.7f);
+            Text(R(50, 330, 440, 28), $"{gb.Stage.Code} {gb.Stage.Name}", 17, Soft);
+            Stars(R(50, 364, 440, 56), gb.LastStars, 50);
             var total = Mathf.Max(1, g.Board.Playable);
-            Text(R(50, 446, 440, 34), $"나 {g.Board.Count(Side.Player) * 100 / total}%   vs   AI {g.Board.Count(Side.Ai) * 100 / total}%", 22, Color.white);
+            Text(R(50, 426, 440, 34), $"나 {g.Board.Count(Side.Player) * 100 / total}%   vs   AI {g.Board.Count(Side.Ai) * 100 / total}%", 22, Color.white);
             var note = g.Stuck == Side.Player ? "내가 놓을 칸이 없어 게임이 끝났어요"
                 : g.Stuck == Side.Ai ? "AI가 놓을 칸이 없어 게임이 끝났어요"
                 : "별: 승리 1개 · 점유율 50% 이상 2개 · 65% 이상 3개";
-            Text(R(50, 482, 440, 28), note, 14, new Color(1f, 0.9f, 0.7f));
+            Text(R(50, 460, 440, 26), note, 14, new Color(1f, 0.9f, 0.7f));
 
-            var hasNext = w == Side.Player && gb.Stage.Index + 1 < StageCatalog.Count;
-            if (hasNext && Button(R(80, 522, 380, 62), new Color(1f, 0.55f, 0.2f), "다음 스테이지", 24)) gb.NextStage();
-            var y = hasNext ? 596 : 530;
+            // 받은 결정 (+ 첫 클리어·목표 보너스)
+            var gemRow = R(110, 492, 320, 44);
+            Nine(gemRow, "UI/panel", 28, new Color(1f, 0.95f, 0.75f));
+            Image(new Rect(gemRow.x + 10 * _s, gemRow.y + 5 * _s, 34 * _s, 34 * _s), "UI/icon_gem", Color.white);
+            Text(new Rect(gemRow.x + 48 * _s, gemRow.y, gemRow.width - 56 * _s, gemRow.height), $"+{gb.LastGems}  (보유 {Progress.Gems})", 20, Gold, TextAnchor.MiddleLeft);
+            var extras = new List<string>();
+            if (gb.LastFirstClear) extras.Add(gb.Stage.IsBoss ? "보스 첫 클리어 보너스" : "첫 클리어 보너스");
+            if (g.Objectives.Count > 0) extras.Add($"목표 {g.ObjectivesDone}/{g.Objectives.Count} 달성");
+            if (Progress.QuestsReady() > 0) extras.Add("받을 퀘스트 보상이 있어요");
+            Text(R(50, 538, 440, 24), string.Join("  ·  ", extras), 13, Soft, TextAnchor.MiddleCenter, 0f);
+
+            if (hasNext && Button(R(80, 568, 380, 62), new Color(1f, 0.55f, 0.2f), "다음 스테이지", 24)) gb.NextStage();
+            var y = hasNext ? 640 : 576;
             if (Button(R(80, y, 184, 58), Palette.Player, "다시 하기", 21)) gb.Retry();
             if (Button(R(276, y, 184, 58), new Color(0.4f, 0.42f, 0.58f), "대기실", 21)) gb.ExitToLobby();
         }

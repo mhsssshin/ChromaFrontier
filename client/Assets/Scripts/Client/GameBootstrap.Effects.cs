@@ -9,6 +9,33 @@ namespace ChromaFrontier.Client
     {
         private void AfterMove(Side actor, Cell at, Cell at2)
         {
+            DescribeMove(actor, at, at2);
+            PlayObjectiveEffects();
+        }
+
+        /// <summary>게임 중 목표를 방금 이뤘으면: 효과로 바뀐 칸 연출 + 메시지, HUD 목표 칸을 반짝인다.</summary>
+        private void PlayObjectiveEffects()
+        {
+            var lift = new Vector3(0f, 0.35f, 0f);
+            var gold = new Color(1f, 0.88f, 0.35f);
+            foreach (var ev in Game.ObjectiveEvents)
+            {
+                ObjectiveFlash[ev.Def.Id] = Time.time;
+                Message += $"\n목표 달성! {ev.Def.Text} → {ev.Def.RewardText}";
+                _view.Flash(ev.Cells);
+                for (var i = 0; i < ev.Cells.Count; i++)
+                {
+                    var p = _view.ToWorld(ev.Cells[i]);
+                    var delay = 0.25f + i * 0.06f;
+                    _fx.Spawn(FxView.Ring, p, gold, ev.Def.Reward == ObjectiveReward.Shield ? 0.9f : 1.3f, delay);
+                    if (ev.Def.Reward != ObjectiveReward.Shield) _fx.Spawn(FxView.Sparkle, p + lift, gold, 1.1f, delay + 0.05f);
+                }
+            }
+            if (Game.BonusTurnTaken) Message += "\n목표 보상: 한 번 더 두세요!";
+        }
+
+        private void DescribeMove(Side actor, Cell at, Cell at2)
+        {
             var who = actor == Side.Player ? "나" : "AI";
             var r = Game.LastResult;
             _aiTimer = AiDelay;

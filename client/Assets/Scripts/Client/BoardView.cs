@@ -225,8 +225,14 @@ namespace ChromaFrontier.Client
 
                 v.Mine.enabled = t.Mine == Side.Player && !t.HasUnit;
                 v.Beacon.enabled = t.Beacon != Side.None && t.Beacon == t.Owner;
-                if (v.Beacon.enabled) v.Beacon.sprite = Art.Sprite(t.Beacon == Side.Ai ? "Units/beacon_ai" : "Units/beacon_player");
-                v.Decor.enabled = v.Decor.sprite != null && !t.HasUnit && !v.Mine.enabled && t.Terrain == Terrain.Ground;
+                if (v.Beacon.enabled)
+                {
+                    v.Beacon.sprite = Art.Sprite(t.Beacon == Side.Ai ? "Units/beacon_ai" : "Units/beacon_player");
+                    // 빈 칸이면 가운데에 크게, 유닛이 있으면 왼쪽 위 구석에 작게
+                    v.Beacon.transform.localPosition = t.HasUnit ? new Vector3(-0.42f, 0.42f, 0f) : new Vector3(-0.08f, 0.12f, 0f);
+                    v.Beacon.transform.localScale = Vector3.one * (t.HasUnit ? 1f : 1.35f);
+                }
+                v.Decor.enabled = v.Decor.sprite != null && !t.HasUnit && !v.Mine.enabled && !v.Beacon.enabled && t.Terrain == Terrain.Ground;
 
                 v.Unit.enabled = v.Ring.enabled = t.HasUnit;
                 if (!t.HasUnit) continue;

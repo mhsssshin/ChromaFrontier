@@ -199,6 +199,35 @@ export function ui() {
     p.path(ell(48, 16, 7, 7), '#ffd84a', stroke(3, '#7a5010'));
   }));
 
+  // ---- 메타 아이콘: 재화(크로마 결정), 덱, 퀘스트
+  out.push(icon('icon_gem', (p) => {
+    // 세 원소 색이 도는 다면체 보석
+    p.path(poly([[64, 12], [106, 44], [64, 118], [22, 44]]), p.lin([[0, '#ffb0e8'], [0.5, '#8a6aff'], [1, '#3ac8ff']], 0, 0, 1, 1), stroke(5, '#2a1858'));
+    p.path(poly([[22, 44], [106, 44], [64, 118]]), p.lin([[0, '#6a4ae0'], [1, '#2a8ad8']], 0, 0, 0, 1), 'opacity="0.55"');
+    p.path(poly([[42, 44], [64, 12], [86, 44], [64, 118]]), 'none', 'stroke="#ffffff" stroke-width="3" opacity="0.7"');
+    p.path('M22 44 H106', 'none', 'stroke="#2a1858" stroke-width="4"');
+    p.path(poly([[46, 26], [60, 18], [50, 40]]), '#ffffff', 'opacity="0.85"');
+    p.path(star(98, 22, 12, 4), '#ffffff');
+  }));
+  out.push(icon('icon_deck', (p) => {
+    // 부채꼴로 겹친 카드 석 장
+    for (const [rot, c1, c2] of [[-18, '#7a8ad8', '#3a4a98'], [0, '#ff9a6a', '#d04a2a'], [18, '#ffe07a', '#e0962a']])
+      p.add(`<g transform="rotate(${rot} 64 112)">`
+        + `<path d="${rect(38, 22, 52, 76, 9)}" fill="${c1}" stroke="#2a2440" stroke-width="4"/>`
+        + `<path d="${rect(45, 30, 38, 34, 5)}" fill="${c2}" opacity="0.8"/></g>`);
+    p.path(star(64, 47, 10, 4), '#ffffff');
+  }));
+  out.push(icon('icon_quest', (p) => {
+    // 두루마리 + 체크
+    p.path(rect(26, 18, 76, 96, 10), p.lin([[0, '#fff6dc'], [1, '#e8cf98']]), stroke(4, '#6a4a1a'));
+    p.path(ell(64, 18, 40, 8), p.lin([[0, '#e0b060'], [1, '#a8742a']]), stroke(3, '#6a4a1a'));
+    p.path(ell(64, 114, 40, 8), p.lin([[0, '#e0b060'], [1, '#a8742a']]), stroke(3, '#6a4a1a'));
+    for (const y of [44, 64, 84]) p.path(`M58 ${y} H90`, 'none', 'stroke="#b08a4a" stroke-width="5" stroke-linecap="round"');
+    p.path('M34 64 L44 74 L60 50', 'none', 'stroke="#2aa84a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"');
+    p.path(ell(42, 44, 5, 5), '#e0962a');
+    p.path(ell(42, 84, 5, 5), '#e0962a');
+  }));
+
   return out;
 }
 

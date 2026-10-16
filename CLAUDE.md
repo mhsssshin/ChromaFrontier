@@ -77,7 +77,7 @@ bash scripts/deploy-pages.sh
     - `tiles.mjs`: 타일 4종, 윗면 오버레이(glow/select/lock/shield), 장식, 바다, 거품
     - `units.mjs`: 원소 유닛 9종, 팀 링, 지뢰, 거점 깃발
     - `fx.mjs`: 프레임 이펙트 `<이름>_<n>`
-    - `ui.mjs`: 카드 틀, 아이콘, 바, 버튼, 패널, 스플래시 엠블럼
+    - `ui.mjs`: 카드 틀, 아이콘(카드, 결정 `icon_gem`, 덱, 퀘스트), 바, 버튼, 패널, 스플래시 엠블럼
     - `logo.mjs`: 영문 로고 "CHROMA FRONTIER"(`UI/logo_title`). 스플래시와 대기실에 쓰고, 빌드할 때 WebGL 템플릿(`WebGLTemplates/Portrait/logo.png`, 웹 로딩 화면)에도 복사한다.
       - 글꼴은 `art/vendor/fonts/Jua-Regular.ttf`(SIL OFL, `Jua-OFL.txt`)다. base64로 SVG에 넣고, Chrome은 `--virtual-time-budget`으로 글꼴이 다 불러와진 뒤 찍는다.
       - 게임 제목은 한글 텍스트 대신 이 로고 이미지로 보여 준다.
@@ -139,7 +139,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 별(`StageCatalog.Stars`): 승리 1개, 점유율 50% 이상 2개, 65% 이상 3개.
   - 테스트 `EveryStage_StartsWithMovesForBothSides_AndPlaysToTheEnd`가 50개 스테이지를 모두 AI끼리 끝까지 돌려 본다. 맵을 고치면 이 테스트로 확인한다.
 - 배치 규칙(`Game.CanPlace`, `Board.IsFrontline`): 빈 칸이어야 하고, 내 타일이거나 내 타일과 상하좌우로 맞닿은 칸이어야 한다.
-- 카드(`Card`)는 1단계 원소 유닛이거나 스킬(`Skill`)이다. 원소 변환 카드는 바꿀 색을 `Card.Element`에 담는다(`Card.Transmute(e)`). 기본 덱(`Game.StarterDeck`)은 유닛 12장과 스킬 9장(왜곡·잠금·탈색·지뢰·재점화·거점 1장씩, 변환 3색)이다.
+- 카드(`Card`)는 1단계 원소 유닛이거나 스킬(`Skill`)이다. 원소 변환 카드는 바꿀 색을 `Card.Element`에 담는다(`Card.Transmute(e)`). 기본 덱(`Game.StarterDeck`)은 유닛 12장과 스킬 9장(왜곡·잠금·탈색·지뢰·재점화·거점 1장씩, 변환 3색)이다. AI 덱과 테스트가 이 덱을 쓴다. 플레이어 덱은 아래 덱 편성으로 정한다.
 - 스킬은 전선 규칙 없이 보드 어디에나 쓴다. 효과는 `Resolver.CastSkill`에 있다. 대상 검증은 카드를 받는 `CanTarget(side, card, cell)`이다(변환은 색이 카드마다 달라서).
   - 공간 왜곡: 두 칸의 내용(소유, 유닛, 보호막, 잠금, 지뢰, 거점)을 맞바꾼다(`Tile.SwapContents`). 지형은 제자리에 남는다.
   - 영역 잠금: 3x3 칸의 `Tile.Lock`을 설정한다. 잠긴 칸에는 양쪽 모두 유닛을 놓을 수 없다.
@@ -150,6 +150,16 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 거점: 내 땅에 깃발(`Tile.Beacon`)을 꽂는다. 라운드 끝마다 주변 8칸 중 내 것이 아닌 칸을 `Balance.BeaconClaims`(1)개 무작위로 점유한다. 칸 주인이 바뀌면 무너진다(소유 변경은 `Tile.SetOwner`로 해야 거점이 같이 정리된다).
   - 잠복 지뢰: 유닛이 없는 칸이면 어디든(상대 땅, 빈 땅 포함) `Tile.Mine`을 설정한다. 상대 지뢰가 있는지는 모르므로 그 위에도 묻을 수 있고 덮어쓴다(내 지뢰 위에는 불가). 상대가 그 칸에 유닛을 놓으면 유닛은 사라지고 주변 3x3이 지뢰 주인의 것이 된다(`PlayResult.MineTriggered`).
   - 지속 효과(잠금, 보라 침묵, 백색 성역)는 "내 턴 기준"으로 센다. 타이머는 양측 턴마다 1씩 줄어들기 때문에 상수는 `턴 수 × Balance.TicksPerRound`(2)로 정의한다. 예를 들어 잠금 2턴은 상대 턴 2번 동안 유지되고, 그사이 내 다음 턴에도 잠겨 있다.
+- **메타 성장**(`Meta.cs`): 재화(크로마 결정), 덱 편성, 퀘스트.
+  - 덱 편성은 **스킬 카드만** 한다. 유닛은 원소별 4장 고정이고, 스킬은 `CardShop.SkillSlots`(9)장까지, 한 종류는 `CardShop.MaxCopies`(2)장까지다. 덱이 9장보다 적어도 된다.
+  - `CardShop.All`: 9종의 값과 처음 가진 장수. 처음에는 변환 3색·탈색·지뢰·재점화를 1장씩 갖고(스킬 6장, 총 18장), 거점(120)·공간 왜곡(160)·영역 잠금(200)은 결정으로 해금한다. 두 번째 장도 같은 값으로 산다.
+  - `Collection`이 소장(종류별 장수)과 덱을 갖는다. `Serialize`/`Parse`로 저장하고, 가진 장수를 넘는 덱 카드는 읽을 때 버린다.
+  - 판 보상(`Rewards.ForBattle`): 패배 10, 승리 20 + 별당 10, 첫 클리어 +30(보스 +100), 게임 중 목표 하나당 +5.
+  - 퀘스트(`QuestCatalog.Lines`): 누적 기록(`Stat`: 판 수, 승리, 융합, 3단계, 공명, 상대 유닛 융합, 스킬, 차지한 칸, 게임 중 목표)으로 채우는 단계형 목표다. 보상을 받으면 같은 줄의 다음 단계(더 큰 목표)가 열린다.
+- **게임 중 목표**(`Objectives.cs`): 판마다 플레이어에게 목표 3개(`ObjectiveCatalog.Pick`, seed로 결정적)를 준다. 덱으로 못 이루는 목표(지뢰가 없는데 지뢰 폭발 등)는 뽑지 않는다. `StageDef.CreateGame`이 뽑는다. AI에게는 없다.
+  - 수가 끝날 때마다(`Game.AfterResolve`) 한 판 기록(`Game.StatsOf`, `MatchStats`)을 쌓고 목표를 확인한다. 달성하면 **그 자리에서 효과가 발동**한다: 땅 N칸 흡수(내 땅과 맞닿은 칸, 상대 땅 우선), 전선 2턴 보호, 거점 세우기, 한 번 더 두기(다음에 유닛을 놓은 뒤, `Game.BonusTurnTaken`).
+  - 상대 차례에 일어난 일(상대가 내 지뢰를 밟음)로도 이뤄진다. 달성한 목표와 효과로 바뀐 칸은 `Game.ObjectiveEvents`에 남아 뷰가 연출한다.
+  - 기록과 목표는 `Clone()`이 복사하므로 AI 시뮬레이션이 실제 판을 건드리지 않는다.
 - `Deck`: 스몰 덱 순환이다.
   - 덱이 비면 무덤을 섞어 다시 덱으로 쓰고, 손패는 항상 5장을 유지한다.
   - 드로우 보정: 손패에 유닛이 한 장도 없으면 스킬 한 장을 덱 맨 아래로 돌리고 유닛을 대신 넣는다.
@@ -173,7 +183,11 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - `GameBootstrap.Effects.cs`: 메시지, 이펙트, 라운드 기믹 연출.
   - `GameBootstrap.Tutorial.cs`: 튜토리얼 진행과 상황 팁.
 - **대기실**: 고른 스테이지의 맵을 실제 `BoardView`로 미리 보여 준다(`_previewBoard`). 챕터 탭, 스테이지 노드(별·잠금·보스 왕관), 상대 정보, 난이도 보정, 출격 버튼이 있다.
-  - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`, `cf.levelOffset`, `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`다. 이기면 다음 스테이지가 해금된다.
+  - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`, `cf.levelOffset`, `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`, `cf.gems`(결정), `cf.cards`(소장·덱, `Collection.Serialize`), `cf.stat.<stat>`(퀘스트 누적 기록), `cf.quest.<id>`(받은 단계 수)다. 이기면 다음 스테이지가 해금된다.
+  - 판이 끝나면 `Progress.RecordBattle`이 별·해금 기록, 누적 기록 더하기, 결정 지급을 한 번에 한다. 결과 창에 받은 결정과 목표 달성 수를 보여 준다.
+  - 위쪽 줄에 로고, 보유 결정, 별 합계, 배우기가 있다. 아래 줄은 난이도 보정, 덱, 퀘스트(받을 보상 수 배지), 출격이다.
+  - 덱·퀘스트 창(`LobbyPanel`)은 대기실 위에 뜬다. 창이 떠 있으면 대기실은 Repaint 때만 그려서 아래 버튼이 클릭을 받지 않는다. 덱 창은 9종 카드를 3x3으로 보여 주고, −/+로 넣고 빼고, 결정으로 산다.
+  - 개발 빌드의 대기실에서 `G` 키를 누르면 결정 500개를 받는다.
   - `LocalStore`는 WebGL에서 브라우저 **localStorage**에 직접 쓴다(`Plugins/WebGL/LocalStorage.jslib`). 동기 저장이라 탭을 바로 닫아도 남는다. 에디터와 Android에서는 PlayerPrefs를 쓴다.
   - 예전 PlayerPrefs(IndexedDB) 값은 처음 읽을 때 localStorage로 옮긴다. PlayerPrefs를 직접 쓰지 말고 `LocalStore`를 쓴다.
   - 개발 빌드 전용 단축: 주소에 `?unlock`(전체 해금), `?reset`(진행·튜토리얼·팁 전부 초기화), 대기실에서 `U` 키(전체 해금)를 쓸 수 있다.
@@ -192,7 +206,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 얼음: 유닛 카드를 고르면 놓을 수 있는 얼음 칸마다 미끄러질 방향이 반투명 화살표(`Highlight.Slides`)로 뜨고, 노리는 칸이 얼음이면 실제로 멈출 칸에 반투명 유닛(`Highlight.Ghost`)이 뜬다.
   - 미리보기(`AddPreview`)는 화염과 물 방향을 `CloneFor`로 실제 시뮬레이션해서 보여 준다. 융합, 공명, 얼음이 반영된다. 번개는 무작위라 놓는 칸만 보여 준다.
   - 보드 강조는 `BuildHighlight()`가 매 프레임 `Highlight`(Legal, Preview, Arrows, Dim, Picked, Hover)로 채운다. 카드를 고르면 고를 수 없는 칸은 어둡게 만들고, 고를 수 있는 칸만 밝게 반짝인다.
-- **카메라**(`FitCamera`, `Frame`): 보드를 HUD 사이의 화면 띠에 맞춘다. 전투 띠는 위 21.5%~75%, 대기실 띠는 17%~48.5%다.
+- **카메라**(`FitCamera`, `Frame`): 보드를 HUD 사이의 화면 띠에 맞춘다. 전투 띠는 위 27%~75%, 대기실 띠는 17%~48.5%다.
   - 카드를 고르면 고를 수 있는 칸들이 꽉 차게 **자동 확대**한다(최대 1.8배). 내려놓으면 전체 보기로 부드럽게 돌아간다.
 - `HandView`는 손패의 화면상 움직임을 맡는다. 기준 좌표는 540x960이다. 끄는 카드는 손가락 바로 아래를 작게 따라온다.
   - Core 손패와 순서대로 맞춰서 바뀐 카드를 찾는다. 새 카드는 덱 더미에서 뒷면으로 날아와 뒤집히고, 낸 카드는 보드 쪽으로(패 버리기면 덱으로) 날아가며 사라진다.
@@ -205,7 +219,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 클릭 좌표는 `TryPick`으로 역변환한다.
   - 매 프레임 `Sync`로 Board를 그린다. 게임 상태는 들고 있지 않고, 직전 프레임의 소유와 유닛만 기억한다. 그래서 바뀐 칸에는 연출이 붙는다. 소유가 바뀐 타일은 튀어 오르고, 새 유닛은 떨어지며 통통 튄다.
   - 그리는 순서(`sortingOrder`): 바다(-200)와 거품 → 타일과 오버레이((x+y)·10 + 0~5: 타일, 지형, 잠금, 보호막, 빛, 테두리) → 장식, 팀 링, 유닛(1000 + (x+y)·10 + 0~2) → 반투명 유닛(1000 + (x+y)·10 + 3) → 물 방향·얼음 화살표(1000 + (x+y)·10 + 5) → 이펙트(5000~).
-  - 거점 깃발(`Units/beacon_player`, `beacon_ai`)은 칸 왼쪽 위에 선다.
+  - 거점 깃발(`Units/beacon_player`, `beacon_ai`)은 빈 칸이면 가운데에 크게, 유닛이 있으면 왼쪽 위 구석에 작게 선다. 깃발이 있는 칸은 장식을 숨긴다.
   - 장식은 칸 좌표 해시로 고정 배치하고, 유닛이나 지뢰가 있거나 평지가 아니면 숨긴다.
   - 지형: 낭떠러지는 칸을 통째로 숨겨 바다가 보이게 한다. 블랙홀은 전용 타일(`tile_blackhole`)로 그린다(`tile_lava`는 화산 팁 그림에만 쓴다). 얼음, 침묵, 컨베이어는 소유 색 위에 오버레이로 얹는다.
 - `FxView`: 풀링된 SpriteRenderer로 프레임 이펙트를 재생한다. `delay`로 시차를 준다.
@@ -215,6 +229,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 기준 해상도는 540x960이다. `GUI.matrix`를 쓰지 않고 사각형과 글자 크기를 직접 키운다. 행렬로 확대하면 글자가 흐려지기 때문이다.
   - 한글은 `Resources/Fonts/Pretendard-Bold`로 그린다(OFL, `ThirdParty/Pretendard`). WebGL 기본 폰트에는 한글이 없다.
   - 버튼이 쓰지 않은 클릭만 보드로 보낸다.
+  - 전투 상단 메시지 아래에 게임 중 목표 3칸이 있다(`DrawObjectives`). 진행은 n/목표, 점유율은 현재 %, 한 수 목표는 최고 칸 수로 보인다. 이루면 초록이 되고, 이룬 순간 금빛으로 반짝인다(`GameBootstrap.ObjectiveFlash`). 그래서 전투 카메라 띠는 위 27%부터다.
   - 전투 상단에는 나가기, 다시(같은 스테이지 새 판, `GameBootstrap.Retry`) 버튼이 있다. 다시는 실수로 판을 날리지 않도록 3초 안에 한 번 더 눌러야 한다("한 번 더"로 바뀜). 튜토리얼에서는 숨긴다.
 - 씬(`Assets/Scenes/Main.unity`)과 PlayerSettings(세로 모드, WebGL 템플릿, 패키지 ID)는 `ProjectSetup.Run()`이 만들고 적용한다. ProjectSettings는 손으로 고치지 말고 여기에 추가한다.
 
@@ -222,7 +237,8 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
 
 - 공간 왜곡으로 옮긴 유닛이 그 자리에서 바로 융합하는 것. 지금은 옮기기만 하고, 융합은 다음에 놓는 유닛이 일으킨다.
 - 융합 결과가 다시 다른 반응을 일으키는 다단 연쇄. 2단계 유닛을 재료로 쓰는 3차 조합은 구현했다.
-- 덱 편집, 카드 해금 보상과 메타 성장(PRD §6), 사운드
+- 유닛 카드 편성, 보드 스킨 같은 꾸미기 보상(PRD §6), 사운드. 스킬 카드 덱 편성·결정·퀘스트·게임 중 목표는 구현했다.
+- 날마다 바뀌는 일일 퀘스트는 없다. 퀘스트는 누적 단계형뿐이다.
 - 스킬을 덱 대신 융합·공명으로 차는 에너지 게이지로 쓰는 안(설계안 C)은 아직 검토만 했다.
 - 스테이지 이름은 아직 "챕터명 + 번호"다(보스만 고유 이름).
 - 돌풍(밀어내기)은 PRD 문장을 단순하게 해석했다. 주변 8칸의 내용을 한 칸 바깥으로 민 뒤 그 8칸을 점유한다.

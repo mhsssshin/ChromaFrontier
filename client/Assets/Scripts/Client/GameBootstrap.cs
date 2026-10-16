@@ -6,6 +6,9 @@ namespace ChromaFrontier.Client
 {
     public enum AppScreen { Splash, Lobby, Battle }
 
+    /// <summary>대기실 위에 뜨는 창.</summary>
+    public enum LobbyPanel { None, Deck, Quest }
+
     /// <summary>
     /// 씬의 유일한 진입점 (씬에는 카메라 + 이것뿐). 대기실(스테이지 선택) ↔ 전투를 오가며,
     /// 전투에서는 플레이어 입력과 AI 차례를 Game 에 전달하고 매 프레임 BoardView 를 동기화한다. HUD는 IMGUI (Hud).
@@ -22,6 +25,13 @@ namespace ChromaFrontier.Client
         public string Message { get; private set; } = "";
         public HandView Hand { get; } = new();
         public int LastStars { get; private set; }
+        public int LastGems { get; private set; }        // 직전 판에서 받은 결정
+        public bool LastFirstClear { get; private set; }
+        public readonly Dictionary<string, float> ObjectiveFlash = new(); // 게임 중 목표를 이룬 시각 (HUD 반짝임)
+
+        // 대기실 창 (덱 편성·퀘스트)
+        public LobbyPanel Panel { get; private set; }
+        public string PanelMessage { get; set; } = "";
 
         // 대기실
         public int LobbyStage { get; private set; }
@@ -131,13 +141,14 @@ namespace ChromaFrontier.Client
             {
                 case AppScreen.Splash: top = 0.5f; bottom = 0.88f; break;
                 case AppScreen.Lobby: top = 0.17f; bottom = 0.485f; break;
-                default: top = 0.215f; bottom = 0.75f; break;
+                default: top = 0.27f; bottom = 0.75f; break; // 위쪽 HUD 아래에 게임 중 목표 줄이 있다
             }
         }
 
         public void ShowLobby(int stage)
         {
             Mode = AppScreen.Lobby;
+            Panel = LobbyPanel.None;
             Tutorial = false;
             _tips.Clear();
             Game = null;
@@ -165,6 +176,12 @@ namespace ChromaFrontier.Client
             SelectLobbyStage(last);
         }
 
+        public void OpenPanel(LobbyPanel p)
+        {
+            Panel = p;
+            PanelMessage = "";
+        }
+
         public void CycleLevelOffset() => Progress.LevelOffset = Progress.LevelOffset >= 1 ? -1 : Progress.LevelOffset + 1;
 
         public AiLevel StageLevel(StageDef s) => StageCatalog.LevelFor(s, Progress.LevelOffset);
@@ -175,7 +192,7 @@ namespace ChromaFrontier.Client
             Tutorial = false;
             var stage = StageCatalog.Get(index);
             var seed = System.Environment.TickCount;
-            BeginBattle(stage, stage.CreateGame(seed));
+            BeginBattle(stage, stage.CreateGame(seed, Progress.Cards.BuildDeck()));
             _aiRng = new Rng(seed * 31 + 7);
             Message = $"{Stage.Code} {Stage.Name} — {Stage.MapNote}";
             QueueTips(stage);
@@ -196,6 +213,9 @@ namespace ChromaFrontier.Client
             _lastRound = 0;
             _recorded = false;
             LastStars = 0;
+            LastGems = 0;
+            LastFirstClear = false;
+            ObjectiveFlash.Clear();
             SnapCamera();
         }
 
@@ -258,7 +278,8 @@ namespace ChromaFrontier.Client
             {
                 _recorded = true;
                 LastStars = StageCatalog.Stars(Game);
-                Progress.Record(Stage.Index, LastStars);
+                LastGems = Progress.RecordBattle(Stage.Index, LastStars, Game, out var first);
+                LastFirstClear = first;
                 Deselect();
             }
 

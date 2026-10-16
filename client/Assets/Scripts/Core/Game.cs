@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace ChromaFrontier.Core
@@ -37,9 +38,14 @@ namespace ChromaFrontier.Core
         public PlayResult LastResult { get; private set; } // 패 버리기(멀리건)면 null
         public bool SkillUsed { get; private set; }        // 이번 턴에 스킬을 이미 썼다 (턴마다 한 장)
         public readonly List<RoundEvent> RoundEvents = new(); // 직전 라운드 끝에 일어난 기믹
+        public readonly List<Objective> Objectives = new();   // 플레이어의 게임 중 목표 (달성하면 바로 효과 발동)
+        public readonly List<ObjectiveEvent> ObjectiveEvents = new(); // 직전 수에서 달성한 목표
+        public bool BonusTurnTaken { get; private set; }     // 직전 수 뒤에 목표 보상으로 한 번 더 두게 됐다
 
         private Rng _rng;
         private Deck _player, _ai;
+        private MatchStats _playerStats = new(), _aiStats = new();
+        private bool _bonusTurn; // 목표 보상: 플레이어가 다음에 유닛을 놓은 뒤 한 번 더
 
         private Game() { }
 
@@ -85,19 +91,36 @@ namespace ChromaFrontier.Core
             return list;
         }
 
-        public Game Clone() => new()
+        public Game Clone()
         {
-            Board = Board.Clone(),
-            Current = Current,
-            Turn = Turn,
-            Round = Round,
-            Rules = Rules,
-            Stuck = Stuck,
-            SkillUsed = SkillUsed,
-            _rng = _rng.Clone(),
-            _player = _player.Clone(),
-            _ai = _ai.Clone(),
-        };
+            var g = new Game
+            {
+                Board = Board.Clone(),
+                Current = Current,
+                Turn = Turn,
+                Round = Round,
+                Rules = Rules,
+                Stuck = Stuck,
+                SkillUsed = SkillUsed,
+                _rng = _rng.Clone(),
+                _player = _player.Clone(),
+                _ai = _ai.Clone(),
+                _playerStats = _playerStats.Clone(),
+                _aiStats = _aiStats.Clone(),
+                _bonusTurn = _bonusTurn,
+            };
+            foreach (var o in Objectives) g.Objectives.Add(o.Clone());
+            return g;
+        }
+
+        /// <summary>플레이어의 게임 중 목표를 정한다 (판 시작 때).</summary>
+        public void SetObjectives(IEnumerable<ObjectiveDef> defs)
+        {
+            Objectives.Clear();
+            foreach (var d in defs) Objectives.Add(new Objective(d));
+        }
+
+        public MatchStats StatsOf(Side s) => s == Side.Player ? _playerStats : _aiStats;
 
         /// <summary>viewer 가 알 수 있는 정보만 남긴 복제본 (상대 지뢰 제거). AI 시뮬레이션용.</summary>
         public Game CloneFor(Side viewer)
@@ -179,7 +202,15 @@ namespace ChromaFrontier.Core
             deck.Play(handIndex);
             var r = Resolver.PlaceUnit(Board, _rng, Current, at, element, dir);
             LastResult = r;
-            EndTurn(r.ExtraTurn);
+            AfterResolve(r);
+            var extra = r.ExtraTurn;
+            if (!extra && _bonusTurn && Current == Side.Player)
+            {
+                extra = true;
+                _bonusTurn = false;
+                BonusTurnTaken = true;
+            }
+            EndTurn(extra);
             return r;
         }
 
@@ -196,6 +227,7 @@ namespace ChromaFrontier.Core
             var r = Resolver.CastSkill(Board, _rng, Current, card, target, target2, echoDir);
             LastResult = r;
             SkillUsed = true;
+            AfterResolve(r);
             CheckStuck(); // 공간 왜곡으로 내 전선이 사라졌을 수도 있다
             return r;
         }
@@ -222,6 +254,8 @@ namespace ChromaFrontier.Core
         {
             DeckOf(Current).Mulligan(_rng, HoldLockFor(false));
             LastResult = null;
+            ObjectiveEvents.Clear();
+            BonusTurnTaken = false;
             EndTurn(false);
         }
 
@@ -242,6 +276,154 @@ namespace ChromaFrontier.Core
                 }
             }
             return best;
+        }
+
+        /// <summary>수 하나를 기록에 더하고, 플레이어의 게임 중 목표를 확인한다.</summary>
+        private void AfterResolve(PlayResult r)
+        {
+            ObjectiveEvents.Clear();
+            BonusTurnTaken = false;
+            Tally(r);
+            CheckObjectives();
+        }
+
+        private void Tally(PlayResult r)
+        {
+            var s = StatsOf(r.Actor);
+            if (r.Skill != Skill.None) s.Add(Stat.Skills);
+            if (r.MineTriggered)
+            {
+                // 밟은 쪽이 아니라 지뢰 주인의 기록
+                s = StatsOf(r.Actor.Opponent());
+                s.Add(Stat.MinesBlown);
+            }
+            if (r.Fused != Element.None)
+            {
+                s.Add(Stat.Fusions);
+                if (r.Fused.Tier() == 3) s.Add(Stat.Tier3);
+                if (r.StoleCatalyst) s.Add(Stat.Steals);
+            }
+            if (r.Resonance) s.Add(Stat.Resonances);
+            s.Add(Stat.Captured, r.Captured.Count);
+            s.BestMove = Math.Max(s.BestMove, r.Captured.Count);
+        }
+
+        /// <summary>목표의 현재 진행 값.</summary>
+        public int ProgressOf(ObjectiveDef d)
+        {
+            var s = _playerStats;
+            return d.Goal switch
+            {
+                ObjectiveGoal.Fusions => s[Stat.Fusions],
+                ObjectiveGoal.Resonances => s[Stat.Resonances],
+                ObjectiveGoal.Steals => s[Stat.Steals],
+                ObjectiveGoal.Tier3 => s[Stat.Tier3],
+                ObjectiveGoal.BigMove => s.BestMove,
+                ObjectiveGoal.Skills => s[Stat.Skills],
+                ObjectiveGoal.Share => Board.Count(Side.Player) * 100 / Math.Max(1, Board.Playable),
+                ObjectiveGoal.MinesBlown => s[Stat.MinesBlown],
+                ObjectiveGoal.Captured => s[Stat.Captured],
+                _ => 0,
+            };
+        }
+
+        public int ObjectivesDone
+        {
+            get
+            {
+                var n = 0;
+                foreach (var o in Objectives)
+                    if (o.Done) n++;
+                return n;
+            }
+        }
+
+        /// <summary>달성한 목표의 보상을 바로 낸다. 보상으로 다른 목표(점유율)가 이뤄질 수 있어 더 없을 때까지 반복한다.</summary>
+        private void CheckObjectives()
+        {
+            if (IsOver) return;
+            bool again;
+            do
+            {
+                again = false;
+                foreach (var o in Objectives)
+                {
+                    if (o.Done || ProgressOf(o.Def) < o.Def.Target) continue;
+                    o.Done = true;
+                    ObjectiveEvents.Add(new ObjectiveEvent(o.Def, ApplyReward(o.Def)));
+                    again = true;
+                }
+            } while (again);
+        }
+
+        private List<Cell> ApplyReward(ObjectiveDef d)
+        {
+            const Side me = Side.Player;
+            var cells = new List<Cell>();
+            switch (d.Reward)
+            {
+                case ObjectiveReward.Claim:
+                    // 한 칸씩: 내 땅과 맞닿은 칸 중 상대 땅을 먼저, 없으면 빈 땅
+                    for (var i = 0; i < d.Amount; i++)
+                    {
+                        var enemy = new List<Cell>();
+                        var neutral = new List<Cell>();
+                        foreach (var c in Board.Cells())
+                        {
+                            ref var t = ref Board[c];
+                            if (t.Blocked || t.Owner == me || t.IsProtectedFrom(me) || !Board.IsFrontline(c, me)) continue;
+                            (t.Owner == Side.None ? neutral : enemy).Add(c);
+                        }
+                        var pool = enemy.Count > 0 ? enemy : neutral;
+                        if (pool.Count == 0) break;
+                        var pick = pool[_rng.Next(pool.Count)];
+                        Board[pick].SetOwner(me);
+                        cells.Add(pick);
+                    }
+                    break;
+                case ObjectiveReward.Shield:
+                    foreach (var c in Board.Cells())
+                    {
+                        if (Board[c].Owner != me) continue;
+                        foreach (var dir in Cell.Orthogonal)
+                        {
+                            var n = c + dir;
+                            if (!Board.InBounds(n) || Board[n].Blocked || Board[n].Owner == me) continue;
+                            Board[c].Shield = Math.Max(Board[c].Shield, ObjectiveCatalog.ShieldTicks);
+                            cells.Add(c);
+                            break;
+                        }
+                    }
+                    break;
+                case ObjectiveReward.Beacon:
+                    Cell? best = null;
+                    var bestOpen = 0;
+                    foreach (var c in Board.Cells())
+                    {
+                        if (Board[c].Owner != me || Board[c].Beacon != Side.None) continue;
+                        var open = 0;
+                        foreach (var dir in Cell.Around8)
+                        {
+                            var n = c + dir;
+                            if (Board.InBounds(n) && !Board[n].Blocked && Board[n].Owner != me) open++;
+                        }
+                        if (open > bestOpen)
+                        {
+                            bestOpen = open;
+                            best = c;
+                        }
+                    }
+                    if (best is { } b)
+                    {
+                        Board[b].Beacon = me;
+                        cells.Add(b);
+                    }
+                    break;
+                case ObjectiveReward.ExtraTurn:
+                    _bonusTurn = true;
+                    break;
+            }
+            return cells;
         }
 
         private void EndTurn(bool extraTurn)
