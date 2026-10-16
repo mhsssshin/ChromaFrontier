@@ -10,6 +10,9 @@ namespace ChromaFrontier.Client
         public readonly HashSet<Cell> Legal = new();          // 고를 수 있는 칸: 밝게 반짝
         public readonly HashSet<Cell> Preview = new();        // 지금 고르면 영향받는 칸: 노란 테두리
         public readonly Dictionary<Cell, Cell> Arrows = new(); // 칸 → 물 방향 화살표
+        public readonly Dictionary<Cell, Cell> Slides = new(); // 얼음 칸 → 미끄러질 방향 (반투명 화살표)
+        public Cell? Ghost;                                    // 유닛이 실제로 멈출 칸 (얼음): 반투명 유닛
+        public Element GhostUnit;
         public bool Dim;    // 카드를 골랐을 때 Legal 이 아닌 칸을 어둡게
         public Cell? Picked; // 이미 고른 칸 (공간 왜곡 첫 칸, 물 배치 칸)
         public Cell? Hover;
@@ -19,6 +22,9 @@ namespace ChromaFrontier.Client
             Legal.Clear();
             Preview.Clear();
             Arrows.Clear();
+            Slides.Clear();
+            Ghost = null;
+            GhostUnit = Element.None;
             Dim = false;
             Picked = null;
             Hover = null;
@@ -41,7 +47,7 @@ namespace ChromaFrontier.Client
         private sealed class Cellview
         {
             public Transform Root;
-            public SpriteRenderer Tile, Terrain, Glow, Select, Arrow, Lock, Shield, Decor, Ring, Mine, Unit;
+            public SpriteRenderer Tile, Terrain, Glow, Select, Arrow, Lock, Shield, Decor, Ring, Mine, Unit, Ghost;
             public Side LastOwner;
             public Element LastUnit;
             public float Bounce, Pop, Flash;
@@ -87,6 +93,7 @@ namespace ChromaFrontier.Client
                     v.Ring = NewRenderer(root, "Ring", null, new Vector3(0f, -0.02f, 0f), UnitLayer + depth + 1);
                     v.Mine = NewRenderer(root, "Mine", Art.Sprite("Units/mine"), new Vector3(0f, 0.02f, 0f), UnitLayer + depth + 1);
                     v.Unit = NewRenderer(root, "Unit", null, new Vector3(0f, 0.04f, 0f), UnitLayer + depth + 2);
+                    v.Ghost = NewRenderer(root, "Ghost", null, new Vector3(0f, 0.04f, 0f), UnitLayer + depth + 3);
                 }
         }
 
@@ -146,7 +153,7 @@ namespace ChromaFrontier.Client
                     v.Unit.sprite = t.HasUnit ? Art.Sprite("Units/unit_" + t.Unit.ToString().ToLowerInvariant()) : null;
                 }
 
-                // 낭떠러지는 아예 비워 바다가 보이게. 용암·블랙홀은 전용 타일로 그리고 그 위에는 아무것도 없다.
+                // 낭떠러지는 아예 비워 바다가 보이게. 블랙홀은 전용 타일로 그리고 그 위에는 아무것도 없다.
                 v.Root.gameObject.SetActive(t.Terrain != Terrain.Chasm);
                 if (t.Terrain == Terrain.Chasm) continue;
                 v.Tile.sprite = TileSprite(t, c);
@@ -156,7 +163,7 @@ namespace ChromaFrontier.Client
                 {
                     v.Tile.color = hl.Dim ? DimTile : Color.white;
                     v.Lock.enabled = v.Shield.enabled = v.Glow.enabled = v.Select.enabled = v.Arrow.enabled = false;
-                    v.Decor.enabled = v.Mine.enabled = v.Unit.enabled = v.Ring.enabled = false;
+                    v.Decor.enabled = v.Mine.enabled = v.Unit.enabled = v.Ring.enabled = v.Ghost.enabled = false;
                     v.Root.position = ToWorld(c);
                     continue;
                 }
@@ -195,13 +202,24 @@ namespace ChromaFrontier.Client
                 v.Glow.color = new Color(1f, 1f, 1f, glow);
                 v.Select.enabled = isPicked || hl.Preview.Contains(c) || (isHover && isLegal);
 
-                v.Arrow.enabled = hl.Arrows.TryGetValue(c, out var dir);
+                // 물 방향 화살표는 진하게, 얼음 미끄러짐 방향은 반투명하게.
+                var water = hl.Arrows.TryGetValue(c, out var dir);
+                var slide = !water && hl.Slides.TryGetValue(c, out dir);
+                v.Arrow.enabled = water || slide;
                 if (v.Arrow.enabled)
                 {
                     // 그림은 +X(화면 오른쪽 아래). 화면 방향 = (X−Y, −(X+Y)) 이므로 그 부호대로 뒤집는다.
                     v.Arrow.flipX = dir.X - dir.Y < 0;
                     v.Arrow.flipY = dir.X + dir.Y < 0;
-                    v.Arrow.color = new Color(1f, 1f, 1f, 0.75f + 0.25f * pulse);
+                    v.Arrow.color = new Color(1f, 1f, 1f, water ? 0.75f + 0.25f * pulse : 0.3f + 0.2f * pulse);
+                }
+
+                // 얼음에서 실제로 멈출 칸: 반투명 유닛
+                v.Ghost.enabled = hl.Ghost.HasValue && hl.Ghost.Value == c && !t.HasUnit && hl.GhostUnit != Element.None;
+                if (v.Ghost.enabled)
+                {
+                    v.Ghost.sprite = Art.Sprite("Units/unit_" + hl.GhostUnit.ToString().ToLowerInvariant());
+                    v.Ghost.color = new Color(1f, 1f, 1f, 0.4f + 0.15f * pulse);
                 }
 
                 v.Mine.enabled = t.Mine == Side.Player && !t.HasUnit;
@@ -231,7 +249,6 @@ namespace ChromaFrontier.Client
 
         private static Sprite TileSprite(in Tile t, Cell c)
         {
-            if (t.Lava > 0) return Art.Sprite("Tiles/tile_lava");
             if (t.Terrain == Terrain.BlackHole) return Art.Sprite("Tiles/tile_blackhole");
             return t.Owner switch
             {

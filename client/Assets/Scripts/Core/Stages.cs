@@ -33,7 +33,7 @@ namespace ChromaFrontier.Core
     /// <summary>
     /// 스테이지 50개 (5챕터 × 10, 각 챕터 10번째는 보스). PRD §5 의 맵 기믹과 보스 성향을 챕터별로 배치했다.
     ///   1장 푸른 초원 — 기믹 없음 / 보스 이그니스(어그로)
-    ///   2장 화산 지대 — 라운드마다 중앙에 용암 분출 / 보스 강화 이그니스
+    ///   2장 화산 지대 — 몇 라운드마다 양쪽 유닛 무작위 폭발 / 보스 강화 이그니스
     ///   3장 얼음성 — 얼음 칸에 놓으면 한 칸 더 미끄러짐 / 보스 글라시아(통제)
     ///   4장 끊어진 다리 — 낭떠러지로 병목 / 보스 호문클루스(약탈)
     ///   5장 공허의 탑 — 컨베이어·블랙홀·침묵 지대 / 보스 강화 호문클루스
@@ -47,7 +47,7 @@ namespace ChromaFrontier.Core
         public static readonly ChapterDef[] Chapters =
         {
             new() { Name = "푸른 초원", Theme = "기믹 없는 기본 전장" },
-            new() { Name = "화산 지대", Theme = "라운드마다 보드 중앙에 용암이 솟아 칸을 비우고 막는다" },
+            new() { Name = "화산 지대", Theme = "몇 라운드마다 화산이 터져 양쪽 유닛이 무작위로 폭발한다" },
             new() { Name = "얼음성", Theme = "얼음 칸에 놓은 유닛은 한 칸 더 미끄러진다" },
             new() { Name = "끊어진 다리", Theme = "낭떠러지가 길을 끊어 좁은 다리를 두고 싸운다" },
             new() { Name = "공허의 탑", Theme = "컨베이어 벨트, 블랙홀, 침묵 지대" },
@@ -170,14 +170,16 @@ namespace ChromaFrontier.Core
             s.Map = MakeMap(8, 8, (x, y) => k >= 5 && Hash(x, y, s.Index) < 6 ? '#' : '.');
             s.Rules.LavaEvery = k < 4 ? 3 : 2;
             s.Rules.LavaCount = k < 6 ? 1 : 2;
-            s.MapNote = $"{s.Rules.LavaEvery}라운드마다 중앙에 용암 {s.Rules.LavaCount}칸이 솟아 2라운드 동안 막힌다.";
+            s.MapNote = $"{s.Rules.LavaEvery}라운드마다 화산이 터져 양쪽 유닛이 {s.Rules.LavaCount}개씩 무작위로 폭발한다.";
             s.AiDeck = Deck(6, 3, 3, 2, 2, 2, 2);
             if (!s.IsBoss) return;
             s.Name = "용암의 이그니스";
             s.Opponent = "이그니스 (각성)";
             s.OpponentNote = "어그로형 강화: 화염만으로 더 거세게 내 땅을 빼앗으러 온다.";
             s.Persona = IgnisPlus;
-            s.Rules.LavaCount = 3;
+            s.Rules.LavaEvery = 2;
+            s.Rules.LavaCount = 2;
+            s.MapNote = "2라운드마다 화산이 터져 양쪽 유닛이 2개씩 무작위로 폭발한다.";
             s.AiDeck = Deck(16, 0, 0, 0, 0, 2, 2);
         }
 

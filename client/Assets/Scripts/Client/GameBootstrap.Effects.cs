@@ -165,7 +165,7 @@ namespace ChromaFrontier.Client
             }
         }
 
-        /// <summary>라운드 끝 기믹(용암·블랙홀·컨베이어) 연출과 안내.</summary>
+        /// <summary>라운드 끝 기믹(화산·블랙홀·컨베이어) 연출과 안내.</summary>
         private void PlayRoundEffects()
         {
             if (Game.Round == _lastRound) return;
@@ -181,7 +181,7 @@ namespace ChromaFrontier.Client
                         _fx.Spawn(FxView.Burst, p + lift, Color.white, 1.8f, 0.2f);
                         _fx.Spawn(FxView.Smoke, p + lift * 2f, new Color(0.45f, 0.4f, 0.4f), 1.6f, 0.35f);
                         _shake = Mathf.Max(_shake, 0.3f);
-                        if (!notes.Contains("용암 분출!")) notes.Add("용암 분출!");
+                        if (!notes.Contains("화산 폭발!")) notes.Add("화산 폭발!");
                         break;
                     case RoundEventKind.BlackHole:
                         _fx.Spawn(FxView.Void, p + lift, Color.white, 0.9f, 0.1f);

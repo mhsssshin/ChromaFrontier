@@ -325,16 +325,46 @@ namespace ChromaFrontier.Core.Tests
         }
 
         [Test]
-        public void Mine_ExplodesWhenEnemyPlacesOnIt()
+        public void Mine_CanBeBuriedOnAnyEmptyCell_AndExplodesWhenEnemyPlacesOnIt()
         {
             var g = WithHand(Card.Of(Skill.Mine));
-            Assert.IsFalse(g.CanTarget(Side.Player, Skill.Mine, new Cell(4, 4))); // 내 땅이 아님
-            g.Cast(0, new Cell(0, 7));
-            var r = Resolver.PlaceUnit(g.Board, new Rng(1), Side.Ai, new Cell(0, 7), Element.Red, default);
+            Assert.IsTrue(g.CanTarget(Side.Player, Skill.Mine, new Cell(4, 4)));  // 주인 없는 칸
+            Assert.IsTrue(g.CanTarget(Side.Player, Skill.Mine, new Cell(7, 0)));  // 상대 땅
+            Unit(g.Board, 3, 3, Element.Red, Side.Ai);
+            Assert.IsFalse(g.CanTarget(Side.Player, Skill.Mine, new Cell(3, 3))); // 유닛이 선 칸은 안 됨
+            g.Cast(0, new Cell(6, 0));                                            // 상대 전선 바로 앞
+            Assert.IsFalse(g.CanTarget(Side.Player, Skill.Mine, new Cell(6, 0))); // 내 지뢰 위에 또는 안 됨
+            var r = Resolver.PlaceUnit(g.Board, new Rng(1), Side.Ai, new Cell(6, 0), Element.Red, default);
             Assert.IsTrue(r.MineTriggered);
-            Assert.IsFalse(g.Board[new Cell(0, 7)].HasUnit);
-            Assert.AreEqual(Side.Player, g.Board[new Cell(1, 6)].Owner);
-            Assert.AreEqual(Side.None, g.Board[new Cell(0, 7)].Mine);
+            Assert.IsFalse(g.Board[new Cell(6, 0)].HasUnit);
+            Assert.AreEqual(Side.Player, g.Board[new Cell(7, 0)].Owner); // 폭발 범위의 상대 땅도 내 것
+            Assert.AreEqual(Side.None, g.Board[new Cell(6, 0)].Mine);
+        }
+
+        [Test]
+        public void Ai_DoesNotDodgeHiddenMine()
+        {
+            // AI 가 (6,0)에 화염을 놓으면 내 물·번개를 촉매로 흑색이 되는 최고의 수. 그 칸에 몰래 지뢰를 묻는다.
+            var b = Empty();
+            for (var y = 0; y < 3; y++)
+                for (var x = 3; x < 7; x++) b[new Cell(x, y)].Owner = Side.Player;
+            b[new Cell(6, 0)].Owner = Side.None;
+            b[new Cell(7, 0)].Owner = Side.Ai;
+            Unit(b, 5, 0, Element.Yellow, Side.Player);
+            Unit(b, 6, 1, Element.Blue, Side.Player);
+            var mines = new System.Collections.Generic.List<Card>();
+            var reds = new System.Collections.Generic.List<Card>();
+            for (var i = 0; i < 8; i++)
+            {
+                mines.Add(Card.Of(Skill.Mine));
+                reds.Add(Card.Unit(Element.Red));
+            }
+            var g = Game.Create(b, mines, reds, 1);
+            g.Cast(0, new Cell(6, 0));
+            var move = AiBrain.Choose(g, new Rng(7));
+            Assert.AreEqual(new Cell(6, 0), move.At);
+            AiBrain.Apply(g, move);
+            Assert.IsTrue(g.LastResult.MineTriggered);
         }
 
         [Test]

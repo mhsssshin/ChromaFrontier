@@ -6,9 +6,8 @@ namespace ChromaFrontier.Core
     public sealed class StageRules
     {
         public int MaxTurns = Balance.MaxTurns; // 양측 합산
-        public int LavaEvery;                   // 화산: N 라운드마다 중앙에 용암 분출 (0 = 없음)
-        public int LavaCount = 1;               //   한 번에 터지는 칸 수
-        public int LavaRounds = 2;              //   용암이 남는 라운드 수
+        public int LavaEvery;                   // 화산: N 라운드마다 분출 (0 = 없음)
+        public int LavaCount = 1;               //   분출 한 번에 양쪽에서 각각 터지는 유닛 수
         public int LockFromTurn = Balance.LockFromTurn; // 영역 잠금을 뽑고 쓸 수 있는 첫 턴 (양측 합산)
     }
 
@@ -151,7 +150,8 @@ namespace ChromaFrontier.Core
                 Skill.Warp => !t.IsProtectedFrom(s),
                 Skill.Lock => Turn >= Rules.LockFromTurn, // 초반에는 못 쓴다 (손패에도 안 들어오지만 만일을 위해)
                 Skill.Bleach => t.HasUnit && t.Unit != Element.Grey && !t.IsProtectedFrom(s),
-                Skill.Mine => t.Owner == s && !t.HasUnit && t.Mine == Side.None,
+                // 빈 칸이면 어디든. 상대 지뢰가 있는지는 모르므로 막지 않는다 (덮어쓴다). 내 지뢰 위에는 못 묻는다.
+                Skill.Mine => !t.HasUnit && t.Mine != s,
                 _ => false,
             };
         }
@@ -249,7 +249,7 @@ namespace ChromaFrontier.Core
             return Board.IsFrontline(c, s);
         }
 
-        /// <summary>라운드 끝 기믹: 컨베이어 이동 → 블랙홀 흡입 → (주기마다) 용암 분출.</summary>
+        /// <summary>라운드 끝 기믹: 컨베이어 이동 → 블랙홀 흡입 → (주기마다) 화산 분출.</summary>
         private void EndRound()
         {
             Round++;
@@ -297,24 +297,27 @@ namespace ChromaFrontier.Core
             }
         }
 
-        /// <summary>보드 중앙 3x3 안의 평지에 용암이 솟는다: 칸이 비워지고 LavaRounds 라운드 동안 막힌다.</summary>
+        /// <summary>
+        /// 화산 분출: 양쪽에서 각각 무작위 유닛 LavaCount 개가 터진다. 유닛은 사라지고 그 칸은 주인 없는 땅이 된다.
+        /// 한 번 터지고 끝이라 칸이 막히지는 않는다. 보호된 칸의 유닛은 버틴다.
+        /// </summary>
         private void EruptLava()
         {
-            var cx = (Board.Width - 1) / 2f;
-            var cy = (Board.Height - 1) / 2f;
-            var pool = new List<Cell>();
-            foreach (var c in Board.Cells())
-                if (System.Math.Abs(c.X - cx) <= 1.5f && System.Math.Abs(c.Y - cy) <= 1.5f
-                    && !Board[c].Blocked && Board[c].Terrain == Terrain.Ground)
-                    pool.Add(c);
-            for (var i = 0; i < Rules.LavaCount && pool.Count > 0; i++)
+            foreach (var side in new[] { Side.Player, Side.Ai })
             {
-                var k = _rng.Next(pool.Count);
-                var c = pool[k];
-                pool.RemoveAt(k);
-                Board[c].ClearContents();
-                Board[c].Lava = Rules.LavaRounds * Balance.TicksPerRound;
-                RoundEvents.Add(new RoundEvent(RoundEventKind.Lava, c));
+                var pool = new List<Cell>();
+                foreach (var c in Board.Cells())
+                    if (Board[c].HasUnit && Board[c].UnitOwner == side && Board[c].Shield == 0) pool.Add(c);
+                for (var i = 0; i < Rules.LavaCount && pool.Count > 0; i++)
+                {
+                    var k = _rng.Next(pool.Count);
+                    var c = pool[k];
+                    pool.RemoveAt(k);
+                    Board[c].Unit = Element.None;
+                    Board[c].UnitOwner = Side.None;
+                    Board[c].Owner = Side.None;
+                    RoundEvents.Add(new RoundEvent(RoundEventKind.Lava, c));
+                }
             }
         }
     }

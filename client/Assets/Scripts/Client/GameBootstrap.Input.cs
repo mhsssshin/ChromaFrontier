@@ -166,6 +166,12 @@ namespace ChromaFrontier.Client
             if (card.IsUnit && _blueAt is { } at)
             {
                 _hl.Picked = at;
+                if (_blueTap is { } tap && tap != at)
+                {
+                    _hl.Slides[tap] = at + tap * -1;
+                    _hl.Ghost = at;
+                    _hl.GhostUnit = card.Element;
+                }
                 foreach (var d in Cell.Orthogonal)
                 {
                     var line = BlueLine(at, d);
@@ -176,7 +182,11 @@ namespace ChromaFrontier.Client
             }
             else if (card.IsUnit)
             {
-                foreach (var c in Game.LegalCells(Side.Player)) _hl.Legal.Add(c);
+                foreach (var c in Game.LegalCells(Side.Player))
+                {
+                    _hl.Legal.Add(c);
+                    if (SlideTarget(c) is { } to) _hl.Slides[c] = to + c * -1;
+                }
             }
             else
             {
@@ -196,6 +206,12 @@ namespace ChromaFrontier.Client
             _hl.Preview.Add(f);
             if (card.IsUnit)
             {
+                if (!_blueAt.HasValue && SlideTarget(f) is { } land)
+                {
+                    _hl.Preview.Add(land);
+                    _hl.Ghost = land;
+                    _hl.GhostUnit = card.Element;
+                }
                 PlayResult r = null;
                 if (_blueTap is { } tap && _blueAt is { } at)
                 {
@@ -204,11 +220,6 @@ namespace ChromaFrontier.Client
                 else if (card.Element == Element.Red)
                 {
                     r = Game.CloneFor(Side.Player).Play(Selected, f);
-                }
-                else if (card.Element == Element.Blue && Game.Board[f].Terrain == Terrain.Ice)
-                {
-                    var to = f + Resolver.SlideDir(Game.Board, f, Side.Player);
-                    if (Resolver.CanLand(Game.Board, to, Side.Player)) _hl.Preview.Add(to);
                 }
                 if (r != null)
                 {
@@ -230,14 +241,8 @@ namespace ChromaFrontier.Client
                 if (card.Element == Element.Blue)
                 {
                     // 얼음이면 미끄러져 멈출 칸에서 물이 흐른다.
-                    var land = cell;
-                    if (Game.Board[cell].Terrain == Terrain.Ice)
-                    {
-                        var to = cell + Resolver.SlideDir(Game.Board, cell, Side.Player);
-                        if (Resolver.CanLand(Game.Board, to, Side.Player)) land = to;
-                    }
                     _blueTap = cell;
-                    _blueAt = land;
+                    _blueAt = SlideTarget(cell) ?? cell;
                     Message = Tutorial ? Lesson.WaterIntro : "물이 흐를 방향으로 보드를 쓸어 넘기세요 (화살표 줄을 탭해도 돼요)";
                     return;
                 }
@@ -270,6 +275,14 @@ namespace ChromaFrontier.Client
             Deselect();
             AfterMove(Side.Player, tap, default);
             CheckLesson(Game.LastResult);
+        }
+
+        /// <summary>얼음 칸 c 에 유닛을 놓으면 미끄러져 멈출 칸 (미끄러지지 않으면 null).</summary>
+        private Cell? SlideTarget(Cell c)
+        {
+            if (Game.Board[c].Terrain != Terrain.Ice) return null;
+            var to = c + Resolver.SlideDir(Game.Board, c, Side.Player);
+            return Resolver.CanLand(Game.Board, to, Side.Player) ? to : (Cell?)null;
         }
 
         /// <summary>물 방향 단계에서 화살표가 서는 줄 (길이 BlueLength, 판 밖·낭떠러지에서 멈춤).</summary>

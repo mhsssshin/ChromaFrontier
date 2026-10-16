@@ -81,7 +81,7 @@ namespace ChromaFrontier.Client
                 Skill.Warp => "두 칸 교환·턴 유지",
                 Skill.Lock => "3x3 배치 금지",
                 Skill.Bleach => "유닛 무력화",
-                Skill.Mine => "내 빈 땅에 함정",
+                Skill.Mine => "빈 칸 어디든 함정",
                 _ => "",
             };
 
@@ -106,7 +106,7 @@ namespace ChromaFrontier.Client
                 Skill.Warp => warpSecond ? "맞바꿀 두 번째 칸을 누르세요. (첫 칸을 다시 누르면 취소)" : "맞바꿀 첫 번째 칸을 누르세요. 보드 어디든 됩니다.",
                 Skill.Lock => "잠글 3x3 구역의 가운데 칸을 누르세요.",
                 Skill.Bleach => "무력화할 유닛을 누르세요.",
-                Skill.Mine => "지뢰를 묻을 내 빈 땅을 누르세요. (상대에게 안 보임)",
+                Skill.Mine => "지뢰를 묻을 빈 칸을 누르세요. 상대가 밟으면 주변이 내 땅! (상대에게 안 보임)",
                 _ => "",
             };
     }

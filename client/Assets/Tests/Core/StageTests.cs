@@ -106,22 +106,34 @@ namespace ChromaFrontier.Core.Tests
         }
 
         [Test]
-        public void Lava_EruptsInCenterAndCoolsDown()
+        public void Volcano_BlowsUpOneRandomUnitOfEachSide_AndLeavesNoLava()
         {
             var g = Game.Create(Board.Parse(
                 "P....",
                 ".....",
                 ".....",
                 ".....",
-                "....A"), Game.StarterDeck(), Game.StarterDeck(), 3, new StageRules { LavaEvery = 1, LavaCount = 1, LavaRounds = 1 });
+                "....A"), Game.StarterDeck(), Game.StarterDeck(), 3, new StageRules { LavaEvery = 1, LavaCount = 1 });
+            foreach (var (x, y, side) in new[] { (1, 1, Side.Player), (2, 1, Side.Player), (3, 3, Side.Ai), (2, 3, Side.Ai) })
+            {
+                ref var t = ref g.Board[new Cell(x, y)];
+                t.Owner = t.UnitOwner = side;
+                t.Unit = Element.Red;
+            }
+            var playable = g.Board.Playable;
             PassRound(g);
-            Assert.AreEqual(1, g.RoundEvents.Count);
-            var lava = g.RoundEvents[0].Cell;
-            Assert.IsTrue(g.Board[lava].Blocked);
-            g.Mulligan();
-            g.Mulligan();
-            // 다음 라운드에 또 분출하지만 처음 칸은 식었다 (같은 칸이 다시 골라지지 않았다면)
-            if (g.RoundEvents[0].Cell != lava) Assert.IsFalse(g.Board[lava].Blocked);
+            Assert.AreEqual(2, g.RoundEvents.Count);
+            var sides = new System.Collections.Generic.HashSet<Side>();
+            foreach (var ev in g.RoundEvents)
+            {
+                var t = g.Board[ev.Cell];
+                Assert.IsFalse(t.HasUnit);
+                Assert.AreEqual(Side.None, t.Owner);
+                Assert.IsFalse(t.Blocked);
+                sides.Add(ev.Cell.X + ev.Cell.Y <= 3 ? Side.Player : Side.Ai);
+            }
+            Assert.AreEqual(2, sides.Count);           // 양쪽에서 하나씩
+            Assert.AreEqual(playable, g.Board.Playable); // 막힌 칸이 생기지 않는다
         }
     }
 }

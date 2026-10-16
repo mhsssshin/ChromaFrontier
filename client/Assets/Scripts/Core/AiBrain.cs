@@ -200,11 +200,23 @@ namespace ChromaFrontier.Core
             return score;
         }
 
-        /// <summary>상대가 놓을 만한 전선 칸일수록, 터졌을 때 먹을 칸이 많을수록 높다.</summary>
+        /// <summary>
+        /// 상대가 다음 턴에 놓을 수 있는 칸일수록, 상대 유닛 옆(융합하러 올 만한 칸)일수록, 터졌을 때 먹을 칸이 많을수록 높다.
+        /// 지뢰는 어디에나 묻을 수 있지만 상대 손이 안 닿는 칸은 거의 쓸모없다.
+        /// </summary>
         private static float ScoreMine(Game view, Cell c, Side me, Side foe)
         {
             if (!view.CanPlace(foe, c)) return 0.2f;
             var score = 1.5f;
+            foreach (var d in Cell.Orthogonal)
+            {
+                var n = c + d;
+                if (view.Board.InBounds(n) && view.Board[n].Unit.Colors() != 0)
+                {
+                    score += 0.5f;
+                    break;
+                }
+            }
             foreach (var n in view.Board.Cells())
                 if (n.Chebyshev(c) <= Balance.MineRadius && view.Board[n].Owner != me) score += 0.2f;
             return score;

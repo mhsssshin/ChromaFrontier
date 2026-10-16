@@ -21,13 +21,12 @@ namespace ChromaFrontier.Core
         public Side UnitOwner;
         public int Shield;        // > 0 이면 Owner 가 아닌 쪽은 이 칸을 바꿀 수 없다 (보라 침묵, 백색 성역). 턴마다 1씩 감소.
         public int Lock;          // > 0 이면 아무도 유닛을 놓을 수 없다 (영역 잠금). 턴마다 1씩 감소.
-        public int Lava;          // > 0 이면 용암: 배치·점유 불가 (화산 지대). 턴마다 1씩 감소, 0 이 되면 식어서 평지.
         public Side Mine;         // 잠복 지뢰를 묻은 쪽. 상대에게는 보이지 않는다.
 
         public bool HasUnit => Unit != Element.None;
 
-        /// <summary>배치·점유가 불가능한 칸 (낭떠러지, 블랙홀, 용암). 점유율 계산에서도 빠진다.</summary>
-        public bool Blocked => Terrain == Terrain.Chasm || Terrain == Terrain.BlackHole || Lava > 0;
+        /// <summary>배치·점유가 불가능한 칸 (낭떠러지, 블랙홀). 점유율 계산에서도 빠진다.</summary>
+        public bool Blocked => Terrain == Terrain.Chasm || Terrain == Terrain.BlackHole;
 
         /// <summary>by 쪽이 이 칸을 바꿀 수 없는가 (상대 소유의 보호된 칸).</summary>
         public bool IsProtectedFrom(Side by) => Shield > 0 && Owner != Side.None && Owner != by;
@@ -37,13 +36,9 @@ namespace ChromaFrontier.Core
         {
             var terrain = Terrain;
             var otherTerrain = o.Terrain;
-            var lava = Lava;
-            var otherLava = o.Lava;
             (this, o) = (o, this);
             Terrain = terrain;
             o.Terrain = otherTerrain;
-            Lava = lava;
-            o.Lava = otherLava;
         }
 
         public void ClearContents()
@@ -123,14 +118,13 @@ namespace ChromaFrontier.Core
             return false;
         }
 
-        /// <summary>턴이 끝날 때마다 보호막·잠금·용암 남은 턴을 1씩 줄인다.</summary>
+        /// <summary>턴이 끝날 때마다 보호막·잠금 남은 턴을 1씩 줄인다.</summary>
         public void TickTimers()
         {
             for (var i = 0; i < _tiles.Length; i++)
             {
                 if (_tiles[i].Shield > 0) _tiles[i].Shield--;
                 if (_tiles[i].Lock > 0) _tiles[i].Lock--;
-                if (_tiles[i].Lava > 0) _tiles[i].Lava--;
             }
         }
 
