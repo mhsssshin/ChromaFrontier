@@ -27,7 +27,7 @@ namespace ChromaFrontier.Client
                 {
                     case Skill.Warp:
                         _view.Flash(new[] { at, at2 });
-                        Message += " — 두 칸을 맞바꿨다. 턴 계속!";
+                        Message += " — 두 칸을 맞바꿨다";
                         break;
                     case Skill.Lock:
                         var area = new List<Cell>();
@@ -43,6 +43,18 @@ namespace ChromaFrontier.Client
                     case Skill.Mine:
                         if (actor == Side.Player) _view.Flash(new[] { at });
                         Message = actor == Side.Player ? "나: 잠복 지뢰를 묻었다" : "AI가 어딘가에 무언가를 숨겼다...";
+                        break;
+                    case Skill.Transmute:
+                        _view.Flash(new[] { at });
+                        Message += $" — {Palette.Name(r.Bleached)} 유닛이 {Palette.Ro(Palette.Name(Game.Board[at].Unit))} 바뀌었다";
+                        break;
+                    case Skill.Echo:
+                        _view.Flash(r.Captured);
+                        Message += $" — {Palette.Name(r.Placed)} 효과 한 번 더 → +{r.Captured.Count}칸";
+                        break;
+                    case Skill.Beacon:
+                        _view.Flash(new[] { at });
+                        Message += " — 깃발을 꽂았다. 라운드마다 주변 한 칸을 차지한다";
                         break;
                 }
                 return;
@@ -101,11 +113,22 @@ namespace ChromaFrontier.Client
                     case Skill.Mine:
                         if (actor == Side.Player) _fx.Spawn(FxView.Smoke, pos, new Color(0.7f, 0.6f, 0.5f), 0.7f);
                         break;
+                    case Skill.Transmute:
+                        _fx.Spawn(FxView.Smoke, pos + lift, Palette.Of(r.Bleached), 1f);
+                        _fx.Spawn(FxView.Sparkle, pos + lift * 1.5f, Palette.Of(Game.Board[at].Unit), 1.4f, 0.15f);
+                        break;
+                    case Skill.Echo:
+                        _fx.Spawn(FxView.Ring, pos, Palette.Of(r.Placed), 2f);
+                        _fx.Spawn(r.Placed == Element.Blue ? FxView.Splash : r.Placed == Element.Yellow ? FxView.Zap : FxView.Burst, pos + lift, white, 1.2f, 0.1f);
+                        break;
+                    case Skill.Beacon:
+                        _fx.Spawn(FxView.Sparkle, pos + lift * 1.5f, new Color(1f, 0.9f, 0.45f), 1.4f);
+                        _fx.Spawn(FxView.Ring, pos, Palette.Of(actor), 1.5f, 0.1f);
+                        break;
                 }
-                return;
+                if (r.Skill != Skill.Echo) return; // 재점화는 아래에서 점유한 칸 연출까지 이어간다
             }
-
-            if (r.MineTriggered)
+            else if (r.MineTriggered)
             {
                 _fx.Spawn(FxView.Burst, pos + lift, white, 1.8f);
                 _fx.Spawn(FxView.Smoke, pos + lift, new Color(0.5f, 0.45f, 0.45f), 1.6f, 0.15f);
@@ -186,6 +209,12 @@ namespace ChromaFrontier.Client
                     case RoundEventKind.BlackHole:
                         _fx.Spawn(FxView.Void, p + lift, Color.white, 0.9f, 0.1f);
                         if (!notes.Contains("블랙홀이 주변을 삼켰다")) notes.Add("블랙홀이 주변을 삼켰다");
+                        break;
+                    case RoundEventKind.Beacon:
+                        var team = Palette.Of(Game.Board[ev.Cell].Owner);
+                        _fx.Spawn(FxView.Ring, p, Color.Lerp(team, Color.white, 0.35f), 1f, 0.15f);
+                        _fx.Spawn(FxView.Sparkle, p + lift, Color.Lerp(team, Color.white, 0.6f), 0.8f, 0.2f);
+                        if (!notes.Contains("거점이 땅을 넓혔다")) notes.Add("거점이 땅을 넓혔다");
                         break;
                     case RoundEventKind.Conveyor:
                         _fx.Spawn(FxView.Smoke, p + lift, new Color(0.8f, 0.8f, 0.85f), 0.9f, 0.1f);

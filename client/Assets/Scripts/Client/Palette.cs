@@ -43,6 +43,15 @@ namespace ChromaFrontier.Client
             _ => "무속성",
         };
 
+        /// <summary>조사 '(으)로'를 붙인다: 받침이 있으면 '으로', 없거나 ㄹ 받침이면 '로'.</summary>
+        public static string Ro(string word)
+        {
+            var last = word[word.Length - 1];
+            if (last < '가' || last > '힣') return word + "로";
+            var jong = (last - '가') % 28;
+            return word + (jong == 0 || jong == 8 ? "로" : "으로");
+        }
+
         /// <summary>같은 원소 공명의 이름.</summary>
         public static string ResonanceName(Element e) => e switch
         {
@@ -58,15 +67,18 @@ namespace ChromaFrontier.Client
             Skill.Lock => "영역 잠금",
             Skill.Bleach => "탈색",
             Skill.Mine => "잠복 지뢰",
+            Skill.Transmute => "원소 변환",
+            Skill.Echo => "재점화",
+            Skill.Beacon => "거점",
             _ => "",
         };
 
-        public static string Name(Card c) => c.IsUnit ? Name(c.Element) : Name(c.Skill);
+        public static string Name(Card c) => c.IsUnit ? Name(c.Element) : c.Skill == Skill.Transmute ? $"{Name(c.Element)} 변환" : Name(c.Skill);
 
         /// <summary>카드 아트 칸에 크게 쓰는 한 글자 (Pretendard 에 있는 한글만).</summary>
         public static string Glyph(Card c) => c.IsUnit
             ? Name(c.Element).Substring(0, 1)
-            : c.Skill switch { Skill.Warp => "왜", Skill.Lock => "잠", Skill.Bleach => "탈", Skill.Mine => "뢰", _ => "?" };
+            : c.Skill switch { Skill.Warp => "왜", Skill.Lock => "잠", Skill.Bleach => "탈", Skill.Mine => "뢰", Skill.Transmute => "변", Skill.Echo => "점", Skill.Beacon => "깃", _ => "?" };
 
         public static string Hint(Card c) => c.IsUnit
             ? c.Element switch
@@ -78,10 +90,13 @@ namespace ChromaFrontier.Client
             }
             : c.Skill switch
             {
-                Skill.Warp => "두 칸 교환·턴 유지",
+                Skill.Warp => "두 칸 맞바꾸기",
                 Skill.Lock => "3x3 배치 금지",
                 Skill.Bleach => "유닛 무력화",
                 Skill.Mine => "빈 칸 어디든 함정",
+                Skill.Transmute => $"유닛을 {Ro(Name(c.Element))}",
+                Skill.Echo => "내 유닛 효과 한 번 더",
+                Skill.Beacon => "라운드마다 1칸 확장",
                 _ => "",
             };
 
@@ -93,6 +108,9 @@ namespace ChromaFrontier.Client
                 Skill.Lock => new Color(0.38f, 0.44f, 0.56f),
                 Skill.Bleach => new Color(0.66f, 0.66f, 0.7f),
                 Skill.Mine => new Color(0.3f, 0.28f, 0.32f),
+                Skill.Transmute => Of(c.Element),
+                Skill.Echo => new Color(1f, 0.62f, 0.25f),
+                Skill.Beacon => new Color(0.95f, 0.78f, 0.3f),
                 _ => Color.gray,
             };
 
@@ -107,7 +125,13 @@ namespace ChromaFrontier.Client
                 Skill.Lock => "잠글 3x3 구역의 가운데 칸을 누르세요.",
                 Skill.Bleach => "무력화할 유닛을 누르세요.",
                 Skill.Mine => "지뢰를 묻을 빈 칸을 누르세요. 상대가 밟으면 주변이 내 땅! (상대에게 안 보임)",
+                Skill.Transmute => $"{Ro(Name(c.Element))} 바꿀 유닛을 누르세요. 상대 유닛도 바꿀 수 있어요.",
+                Skill.Echo => "효과를 한 번 더 낼 내 1단계 유닛을 누르세요.",
+                Skill.Beacon => "깃발을 꽂을 내 땅을 누르세요. 라운드마다 주변 한 칸을 차지하고, 빼앗기면 무너져요.",
                 _ => "",
             };
+
+        /// <summary>스킬을 쓴 뒤 안내: 스킬은 턴을 쓰지 않는다.</summary>
+        public const string AfterSkill = "스킬은 턴을 쓰지 않아요. 이제 유닛을 놓으세요 (스킬은 한 턴에 한 장).";
     }
 }

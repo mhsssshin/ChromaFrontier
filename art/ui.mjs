@@ -173,6 +173,31 @@ export function ui() {
     p.path(ell(64, 70, 12, 10), p.rad([[0, '#ffd0c0'], [0.5, '#ff3a2a'], [1, '#a01010']]), stroke(3, '#3a0808'));
     p.path(ell(48, 62, 7, 5), '#ffffff', 'opacity="0.45"');
   }));
+  out.push(icon('icon_transmute', (p) => {
+    // 세 색 구슬을 도는 화살표 (카드 아트 칸이 바꿀 색으로 물든다)
+    p.path(ell(64, 64, 44, 44), p.rad([[0, '#ffffff'], [1, '#d8d4ea']]), stroke(4, '#3a3456'));
+    for (let k = 0; k < 2; k++)
+      p.add(`<path d="M64 64 m-32 0 a32 32 0 0 1 56 -16" fill="none" stroke="#3a3456" stroke-width="7" stroke-linecap="round" transform="rotate(${k * 180} 64 64)"/>`
+        + `<path d="M64 64 m28 -26 l-2 14 l-13 -5 z" fill="#3a3456" transform="rotate(${k * 180} 64 64)"/>`);
+    for (const [dx, dy, c] of [[0, -14, '#ff5a3a'], [-12, 8, '#3a9aff'], [12, 8, '#ffd21f']])
+      p.path(ell(64 + dx, 64 + dy, 10, 10), c, stroke(2.5, '#3a3456'));
+  }));
+  out.push(icon('icon_echo', (p) => {
+    // 불씨 하나에서 퍼지는 메아리 고리
+    for (const [r, o] of [[52, 0.35], [40, 0.6]])
+      p.path(ell(64, 70, r, r * 0.8), 'none', `stroke="#ffe08a" stroke-width="6" opacity="${o}"`);
+    p.path('M64 30 C78 48 88 60 88 78 C88 94 77 104 64 104 C51 104 40 94 40 78 C40 60 50 48 64 30 Z',
+      p.lin([[0, '#fff2a8'], [0.5, '#ff9a3a'], [1, '#e0401a']]), stroke(4, '#6a1a08'));
+    p.path('M64 62 C70 70 74 76 74 84 C74 91 69 96 64 96 C59 96 54 91 54 84 C54 76 58 70 64 62 Z', '#fff6c8');
+  }));
+  out.push(icon('icon_beacon', (p) => {
+    p.path(ell(48, 112, 26, 9), p.lin([[0, '#b0a898'], [1, '#6a6458']]), stroke(3, '#2a2620'));
+    p.path('M48 112 V18', 'none', 'stroke="#4a3018" stroke-width="10" stroke-linecap="round"');
+    p.path('M48 112 V18', 'none', 'stroke="#d09a5a" stroke-width="5" stroke-linecap="round"');
+    p.path('M50 20 C68 12 80 28 108 20 L100 44 L108 68 C80 76 68 60 50 68 Z', p.lin([[0, '#ffe07a'], [1, '#f0a020']]), stroke(4, '#6a3a08'));
+    p.path(star(76, 44, 12, 5), '#ffffff');
+    p.path(ell(48, 16, 7, 7), '#ffd84a', stroke(3, '#7a5010'));
+  }));
 
   return out;
 }

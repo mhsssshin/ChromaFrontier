@@ -66,7 +66,7 @@ namespace ChromaFrontier.Core.Tests
         public void Warp_LeavesTerrainInPlace()
         {
             var b = Board.Parse("~P.", "...", "..A");
-            Resolver.CastSkill(b, Side.Player, Skill.Warp, new Cell(0, 0), new Cell(1, 0));
+            Resolver.CastSkill(b, new Rng(1), Side.Player, Card.Of(Skill.Warp), new Cell(0, 0), new Cell(1, 0));
             Assert.AreEqual(Terrain.Ice, b[new Cell(0, 0)].Terrain);
             Assert.AreEqual(Side.Player, b[new Cell(0, 0)].Owner);
         }

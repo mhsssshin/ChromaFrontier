@@ -5,8 +5,10 @@ namespace ChromaFrontier.Core
     /// <summary>
     /// 기본 탐욕 AI. 모든 후보 수에 점수를 매겨 최고점을 둔다 (동점은 무작위).
     /// - 유닛: 시뮬레이션해서 (내 칸 − 상대 칸)이 얼마나 늘었나.
-    /// - 탈색/잠금/지뢰: 칸 수가 바로 안 바뀌므로 휴리스틱 점수 + 손패에 스킬이 쌓일수록 가산 (손패 막힘 방지).
-    /// - 공간 왜곡: 턴을 안 쓰므로 2수 탐색 — 유닛을 내 전선 옆으로 끌어온 뒤 그 옆에 유닛을 놓는 수까지 본다 (후보 수 제한).
+    /// - 스킬은 턴을 안 쓰므로 유닛 수와 따로 본다: 쓰고 나서 유닛을 두는 편이 그냥 두는 것보다 나으면 먼저 쓴다.
+    /// - 탈색/잠금/지뢰/거점: 칸 수가 바로 안 바뀌므로 휴리스틱 점수 + 손패에 스킬이 쌓일수록 가산 (손패 막힘 방지).
+    /// - 재점화: 바로 늘어나는 칸 수. 원소 변환: 바꾼 유닛 옆에 둘 최선의 수 − 그냥 둘 최선의 수.
+    /// - 공간 왜곡: 2수 탐색 — 유닛을 내 전선 옆으로 끌어온 뒤 그 옆에 유닛을 놓는 수까지 본다 (후보 수 제한).
     /// 시뮬레이션은 CloneFor(me) 로 상대의 숨은 지뢰를 모르는 상태에서 한다.
     /// 둘 곳이 없으면 패 버리기(멀리건).
     /// 난이도(AiLevel)는 점수에 섞는 무작위·실수 확률·공간 왜곡 사용 여부로 낮춘다 (Profile).
@@ -59,6 +61,50 @@ namespace ChromaFrontier.Core
             public float Score;
         }
 
+        /// <summary>점수가 가장 높은 후보를 고른다 (동점은 무작위). blunder 면 아무 후보나 (저수지 표본 추출).</summary>
+        private sealed class Picker
+        {
+            public Move Best;
+            private readonly Rng _rng;
+            private readonly float _noise, _noiseBias;
+            private readonly bool _blunder;
+            private int _ties, _seen;
+
+            /// <param name="noiseBias">더하는 무작위의 중심 (0 이면 0~noise, 0.5 면 ±noise/2)</param>
+            public Picker(Move fallback, Rng rng, float noise, float noiseBias, bool blunder)
+            {
+                Best = fallback;
+                _rng = rng;
+                _noise = noise;
+                _noiseBias = noiseBias;
+                _blunder = blunder;
+            }
+
+            public void Offer(Move m)
+            {
+                if (_blunder)
+                {
+                    if (_rng.Next(++_seen) == 0) Best = m;
+                    return;
+                }
+                if (_noise > 0f) m.Score += _noise * (_rng.Next(1000) / 1000f - _noiseBias);
+                if (m.Score > Best.Score)
+                {
+                    Best = m;
+                    _ties = 1;
+                }
+                else if (m.Score == Best.Score && _rng.Next(++_ties) == 0)
+                {
+                    Best = m;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 1) 턴을 끝내는 수(유닛·패 버리기) 중 최선을 고른다.
+        /// 2) 이번 턴에 스킬을 아직 안 썼으면, 스킬마다 "쓰고 나서 둘 최선의 수가 지금보다 얼마나 나아지나"(왜곡·변환·재점화)나
+        ///    휴리스틱 점수(잠금·탈색·지뢰·거점)를 매겨 0보다 크면 스킬을 먼저 쓴다. 스킬은 턴을 안 쓰므로 다음 호출에서 유닛을 둔다.
+        /// </summary>
         public static Move Choose(Game game, Rng tieBreak, AiLevel level = AiLevel.Perfect, AiPersona persona = null)
         {
             persona ??= AiPersona.Default;
@@ -69,67 +115,72 @@ namespace ChromaFrontier.Core
             var view = game.CloneFor(me);
             var hand = view.DeckOf(me).Hand;
             var baseDiff = Diff(view, me);
+
+            var units = new Picker(new Move { Mulligan = true, Score = float.MinValue }, tieBreak, noise, 0f, blunder);
+            var bestUnit = float.MinValue; // 무작위 없는 최고 점수: 스킬의 이득을 재는 기준
+            var legal = view.LegalCells(me);
+            for (var h = 0; h < hand.Count; h++)
+            {
+                if (!hand[h].IsUnit) continue;
+                foreach (var at in legal)
+                    foreach (var d in DirsFor(hand[h]))
+                    {
+                        var s = ScoreUnit(view, h, at, d, me, baseDiff, persona);
+                        if (s > bestUnit) bestUnit = s;
+                        units.Offer(new Move { HandIndex = h, At = at, Dir = d, Score = s });
+                    }
+            }
+            if (view.SkillUsed || blunder) return units.Best;
+
+            var baseline = bestUnit == float.MinValue ? 0f : bestUnit;
             var skillsInHand = 0;
             foreach (var c in hand)
                 if (!c.IsUnit) skillsInHand++;
             var pressure = SkillPressure * (skillsInHand - 1);
-
-            var best = new Move { Mulligan = true, Score = float.MinValue };
-            var ties = 0;
-            var seen = 0;
-            void Offer(Move m)
-            {
-                if (blunder)
-                {
-                    // 실수하는 턴: 후보 중 아무거나 (저수지 표본 추출)
-                    if (tieBreak.Next(++seen) == 0) best = m;
-                    return;
-                }
-                if (noise > 0f) m.Score += noise * tieBreak.Next(1000) / 1000f;
-                if (m.Score > best.Score)
-                {
-                    best = m;
-                    ties = 1;
-                }
-                else if (m.Score == best.Score && tieBreak.Next(++ties) == 0)
-                {
-                    best = m;
-                }
-            }
-
-            var legal = view.LegalCells(me);
+            var skills = new Picker(new Move { Score = 0f }, tieBreak, noise * 0.5f, 0.5f, false);
             for (var h = 0; h < hand.Count; h++)
             {
                 var card = hand[h];
-                if (card.IsUnit)
+                if (card.IsUnit) continue;
+                switch (card.Skill)
                 {
-                    foreach (var at in legal)
-                        foreach (var d in DirsFor(card))
-                            Offer(new Move { HandIndex = h, At = at, Dir = d, Score = ScoreUnit(view, h, at, d, me, baseDiff, persona) });
-                    continue;
+                    case Skill.Warp:
+                        if (warpCandidates > 0)
+                            foreach (var m in WarpMoves(view, h, me, baseDiff, baseline, warpCandidates, tieBreak, persona)) skills.Offer(m);
+                        continue;
+                    case Skill.Transmute:
+                    case Skill.Echo:
+                        foreach (var c in view.Board.Cells())
+                        {
+                            if (!view.CanTarget(me, card, c)) continue;
+                            var sim = view.Clone();
+                            sim.Cast(h, c);
+                            float gain = Diff(sim, me) - baseDiff;
+                            if (card.Skill == Skill.Transmute)
+                            {
+                                var follow = BestFollowUp(sim, c, me, persona);
+                                if (follow == float.MinValue) continue;
+                                gain += follow - baseline;
+                            }
+                            skills.Offer(new Move { HandIndex = h, IsSkill = true, At = c, Score = gain + pressure * 0.5f });
+                        }
+                        continue;
                 }
-
-                if (card.Skill == Skill.Warp)
-                {
-                    if (warpCandidates > 0)
-                        foreach (var m in WarpMoves(view, h, me, baseDiff, warpCandidates, tieBreak, persona)) Offer(m);
-                    continue;
-                }
-
                 foreach (var c in view.Board.Cells())
                 {
-                    if (!view.CanTarget(me, card.Skill, c)) continue;
+                    if (!view.CanTarget(me, card, c)) continue;
                     var score = card.Skill switch
                     {
                         Skill.Bleach => ScoreBleach(view, c, me, foe) * persona.BleachWeight,
                         Skill.Lock => ScoreLock(view, c, me, foe) * persona.LockWeight,
                         Skill.Mine => ScoreMine(view, c, me, foe) * persona.MineWeight,
-                        _ => float.MinValue,
+                        Skill.Beacon => ScoreBeacon(view, c, me, foe),
+                        _ => 0f,
                     };
-                    if (score > 0f) Offer(new Move { HandIndex = h, IsSkill = true, At = c, Score = score + pressure });
+                    if (score > 0f) skills.Offer(new Move { HandIndex = h, IsSkill = true, At = c, Score = score + pressure });
                 }
             }
-            return best;
+            return skills.Best.IsSkill && skills.Best.Score > 0f ? skills.Best : units.Best;
         }
 
         public static void Apply(Game game, Move m)
@@ -223,9 +274,26 @@ namespace ChromaFrontier.Core
         }
 
         /// <summary>
+        /// 거점: 남은 라운드 동안 주변에서 먹을 수 있는 칸이 많을수록 높다. 상대가 바로 빼앗을 수 있는 전선 칸이면 깎는다.
+        /// </summary>
+        private static float ScoreBeacon(Game view, Cell c, Side me, Side foe)
+        {
+            var open = 0;
+            foreach (var d in Cell.Around8)
+            {
+                var n = c + d;
+                if (view.Board.InBounds(n) && !view.Board[n].Blocked && view.Board[n].Owner != me) open++;
+            }
+            var roundsLeft = (view.MaxTurns - view.Turn) / 2;
+            var score = System.Math.Min(open, roundsLeft) * 0.6f;
+            if (view.Board.IsFrontline(c, foe) && view.Board[c].Shield == 0) score *= 0.4f;
+            return score;
+        }
+
+        /// <summary>
         /// 1단계 유닛 칸 a 를, 내가 둘 수 있는 칸과 맞닿은 칸 b 로 옮긴 뒤 b 옆에 유닛을 놓는 최선의 후속 수까지 점수에 넣는다.
         /// </summary>
-        private static IEnumerable<Move> WarpMoves(Game view, int h, Side me, int baseDiff, int maxCandidates, Rng rng, AiPersona persona)
+        private static IEnumerable<Move> WarpMoves(Game view, int h, Side me, int baseDiff, float baseline, int maxCandidates, Rng rng, AiPersona persona)
         {
             var legal = view.LegalCells(me);
             var legalSet = new HashSet<Cell>(legal);
@@ -258,7 +326,7 @@ namespace ChromaFrontier.Core
                 sim.Cast(h, a, b);
                 var follow = BestFollowUp(sim, b, me, persona);
                 if (follow == float.MinValue) continue;
-                var score = Diff(sim, me) - baseDiff + follow - WarpCost + persona.WarpBonus;
+                var score = Diff(sim, me) - baseDiff + follow - baseline - WarpCost + persona.WarpBonus;
                 yield return new Move { HandIndex = h, IsSkill = true, At = a, Target2 = b, Score = score };
             }
         }

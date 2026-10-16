@@ -60,7 +60,8 @@ namespace ChromaFrontier.Core
         public static readonly AiPersona Homunculus = new() { Id = "homunculus", CatalystSteal = 5f, LoneUnitPenalty = 2.5f, MineWeight = 1.3f, WarpBonus = 1.5f };
         public static readonly AiPersona HomunculusPlus = new() { Id = "homunculus+", CatalystSteal = 7f, LoneUnitPenalty = 2f, MineWeight = 1.5f, WarpBonus = 2f };
 
-        private static List<Card> Deck(int red, int blue, int yellow, int warp, int lockN, int bleach, int mine)
+        /// <summary>AI 덱. 원소 변환은 빨·파·노 순서로 색을 돌려 넣는다.</summary>
+        private static List<Card> Deck(int red, int blue, int yellow, int warp, int lockN, int bleach, int mine, int transmute = 0, int echo = 0, int beacon = 0)
         {
             var d = new List<Card>();
             void Add(Card c, int n) { for (var i = 0; i < n; i++) d.Add(c); }
@@ -71,6 +72,9 @@ namespace ChromaFrontier.Core
             Add(Card.Of(Skill.Lock), lockN);
             Add(Card.Of(Skill.Bleach), bleach);
             Add(Card.Of(Skill.Mine), mine);
+            for (var i = 0; i < transmute; i++) d.Add(Card.Transmute(Elements.Base[i % 3]));
+            Add(Card.Of(Skill.Echo), echo);
+            Add(Card.Of(Skill.Beacon), beacon);
             return d;
         }
 
@@ -161,7 +165,7 @@ namespace ChromaFrontier.Core
             s.Opponent = "이그니스";
             s.OpponentNote = "어그로형: 화염 유닛만 내며 방어를 무시하고 전선을 밀고 들어온다.";
             s.Persona = Ignis;
-            s.AiDeck = Deck(14, 0, 0, 0, 0, 3, 3);
+            s.AiDeck = Deck(14, 0, 0, 0, 0, 2, 2, echo: 2);
         }
 
         // ---------------------------------------------------------------- 2장 화산 지대
@@ -171,7 +175,7 @@ namespace ChromaFrontier.Core
             s.Rules.LavaEvery = k < 4 ? 3 : 2;
             s.Rules.LavaCount = k < 6 ? 1 : 2;
             s.MapNote = $"{s.Rules.LavaEvery}라운드마다 화산이 터져 양쪽 유닛이 {s.Rules.LavaCount}개씩 무작위로 폭발한다.";
-            s.AiDeck = Deck(6, 3, 3, 2, 2, 2, 2);
+            s.AiDeck = Deck(6, 3, 3, 1, 1, 1, 2, transmute: 2, echo: 1, beacon: 1);
             if (!s.IsBoss) return;
             s.Name = "용암의 이그니스";
             s.Opponent = "이그니스 (각성)";
@@ -180,7 +184,7 @@ namespace ChromaFrontier.Core
             s.Rules.LavaEvery = 2;
             s.Rules.LavaCount = 2;
             s.MapNote = "2라운드마다 화산이 터져 양쪽 유닛이 2개씩 무작위로 폭발한다.";
-            s.AiDeck = Deck(16, 0, 0, 0, 0, 2, 2);
+            s.AiDeck = Deck(16, 0, 0, 0, 0, 1, 2, echo: 3);
         }
 
         // ---------------------------------------------------------------- 3장 얼음성
@@ -189,13 +193,13 @@ namespace ChromaFrontier.Core
             var density = s.IsBoss ? 75 : 20 + k * 6;
             s.Map = MakeMap(8, 8, (x, y) => Hash(x, y, s.Index) < density ? '~' : '.');
             s.MapNote = s.IsBoss ? "거의 모든 칸이 얼음. 놓은 유닛이 한 칸 더 미끄러진다." : "얼음 칸에 놓은 유닛은 밀고 나온 방향으로 한 칸 더 미끄러진다.";
-            s.AiDeck = Deck(3, 6, 3, 2, 2, 2, 2);
+            s.AiDeck = Deck(3, 6, 3, 1, 1, 1, 2, transmute: 2, echo: 1, beacon: 1);
             if (!s.IsBoss) return;
             s.Name = "빙결의 글라시아";
             s.Opponent = "글라시아";
             s.OpponentNote = "통제형: 물·보라 위주에 잠금과 탈색으로 접근을 원천 차단한다.";
             s.Persona = Glacia;
-            s.AiDeck = Deck(4, 8, 0, 0, 4, 3, 1);
+            s.AiDeck = Deck(4, 8, 0, 0, 3, 3, 1, beacon: 2);
         }
 
         // ---------------------------------------------------------------- 4장 끊어진 다리
@@ -221,7 +225,7 @@ namespace ChromaFrontier.Core
             s.Persona = Homunculus;
             s.Map = MakeMap(8, 8, (x, y) => BridgeHoles[1](x, y) ? '#' : '.');
             s.MapNote = "대각선 강을 두 다리로만 건널 수 있다.";
-            s.AiDeck = Deck(4, 4, 4, 4, 0, 2, 2);
+            s.AiDeck = Deck(4, 4, 4, 3, 0, 1, 2, transmute: 3);
         }
 
         // ---------------------------------------------------------------- 5장 공허의 탑 (9x9)
@@ -244,13 +248,13 @@ namespace ChromaFrontier.Core
                 default: map = (x, y) => x == 4 && (y == 2 || y == 6) ? 'O' : Conveyor(x, y, 4) ? '>' : Math.Abs(x - 4) == 2 && Math.Abs(y - 4) == 2 ? 's' : '.'; s.MapNote = "공허의 탑 꼭대기: 블랙홀 둘, 컨베이어, 침묵 지대가 모두 있다."; break;
             }
             s.Map = MakeMap(9, 9, map);
-            s.AiDeck = Deck(4, 4, 4, 3, 2, 1, 2);
+            s.AiDeck = Deck(4, 4, 4, 2, 1, 1, 1, transmute: 2, echo: 1, beacon: 1);
             if (!s.IsBoss) return;
             s.Name = "공허의 호문클루스";
             s.Opponent = "호문클루스 (각성)";
             s.OpponentNote = "약탈형 강화: 공간 왜곡까지 써 가며 내 콤보를 빼앗는다.";
             s.Persona = HomunculusPlus;
-            s.AiDeck = Deck(4, 4, 4, 5, 0, 1, 2);
+            s.AiDeck = Deck(4, 4, 4, 4, 0, 1, 1, transmute: 3, beacon: 1);
         }
     }
 }

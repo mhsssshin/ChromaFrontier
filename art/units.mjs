@@ -140,5 +140,17 @@ export function units() {
   for (const dx of [-14, 14]) p.path(`M${24 + dx} 14 l${dx > 0 ? 4 : -4} -4`, 'none', 'stroke="#2a2630" stroke-width="3" stroke-linecap="round"');
   out.push(p.sprite('Units/mine'));
 
+  // 거점 깃발 (48x64, 중심 피벗 — BoardView 가 칸 왼쪽 위에 세운다). 팀 색으로 각각 굽는다.
+  for (const [name, c] of [['beacon_player', '#3d8ff0'], ['beacon_ai', '#ef4f4f']]) {
+    p = new Pic(48, 64);
+    p.path(ell(14, 58, 11, 4.5), p.lin([[0, '#9a9488'], [1, '#5a554c']]), stroke(1.5, '#2a2620'));
+    p.path('M14 58 V8', 'none', 'stroke="#4a3018" stroke-width="5" stroke-linecap="round"');
+    p.path('M14 58 V8', 'none', 'stroke="#c08a50" stroke-width="2.5" stroke-linecap="round"');
+    p.path('M15 9 C24 5 30 13 44 9 L40 21 L44 33 C30 37 24 29 15 33 Z', p.lin([[0, light(c, 0.25)], [1, dark(c, 0.15)]]), stroke(2, dark(c, 0.5)));
+    p.path(star(27, 21, 6, 2.6), '#ffffff', 'opacity="0.9"');
+    p.path(ell(14, 7, 3.5, 3.5), '#ffd84a', stroke(1.5, '#7a5010'));
+    out.push(p.sprite(`Units/${name}`));
+  }
+
   return out;
 }

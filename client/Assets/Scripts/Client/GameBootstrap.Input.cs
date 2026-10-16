@@ -33,6 +33,11 @@ namespace ChromaFrontier.Client
         public void Select(int handIndex)
         {
             if (!PlayerTurn) return;
+            if (!CanUse(Game.DeckOf(Side.Player).Hand[handIndex]))
+            {
+                Message = "스킬은 한 턴에 한 장만 쓸 수 있어요. 유닛을 놓으세요.";
+                return;
+            }
             Selected = handIndex;
             _warpFirst = null;
             _blueAt = _blueTap = null;
@@ -54,6 +59,7 @@ namespace ChromaFrontier.Client
             if (!PlayerTurn) return;
             _wasSelected = Selected == handIndex;
             if (!_wasSelected) Select(handIndex);
+            if (Selected != handIndex) return;
             _dragCard = handIndex;
             _dragMoved = false;
             _pressGui = _pointerGui = gui;
@@ -193,8 +199,8 @@ namespace ChromaFrontier.Client
                 _hl.Picked = _warpFirst;
                 foreach (var c in Game.Board.Cells())
                     if (_warpFirst.HasValue
-                            ? Game.CanCast(Side.Player, card.Skill, _warpFirst.Value, c)
-                            : Game.CanTarget(Side.Player, card.Skill, c))
+                            ? Game.CanCast(Side.Player, card, _warpFirst.Value, c)
+                            : Game.CanTarget(Side.Player, card, c))
                         _hl.Legal.Add(c);
             }
             RestrictToLesson();
@@ -231,6 +237,8 @@ namespace ChromaFrontier.Client
             if (card.Skill == Skill.Lock)
                 foreach (var c in Game.Board.Cells())
                     if (c.Chebyshev(f) <= Balance.LockRadius) _hl.Preview.Add(c);
+            if (card.Skill == Skill.Echo && Game.CanTarget(Side.Player, card, f))
+                foreach (var c in Game.CloneFor(Side.Player).Cast(Selected, f).Captured) _hl.Preview.Add(c);
         }
 
         /// <summary>정한 칸으로 카드를 낸다 (물·공간 왜곡은 다음 단계로 넘어갈 수 있음).</summary>
@@ -266,6 +274,7 @@ namespace ChromaFrontier.Client
             Deselect();
             AfterMove(Side.Player, first, second);
             CheckLesson(Game.LastResult);
+            if (PlayerTurn && !Tutorial) Message += "\n" + Palette.AfterSkill;
         }
 
         private void CommitWater(Cell dir)

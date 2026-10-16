@@ -22,6 +22,7 @@ namespace ChromaFrontier.Core
         public int Shield;        // > 0 이면 Owner 가 아닌 쪽은 이 칸을 바꿀 수 없다 (보라 침묵, 백색 성역). 턴마다 1씩 감소.
         public int Lock;          // > 0 이면 아무도 유닛을 놓을 수 없다 (영역 잠금). 턴마다 1씩 감소.
         public Side Mine;         // 잠복 지뢰를 묻은 쪽. 상대에게는 보이지 않는다.
+        public Side Beacon;       // 거점 깃발을 꽂은 쪽. 칸 주인이 바뀌면 사라진다.
 
         public bool HasUnit => Unit != Element.None;
 
@@ -49,6 +50,14 @@ namespace ChromaFrontier.Core
             Shield = 0;
             Lock = 0;
             Mine = Side.None;
+            Beacon = Side.None;
+        }
+
+        /// <summary>칸 주인을 바꾼다. 거점은 주인이 바뀌면 무너진다.</summary>
+        public void SetOwner(Side s)
+        {
+            if (Owner != s) Beacon = Side.None;
+            Owner = s;
         }
     }
 

@@ -409,7 +409,7 @@ namespace ChromaFrontier.Client
             }
 
             foreach (var v in hv.Leaving) DrawCard(v, false, true);
-            foreach (var i in order) DrawCard(hv.Cards[i], i == gb.Selected, gb.PlayerTurn);
+            foreach (var i in order) DrawCard(hv.Cards[i], i == gb.Selected, gb.PlayerTurn && gb.CanUse(hv.Cards[i].Card));
         }
 
         private static void DrawDeckPile(Deck deck)

@@ -208,6 +208,9 @@ namespace ChromaFrontier.Client
         public bool PlayerTurn => Mode == AppScreen.Battle && !Game.IsOver && Game.Current == Side.Player
             && !(Tutorial && LessonDone) && ActiveTip == null;
 
+        /// <summary>지금 낼 수 있는 카드인가: 스킬은 한 턴에 한 장.</summary>
+        public bool CanUse(Card c) => c.IsUnit || !Game.SkillUsed;
+
         private Card? SelectedCard => Game != null && Selected >= 0 && Selected < Game.DeckOf(Side.Player).Hand.Count
             ? Game.DeckOf(Side.Player).Hand[Selected]
             : (Card?)null;

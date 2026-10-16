@@ -28,6 +28,7 @@ namespace ChromaFrontier.Core
         public const int LockRadius = 1;       // 영역 잠금: 체비쇼프 반경 (1 = 3x3)
         public const int LockFromTurn = 6;     // 영역 잠금은 양측 합산 6턴째(각자 4번째 턴)부터 손패에 들어오고 쓸 수 있다
         public const int MineRadius = 1;       // 잠복 지뢰: 폭발 체비쇼프 반경
+        public const int BeaconClaims = 1;     // 거점: 라운드마다 주변(8칸)에서 점유하는 칸 수
     }
 
     public sealed class PlayResult
@@ -37,7 +38,7 @@ namespace ChromaFrontier.Core
         public bool Slid;                             // 얼음에서 미끄러졌다
         public Element Placed;                        // 유닛 카드면 원소, 스킬이면 None
         public Skill Skill;                           // 스킬 카드면 종류
-        public Element Bleached = Element.None;       // 탈색으로 무력화된 원래 원소
+        public Element Bleached = Element.None;       // 탈색·원소 변환으로 바뀌기 전 원래 원소
         public bool MineTriggered;                    // 상대 지뢰를 밟았다 (유닛은 사라지고 Captured 는 지뢰 주인의 것)
         public Element Fused = Element.None;          // 융합 결과 (2·3단계), 없으면 None
         public readonly List<Cell> Catalysts = new(); // 융합에 소모된 이웃 유닛 칸
@@ -98,10 +99,19 @@ namespace ChromaFrontier.Core
                 Consume(board, echo.Value, side, r);
             }
 
+            BaseEffect(board, rng, side, at, element, blueDir, r.Resonance, r);
+
+            if (fuses) ApplyFusion(board, at, side, element, tier3, tier2, r);
+            return r;
+        }
+
+        /// <summary>1단계 원소의 기본 효과 (surge = 공명으로 강화된 업화·해일·뇌우).</summary>
+        private static void BaseEffect(Board board, Rng rng, Side side, Cell at, Element element, Cell blueDir, bool surge, PlayResult r)
+        {
             switch (element)
             {
                 case Element.Red:
-                    if (r.Resonance)
+                    if (surge)
                     {
                         // 업화: 주변 3x3 + 십자 2칸
                         foreach (var d in Cell.Around8)
@@ -111,17 +121,14 @@ namespace ChromaFrontier.Core
                     else Cross(board, at, Balance.RedCross, side, r);
                     break;
                 case Element.Blue:
-                    foreach (var c in WaterPath(board, at, blueDir, r.Resonance)) Claim(board, c, side, r);
+                    foreach (var c in WaterPath(board, at, blueDir, surge)) Claim(board, c, side, r);
                     break;
                 case Element.Yellow:
                     Lightning(board, rng, at, side, r,
-                        r.Resonance ? Balance.YellowSurgeBolts : Balance.YellowBolts,
-                        r.Resonance ? Balance.YellowSurgeRange : Balance.YellowRange);
+                        surge ? Balance.YellowSurgeBolts : Balance.YellowBolts,
+                        surge ? Balance.YellowSurgeRange : Balance.YellowRange);
                     break;
             }
-
-            if (fuses) ApplyFusion(board, at, side, element, tier3, tier2, r);
-            return r;
         }
 
         /// <summary>
@@ -148,10 +155,11 @@ namespace ChromaFrontier.Core
             return cells;
         }
 
-        /// <summary>스킬 효과. target2 는 공간 왜곡의 두 번째 칸에만 쓴다.</summary>
-        public static PlayResult CastSkill(Board board, Side side, Skill skill, Cell target, Cell target2)
+        /// <summary>스킬 효과. target2 는 공간 왜곡의 두 번째 칸, echoDir 는 물 유닛 재점화의 방향에만 쓴다.</summary>
+        public static PlayResult CastSkill(Board board, Rng rng, Side side, Card card, Cell target, Cell target2 = default, Cell echoDir = default)
         {
-            var r = new PlayResult { Actor = side, Skill = skill };
+            var skill = card.Skill;
+            var r = new PlayResult { Actor = side, Skill = skill, At = target };
             switch (skill)
             {
                 case Skill.Warp:
@@ -168,6 +176,17 @@ namespace ChromaFrontier.Core
                     break;
                 case Skill.Mine:
                     board[target].Mine = side;
+                    break;
+                case Skill.Transmute:
+                    r.Bleached = board[target].Unit;
+                    board[target].Unit = card.Element;
+                    break;
+                case Skill.Echo:
+                    r.Placed = board[target].Unit;
+                    BaseEffect(board, rng, side, target, board[target].Unit, echoDir, false, r);
+                    break;
+                case Skill.Beacon:
+                    board[target].Beacon = side;
                     break;
             }
             return r;
@@ -359,7 +378,7 @@ namespace ChromaFrontier.Core
                     if (board[to].Owner != src.Owner)
                     {
                         if (src.Owner == side) TrackCapture(board, to, side, r);
-                        board[to].Owner = src.Owner;
+                        board[to].SetOwner(src.Owner);
                     }
                     if (src.HasUnit && !board[to].HasUnit)
                     {
@@ -403,7 +422,7 @@ namespace ChromaFrontier.Core
             ref var t = ref board[c];
             if (t.Blocked || t.Owner == side || t.IsProtectedFrom(side)) return;
             TrackCapture(board, c, side, r);
-            t.Owner = side;
+            t.SetOwner(side);
         }
 
         private static void TrackCapture(Board board, Cell c, Side side, PlayResult r)

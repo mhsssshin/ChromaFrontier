@@ -75,7 +75,7 @@ bash scripts/deploy-pages.sh
   - 정의 파일:
     - `kit.mjs`: 색 섞기(`mix`/`dark`/`light`), 그라데이션이나 필터를 쓰는 `Pic` 클래스, 둥근 도형
     - `tiles.mjs`: 타일 4종, 윗면 오버레이(glow/select/lock/shield), 장식, 바다, 거품
-    - `units.mjs`: 원소 유닛 9종, 팀 링, 지뢰
+    - `units.mjs`: 원소 유닛 9종, 팀 링, 지뢰, 거점 깃발
     - `fx.mjs`: 프레임 이펙트 `<이름>_<n>`
     - `ui.mjs`: 카드 틀, 아이콘, 바, 버튼, 패널, 스플래시 엠블럼
     - `logo.mjs`: 영문 로고 "CHROMA FRONTIER"(`UI/logo_title`). 스플래시와 대기실에 쓰고, 빌드할 때 WebGL 템플릿(`WebGLTemplates/Portrait/logo.png`, 웹 로딩 화면)에도 복사한다.
@@ -100,11 +100,12 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
 - Core는 UnityEngine을 참조하지 않는다. dotnet 테스트 프로젝트가 같은 소스를 C# 9로 컴파일하므로, C# 10 이상의 문법이나 Unity API를 쓰면 한쪽이 깨진다.
 - Core는 결정적이어야 한다. 난수는 자체 `Rng`(xorshift, 복제 가능)만 쓴다.
 - `Game`이 한 판의 권위 상태다.
-  - 수는 `Play(handIndex, cell, blueDir?)`(유닛), `Cast(handIndex, target, target2)`(스킬), `Mulligan()`으로만 둔다. 공간 왜곡을 뺀 모든 수는 턴을 끝내고, 손패를 채우고, 보호막·잠금 턴을 줄인다(`Board.TickTimers`).
+  - 수는 `Play(handIndex, cell, blueDir?)`(유닛), `Cast(handIndex, target, target2)`(스킬), `Mulligan()`으로만 둔다. 턴을 끝내는 것은 유닛과 패 버리기뿐이다. 턴이 끝나면 손패를 채우고 보호막·잠금 턴을 줄인다(`Board.TickTimers`).
+  - **스킬은 턴을 쓰지 않는 보조 행동**이다. 한 턴에 한 장까지(`Game.SkillUsed`, 턴이 끝나면 초기화) 쓰고, 이어서 유닛을 놓거나 패 버리기를 한다. 예전에는 스킬이 턴을 통째로 써서 배치에 밀려 거의 안 쓰였다.
   - 대상 검증은 `CanPlace`(유닛), `CanTarget`/`CanCast`(스킬)가 한다. `Resolver`는 검증하지 않는다.
   - `CloneFor(viewer)`는 viewer가 모르는 상대 지뢰를 지운 복제본이다. AI와 물 방향 계산은 반드시 이걸로 시뮬레이션해서 숨은 지뢰를 엿보지 않게 한다.
   - `Turn`은 양측을 합친 턴 수이고 `MaxTurns`(스테이지 규칙, 기본 20)가 되면 끝난다. 흑색의 추가 턴은 `Turn`을 늘리지 않는다.
-  - 플레이어 → AI가 한 라운드다. 라운드가 끝날 때(`EndRound`) 맵 기믹이 움직인다. 순서는 컨베이어 이동 → 블랙홀 흡입 → (`StageRules.LavaEvery`마다) 화산 분출이다. 화산은 양쪽에서 각각 무작위 유닛 `LavaCount`개를 터뜨린다(유닛 제거, 칸은 주인 없음, 보호된 칸은 제외). 칸이 막히지는 않고 한 번 터지면 끝이다. 일어난 일은 `Game.RoundEvents`에 남아 뷰가 연출한다.
+  - 플레이어 → AI가 한 라운드다. 라운드가 끝날 때(`EndRound`) 맵 기믹이 움직인다. 순서는 컨베이어 이동 → 블랙홀 흡입 → 거점 확장 → (`StageRules.LavaEvery`마다) 화산 분출이다. 화산은 양쪽에서 각각 무작위 유닛 `LavaCount`개를 터뜨린다(유닛 제거, 칸은 주인 없음, 보호된 칸은 제외). 칸이 막히지는 않고 한 번 터지면 끝이다. 일어난 일은 `Game.RoundEvents`에 남아 뷰가 연출한다.
   - 차례가 된 쪽이 유닛을 놓을 칸이 하나도 없으면(`LegalCells` 비어 있음) 그 자리에서 끝나고 점유 칸 수로 승패를 가린다(`Game.Stuck`). 잠금은 곧 풀리므로 **잠금 때문에만 막힌 것은 치지 않는다**(`CanPlaceIgnoringLock`). 그 턴에는 스킬이나 패 버리기를 하면 된다. 공간 왜곡 직후에도 검사한다.
   - `Clone()`은 보드, 덱, Rng를 통째로 복제한다. AI와 물 방향 계산이 이걸로 시뮬레이션한다.
 - `Resolver.PlaceUnit`이 원소 반응의 전부다. 순서는 다음과 같다.
@@ -138,12 +139,15 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 별(`StageCatalog.Stars`): 승리 1개, 점유율 50% 이상 2개, 65% 이상 3개.
   - 테스트 `EveryStage_StartsWithMovesForBothSides_AndPlaysToTheEnd`가 50개 스테이지를 모두 AI끼리 끝까지 돌려 본다. 맵을 고치면 이 테스트로 확인한다.
 - 배치 규칙(`Game.CanPlace`, `Board.IsFrontline`): 빈 칸이어야 하고, 내 타일이거나 내 타일과 상하좌우로 맞닿은 칸이어야 한다.
-- 카드(`Card`)는 1단계 원소 유닛이거나 스킬(`Skill`)이다. 기본 덱(`Game.StarterDeck`)은 유닛 12장과 스킬 8장이다.
-- 스킬은 전선 규칙 없이 보드 어디에나 쓴다. 효과는 `Resolver.CastSkill`에 있다.
-  - 공간 왜곡: 두 칸의 내용(소유, 유닛, 보호막, 잠금, 지뢰)을 맞바꾼다(`Tile.SwapContents`). 지형은 제자리에 남는다. 턴을 끝내지 않는다.
+- 카드(`Card`)는 1단계 원소 유닛이거나 스킬(`Skill`)이다. 원소 변환 카드는 바꿀 색을 `Card.Element`에 담는다(`Card.Transmute(e)`). 기본 덱(`Game.StarterDeck`)은 유닛 12장과 스킬 9장(왜곡·잠금·탈색·지뢰·재점화·거점 1장씩, 변환 3색)이다.
+- 스킬은 전선 규칙 없이 보드 어디에나 쓴다. 효과는 `Resolver.CastSkill`에 있다. 대상 검증은 카드를 받는 `CanTarget(side, card, cell)`이다(변환은 색이 카드마다 달라서).
+  - 공간 왜곡: 두 칸의 내용(소유, 유닛, 보호막, 잠금, 지뢰, 거점)을 맞바꾼다(`Tile.SwapContents`). 지형은 제자리에 남는다.
   - 영역 잠금: 3x3 칸의 `Tile.Lock`을 설정한다. 잠긴 칸에는 양쪽 모두 유닛을 놓을 수 없다.
     - 초반에는 쓸 수 없다(`StageRules.LockFromTurn`, 기본 6 = 각자 4번째 턴). 그 전에는 손패에 아예 들어오지 않는다(`Deck.Refill(holdLock)`가 덱에 남겨 둠). 시작하자마자 상대의 2x2 시작 땅을 잠가 판을 끝내는 것을 막기 위해서다.
   - 탈색: 유닛을 `Element.Grey`로 바꾼다. 회색 유닛은 융합 촉매가 될 수 없다.
+  - 원소 변환: 1단계나 회색 유닛(상대 것도)을 카드의 색으로 바꾼다. 융합·흑색 판을 짜는 카드다. 바뀌기 전 원소는 `PlayResult.Bleached`에 남는다.
+  - 재점화: 내 1단계 유닛이 그 자리에서 기본 효과를 한 번 더 낸다(공명·융합 없음, 유닛은 남음). 물은 가장 많이 먹는 방향으로 흐른다(`Game.BestEchoDirection`).
+  - 거점: 내 땅에 깃발(`Tile.Beacon`)을 꽂는다. 라운드 끝마다 주변 8칸 중 내 것이 아닌 칸을 `Balance.BeaconClaims`(1)개 무작위로 점유한다. 칸 주인이 바뀌면 무너진다(소유 변경은 `Tile.SetOwner`로 해야 거점이 같이 정리된다).
   - 잠복 지뢰: 유닛이 없는 칸이면 어디든(상대 땅, 빈 땅 포함) `Tile.Mine`을 설정한다. 상대 지뢰가 있는지는 모르므로 그 위에도 묻을 수 있고 덮어쓴다(내 지뢰 위에는 불가). 상대가 그 칸에 유닛을 놓으면 유닛은 사라지고 주변 3x3이 지뢰 주인의 것이 된다(`PlayResult.MineTriggered`).
   - 지속 효과(잠금, 보라 침묵, 백색 성역)는 "내 턴 기준"으로 센다. 타이머는 양측 턴마다 1씩 줄어들기 때문에 상수는 `턴 수 × Balance.TicksPerRound`(2)로 정의한다. 예를 들어 잠금 2턴은 상대 턴 2번 동안 유지되고, 그사이 내 다음 턴에도 잠겨 있다.
 - `Deck`: 스몰 덱 순환이다.
@@ -152,14 +156,15 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 패 버리기(코드 이름 `Mulligan`, 턴 소모)는 손패를 덱에 넣고 섞은 뒤 새로 뽑는다. 화면 문구는 "패 버리기"로 쓴다(멀리건이라는 말은 쓰지 않음).
 - `AiBrain`: 탐욕 AI다. 모든 후보 수에 점수를 매겨 최고점을 둔다.
   - 유닛: 실제로 시뮬레이션해서 (내 칸 − 상대 칸)이 얼마나 늘었는지로 점수를 매긴다.
-  - 탈색, 잠금, 지뢰: 휴리스틱 점수를 쓴다. 손패에 스킬이 쌓일수록 가산해서 손패가 막히지 않게 한다.
+  - 스킬은 턴을 안 쓰므로 유닛 수와 따로 고른다. 먼저 유닛 최선 점수(무작위 없는 값)를 구하고, 스킬을 쓴 뒤의 최선 수가 그보다 나으면(점수 > 0) 스킬을 먼저 쓴다. 다음 호출에서 유닛을 둔다. 실수하는 턴(mistake)에는 스킬을 안 쓴다.
+  - 탈색, 잠금, 지뢰, 거점: 휴리스틱 점수를 쓴다. 손패에 스킬이 쌓일수록 가산해서 손패가 막히지 않게 한다. 재점화는 바로 늘어나는 칸, 변환은 바꾼 유닛 옆에 둘 최선의 수 − 그냥 둘 최선의 수다.
   - 지뢰는 `CloneFor`로 안 보이므로 AI도 플레이어 지뢰를 피하지 않는다(테스트 `Ai_DoesNotDodgeHiddenMine`). AI가 묻을 때는 상대가 다음 턴에 놓을 수 있는 칸, 유닛 옆 칸을 높게 친다.
   - 공간 왜곡: 2수까지 본다. 유닛을 내 전선 옆으로 끌어온 뒤 그 옆에 유닛을 놓는 후속 수까지 계산한다. 후보 수는 난이도별 `Profile`의 warpCandidates로 제한한다.
-  - 테스트 `AiVsAi_UsesEverySkillAcrossGames`가 AI가 스킬 4종을 모두 쓰는지 확인한다.
+  - 테스트 `AiVsAi_UsesEverySkillAcrossGames`가 AI가 스킬 7종을 모두 쓰는지 확인한다. `AiVsAi_SkillUsageReport`는 턴당 스킬 사용률을 출력한다(측정값: 보통 AI끼리 턴의 56%에서 스킬 사용).
   - **성향**(`AiPersona`)은 점수 가중치다. StealWeight는 빼앗은 칸, CatalystSteal은 상대 유닛 촉매, LoneUnitPenalty는 상대 유닛과 안 맞닿은 배치 감점, ShieldWeight는 보호 칸, Lock/Bleach/MineWeight는 스킬 배율, WarpBonus는 공간 왜곡 가산이다.
   - 난이도 `AiLevel`(입문, 쉬움, 보통, 어려움)은 `AiBrain.Profile`에서 정한다. `Perfect`는 실수 없는 기준 AI로, 게임에서는 쓰지 않고 테스트에서 플레이어 자리 대역으로만 쓴다. 플레이어들이 너무 어렵다고 해서 전체를 순하게 낮췄다. 후보 점수에 무작위를 섞고(noise), 일정 확률로 아무 수나 두게 하고(mistake), 공간 왜곡 탐색 후보 수를 줄여서 AI를 약하게 만든다.
   - 실제 난이도는 스테이지 기본값에 대기실 난이도 보정을 더한 값이다.
-  - 테스트 `AiLevels_EasierLevelsLoseMoreOften`이 Perfect AI를 플레이어 자리에 두고 승률을 잰다. 측정값은 대 입문 98%, 대 쉬움 93%, 대 보통 80%, 대 어려움 67%, 대 Perfect 48%다(각 60판). 난이도 숫자를 바꾸면 상세 출력(`--logger "console;verbosity=detailed"`)으로 승률을 다시 확인한다.
+  - 테스트 `AiLevels_EasierLevelsLoseMoreOften`이 Perfect AI를 플레이어 자리에 두고 승률을 잰다. 측정값은 대 입문 100%, 대 쉬움 100%, 대 보통 92%, 대 어려움 74%, 대 Perfect 53%다(각 60판, 스킬 보조 행동 도입 후). 난이도 숫자를 바꾸면 상세 출력(`--logger "console;verbosity=detailed"`)으로 승률을 다시 확인한다.
 
 **Client**
 - `GameBootstrap`이 유일한 진입점이다. 씬에는 카메라와 이것뿐이고 오브젝트는 모두 코드로 만든다. partial 클래스로 세 파일에 나뉜다.
@@ -194,11 +199,13 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 손패는 부채꼴로 놓인다. 마우스를 올린 카드와 고른 카드는 위로 올라온다.
   - 카드가 회전돼 있어서 `Hud`는 `GUI.Button` 대신 `HitCard`로 직접 클릭을 판정한다. 위에 그려진 카드가 먼저 클릭을 받는다.
   - 지뢰는 플레이어 자신의 것만 보인다. AI의 지뢰는 메시지로만 알린다.
+  - 이번 턴에 스킬을 이미 썼으면 손패의 스킬 카드는 회색으로 그리고 고를 수 없다(`GameBootstrap.CanUse`).
 - `BoardView`는 아이소메트릭 좌표 변환을 맡는다.
   - 칸 (X, Y)는 월드 ((X−Y)·1, −(X+Y)·0.5)로 옮긴다. X는 화면 오른쪽 아래, Y는 왼쪽 아래로 뻗는다.
   - 클릭 좌표는 `TryPick`으로 역변환한다.
   - 매 프레임 `Sync`로 Board를 그린다. 게임 상태는 들고 있지 않고, 직전 프레임의 소유와 유닛만 기억한다. 그래서 바뀐 칸에는 연출이 붙는다. 소유가 바뀐 타일은 튀어 오르고, 새 유닛은 떨어지며 통통 튄다.
   - 그리는 순서(`sortingOrder`): 바다(-200)와 거품 → 타일과 오버레이((x+y)·10 + 0~5: 타일, 지형, 잠금, 보호막, 빛, 테두리) → 장식, 팀 링, 유닛(1000 + (x+y)·10 + 0~2) → 반투명 유닛(1000 + (x+y)·10 + 3) → 물 방향·얼음 화살표(1000 + (x+y)·10 + 5) → 이펙트(5000~).
+  - 거점 깃발(`Units/beacon_player`, `beacon_ai`)은 칸 왼쪽 위에 선다.
   - 장식은 칸 좌표 해시로 고정 배치하고, 유닛이나 지뢰가 있거나 평지가 아니면 숨긴다.
   - 지형: 낭떠러지는 칸을 통째로 숨겨 바다가 보이게 한다. 블랙홀은 전용 타일(`tile_blackhole`)로 그린다(`tile_lava`는 화산 팁 그림에만 쓴다). 얼음, 침묵, 컨베이어는 소유 색 위에 오버레이로 얹는다.
 - `FxView`: 풀링된 SpriteRenderer로 프레임 이펙트를 재생한다. `delay`로 시차를 준다.
@@ -216,5 +223,6 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
 - 공간 왜곡으로 옮긴 유닛이 그 자리에서 바로 융합하는 것. 지금은 옮기기만 하고, 융합은 다음에 놓는 유닛이 일으킨다.
 - 융합 결과가 다시 다른 반응을 일으키는 다단 연쇄. 2단계 유닛을 재료로 쓰는 3차 조합은 구현했다.
 - 덱 편집, 카드 해금 보상과 메타 성장(PRD §6), 사운드
+- 스킬을 덱 대신 융합·공명으로 차는 에너지 게이지로 쓰는 안(설계안 C)은 아직 검토만 했다.
 - 스테이지 이름은 아직 "챕터명 + 번호"다(보스만 고유 이름).
 - 돌풍(밀어내기)은 PRD 문장을 단순하게 해석했다. 주변 8칸의 내용을 한 칸 바깥으로 민 뒤 그 8칸을 점유한다.

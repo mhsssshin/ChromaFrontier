@@ -47,7 +47,7 @@ namespace ChromaFrontier.Client
         private sealed class Cellview
         {
             public Transform Root;
-            public SpriteRenderer Tile, Terrain, Glow, Select, Arrow, Lock, Shield, Decor, Ring, Mine, Unit, Ghost;
+            public SpriteRenderer Tile, Terrain, Glow, Select, Arrow, Lock, Shield, Decor, Ring, Mine, Beacon, Unit, Ghost;
             public Side LastOwner;
             public Element LastUnit;
             public float Bounce, Pop, Flash;
@@ -92,6 +92,7 @@ namespace ChromaFrontier.Client
                     v.Decor = NewRenderer(root, "Decor", DecorFor(x, y), new Vector3(0.35f, 0.12f, 0f), UnitLayer + depth);
                     v.Ring = NewRenderer(root, "Ring", null, new Vector3(0f, -0.02f, 0f), UnitLayer + depth + 1);
                     v.Mine = NewRenderer(root, "Mine", Art.Sprite("Units/mine"), new Vector3(0f, 0.02f, 0f), UnitLayer + depth + 1);
+                    v.Beacon = NewRenderer(root, "Beacon", null, new Vector3(-0.42f, 0.42f, 0f), UnitLayer + depth + 1);
                     v.Unit = NewRenderer(root, "Unit", null, new Vector3(0f, 0.04f, 0f), UnitLayer + depth + 2);
                     v.Ghost = NewRenderer(root, "Ghost", null, new Vector3(0f, 0.04f, 0f), UnitLayer + depth + 3);
                 }
@@ -163,7 +164,7 @@ namespace ChromaFrontier.Client
                 {
                     v.Tile.color = hl.Dim ? DimTile : Color.white;
                     v.Lock.enabled = v.Shield.enabled = v.Glow.enabled = v.Select.enabled = v.Arrow.enabled = false;
-                    v.Decor.enabled = v.Mine.enabled = v.Unit.enabled = v.Ring.enabled = v.Ghost.enabled = false;
+                    v.Decor.enabled = v.Mine.enabled = v.Unit.enabled = v.Ring.enabled = v.Ghost.enabled = v.Beacon.enabled = false;
                     v.Root.position = ToWorld(c);
                     continue;
                 }
@@ -188,7 +189,7 @@ namespace ChromaFrontier.Client
                 var dimmed = hl.Dim && !isLegal && !isPicked && !hl.Preview.Contains(c);
                 var shade = dimmed ? DimTile : Color.white;
                 v.Tile.color = shade;
-                v.Decor.color = v.Mine.color = v.Ring.color = dimmed ? DimProp : Color.white;
+                v.Decor.color = v.Mine.color = v.Ring.color = v.Beacon.color = dimmed ? DimProp : Color.white;
                 v.Unit.color = dimmed ? DimProp : Color.white;
 
                 var glow = isLegal ? 0.22f + 0.28f * pulse : 0f;
@@ -223,6 +224,8 @@ namespace ChromaFrontier.Client
                 }
 
                 v.Mine.enabled = t.Mine == Side.Player && !t.HasUnit;
+                v.Beacon.enabled = t.Beacon != Side.None && t.Beacon == t.Owner;
+                if (v.Beacon.enabled) v.Beacon.sprite = Art.Sprite(t.Beacon == Side.Ai ? "Units/beacon_ai" : "Units/beacon_player");
                 v.Decor.enabled = v.Decor.sprite != null && !t.HasUnit && !v.Mine.enabled && t.Terrain == Terrain.Ground;
 
                 v.Unit.enabled = v.Ring.enabled = t.HasUnit;

@@ -295,7 +295,7 @@ namespace ChromaFrontier.Core.Tests
             Assert.IsTrue(g.CanPlace(Side.Player, new Cell(1, 7)));
             g.Cast(0, new Cell(1, 6));
             Assert.IsFalse(g.CanPlace(Side.Player, new Cell(1, 7)));
-            Assert.AreEqual(Side.Ai, g.Current);
+            Assert.AreEqual(Side.Player, g.Current); // 스킬은 턴을 쓰지 않는다
         }
 
         [Test]
@@ -303,8 +303,8 @@ namespace ChromaFrontier.Core.Tests
         {
             var g = WithHand(Card.Of(Skill.Lock));
             var cell = new Cell(4, 4);
-            g.Cast(0, cell);                                   // 내 턴 1: 잠금
-            for (var i = 0; i < 3; i++)                        // AI 턴, 내 턴 2, AI 턴 동안 유지
+            g.Cast(0, cell);                                   // 내 턴 1: 잠금 (턴은 계속)
+            for (var i = 0; i < 4; i++)                        // 내 턴 1 끝까지, AI 턴, 내 턴 2, AI 턴 동안 유지
             {
                 Assert.Greater(g.Board[cell].Lock, 0, $"step {i}");
                 g.Mulligan();
@@ -361,6 +361,7 @@ namespace ChromaFrontier.Core.Tests
             }
             var g = Game.Create(b, mines, reds, 1);
             g.Cast(0, new Cell(6, 0));
+            g.Mulligan(); // 스킬은 턴을 안 쓰므로 패 버리기로 턴을 넘긴다
             var move = AiBrain.Choose(g, new Rng(7));
             Assert.AreEqual(new Cell(6, 0), move.At);
             AiBrain.Apply(g, move);
@@ -374,6 +375,63 @@ namespace ChromaFrontier.Core.Tests
             g.Cast(0, new Cell(0, 7));
             Assert.AreEqual(Side.None, g.CloneFor(Side.Ai).Board[new Cell(0, 7)].Mine);
             Assert.AreEqual(Side.Player, g.CloneFor(Side.Player).Board[new Cell(0, 7)].Mine);
+        }
+
+        [Test]
+        public void Skill_DoesNotEndTurn_AndOnlyOnePerTurn()
+        {
+            var g = WithHand(Card.Of(Skill.Mine));
+            g.Cast(0, new Cell(4, 4));
+            Assert.AreEqual(Side.Player, g.Current);
+            Assert.AreEqual(0, g.Turn);
+            Assert.IsFalse(g.CanTarget(Side.Player, Skill.Mine, new Cell(5, 5))); // 두 번째 스킬은 못 씀
+            g.Mulligan();
+            g.Mulligan();
+            Assert.IsTrue(g.CanTarget(Side.Player, Skill.Mine, new Cell(5, 5)));  // 다음 내 턴에는 다시 됨
+        }
+
+        [Test]
+        public void Transmute_RecolorsUnit_AndSetsUpFusion()
+        {
+            var g = WithHand(Card.Transmute(Element.Blue));
+            Unit(g.Board, 1, 7, Element.Red, Side.Player);
+            Unit(g.Board, 3, 3, Element.Red, Side.Ai);
+            Assert.IsFalse(g.CanTarget(Side.Player, g.DeckOf(Side.Player).Hand[0], new Cell(4, 4))); // 유닛 없음
+            g.Cast(0, new Cell(3, 3));                         // 상대 화염을 물로
+            Assert.AreEqual(Element.Blue, g.Board[new Cell(3, 3)].Unit);
+            Assert.AreEqual(Side.Ai, g.Board[new Cell(3, 3)].UnitOwner);
+            var r = Resolver.PlaceUnit(g.Board, new Rng(1), Side.Player, new Cell(3, 4), Element.Red, default);
+            Assert.AreEqual(Element.Purple, r.Fused);          // 물 + 화염 = 폭풍
+        }
+
+        [Test]
+        public void Echo_RepeatsBaseEffectWithoutConsumingUnit()
+        {
+            var g = WithHand(Card.Of(Skill.Echo));
+            Unit(g.Board, 3, 3, Element.Red, Side.Player);
+            Unit(g.Board, 5, 5, Element.Red, Side.Ai);
+            Assert.IsFalse(g.CanTarget(Side.Player, Skill.Echo, new Cell(5, 5))); // 상대 유닛은 안 됨
+            var r = g.Cast(0, new Cell(3, 3));
+            Assert.AreEqual(4, r.Captured.Count);              // 십자 4칸
+            Assert.AreEqual(Side.Player, g.Board[new Cell(3, 2)].Owner);
+            Assert.AreEqual(Element.Red, g.Board[new Cell(3, 3)].Unit);
+        }
+
+        [Test]
+        public void Beacon_GrowsEachRound_AndFallsWhenCaptured()
+        {
+            var g = WithHand(Card.Of(Skill.Beacon));
+            var at = new Cell(0, 7);
+            g.Cast(0, at);
+            Assert.AreEqual(Side.Player, g.Board[at].Beacon);
+            var before = g.Board.Count(Side.Player);
+            g.Mulligan();
+            g.Mulligan();                                       // 라운드 끝: 주변 한 칸 점유
+            Assert.AreEqual(before + Balance.BeaconClaims, g.Board.Count(Side.Player));
+            Assert.AreEqual(RoundEventKind.Beacon, g.RoundEvents[0].Kind);
+            Resolver.PlaceUnit(g.Board, new Rng(1), Side.Ai, new Cell(1, 7), Element.Red, default); // 십자로 거점 칸을 빼앗음
+            Assert.AreEqual(Side.Ai, g.Board[at].Owner);
+            Assert.AreEqual(Side.None, g.Board[at].Beacon);
         }
 
         [Test]
@@ -391,7 +449,37 @@ namespace ChromaFrontier.Core.Tests
                 }
             }
             TestContext.WriteLine(string.Join(", ", used));
-            CollectionAssert.IsSupersetOf(used, new[] { Skill.Warp, Skill.Lock, Skill.Bleach, Skill.Mine });
+            CollectionAssert.IsSupersetOf(used, new[] { Skill.Warp, Skill.Lock, Skill.Bleach, Skill.Mine, Skill.Transmute, Skill.Echo, Skill.Beacon });
+        }
+
+        /// <summary>AI 끼리 둘 때 턴마다 스킬을 쓰는 비율과 스킬별 횟수 (상세 출력으로 확인).</summary>
+        [Test]
+        public void AiVsAi_SkillUsageReport()
+        {
+            var counts = new System.Collections.Generic.Dictionary<Skill, int>();
+            int turns = 0, skillTurns = 0;
+            for (var seed = 0; seed < 30; seed++)
+            {
+                var g = Game.CreateDefault(seed);
+                var tie = new Rng(seed + 100);
+                for (var guard = 0; !g.IsOver && guard < 200; guard++)
+                {
+                    var turn = g.Turn;
+                    var side = g.Current;
+                    AiBrain.Apply(g, AiBrain.Choose(g, tie, AiLevel.Normal));
+                    var r = g.LastResult;
+                    if (r != null && r.Skill != Skill.None)
+                    {
+                        counts[r.Skill] = counts.TryGetValue(r.Skill, out var n) ? n + 1 : 1;
+                        skillTurns++;
+                    }
+                    if (g.Turn != turn || g.Current != side) turns++;
+                }
+            }
+            var parts = new System.Collections.Generic.List<string>();
+            foreach (var kv in counts) parts.Add($"{kv.Key} {kv.Value}");
+            TestContext.WriteLine($"skill per turn {(float)skillTurns / turns:P0} ({skillTurns}/{turns}) — {string.Join(", ", parts)}");
+            Assert.Greater(skillTurns, turns / 5); // 스킬이 실제로 자주 쓰인다
         }
 
         /// <summary>플레이어 자리를 어려움 AI 가 대신 두고, 상대 AI 난이도별로 플레이어 승률을 잰다.</summary>

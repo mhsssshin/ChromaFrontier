@@ -11,7 +11,7 @@ namespace ChromaFrontier.Core
         public int LockFromTurn = Balance.LockFromTurn; // 영역 잠금을 뽑고 쓸 수 있는 첫 턴 (양측 합산)
     }
 
-    public enum RoundEventKind : byte { Lava, BlackHole, Conveyor }
+    public enum RoundEventKind : byte { Lava, BlackHole, Conveyor, Beacon }
 
     /// <summary>라운드 끝 기믹이 일으킨 일 (뷰 연출용).</summary>
     public readonly struct RoundEvent
@@ -23,8 +23,9 @@ namespace ChromaFrontier.Core
 
     /// <summary>
     /// 한 판의 권위 상태. 플레이어와 AI가 번갈아 1장씩, 양측 합산 MaxTurns 턴이 끝나면 점유 칸 수로 승패.
-    /// 플레이어 → AI 가 한 라운드이고, 라운드가 끝날 때 맵 기믹(컨베이어·블랙홀·용암)이 움직인다.
+    /// 플레이어 → AI 가 한 라운드이고, 라운드가 끝날 때 맵 기믹(컨베이어·블랙홀·거점·화산)이 움직인다.
     /// 뷰는 이 상태를 읽기만 하고, 수는 Play / Cast / Mulligan 으로만 둔다.
+    /// 턴을 끝내는 것은 Play(유닛)와 Mulligan 뿐이다. 스킬(Cast)은 턴마다 한 장까지 쓰는 보조 행동이다.
     /// </summary>
     public sealed class Game
     {
@@ -34,6 +35,7 @@ namespace ChromaFrontier.Core
         public int Round { get; private set; } // 끝난 라운드 수
         public StageRules Rules { get; private set; } = new();
         public PlayResult LastResult { get; private set; } // 패 버리기(멀리건)면 null
+        public bool SkillUsed { get; private set; }        // 이번 턴에 스킬을 이미 썼다 (턴마다 한 장)
         public readonly List<RoundEvent> RoundEvents = new(); // 직전 라운드 끝에 일어난 기믹
 
         private Rng _rng;
@@ -71,14 +73,15 @@ namespace ChromaFrontier.Core
             };
         }
 
-        /// <summary>기본 덱 20장: 유닛 12 (원소별 4) + 스킬 8 (종류별 2).</summary>
+        /// <summary>기본 덱 21장: 유닛 12 (원소별 4) + 스킬 9 (왜곡·잠금·탈색·지뢰·재점화·거점 1장씩, 원소 변환 3색).</summary>
         public static List<Card> StarterDeck()
         {
             var list = new List<Card>();
             foreach (var e in Elements.Base)
                 for (var i = 0; i < 4; i++) list.Add(Card.Unit(e));
-            foreach (var s in new[] { Skill.Warp, Skill.Lock, Skill.Bleach, Skill.Mine })
-                for (var i = 0; i < 2; i++) list.Add(Card.Of(s));
+            foreach (var s in new[] { Skill.Warp, Skill.Lock, Skill.Bleach, Skill.Mine, Skill.Echo, Skill.Beacon })
+                list.Add(Card.Of(s));
+            foreach (var e in Elements.Base) list.Add(Card.Transmute(e));
             return list;
         }
 
@@ -90,6 +93,7 @@ namespace ChromaFrontier.Core
             Round = Round,
             Rules = Rules,
             Stuck = Stuck,
+            SkillUsed = SkillUsed,
             _rng = _rng.Clone(),
             _player = _player.Clone(),
             _ai = _ai.Clone(),
@@ -139,25 +143,30 @@ namespace ChromaFrontier.Core
             return list;
         }
 
-        /// <summary>스킬의 (첫 번째) 대상으로 c 를 고를 수 있는가. 스킬은 거리 제한이 없다.</summary>
-        public bool CanTarget(Side s, Skill skill, Cell c)
+        /// <summary>스킬 카드의 (첫 번째) 대상으로 c 를 고를 수 있는가. 스킬은 거리 제한이 없고, 턴마다 한 장만 쓴다.</summary>
+        public bool CanTarget(Side s, Card card, Cell c)
         {
-            if (!Board.InBounds(c)) return false;
+            if (SkillUsed || card.IsUnit || !Board.InBounds(c)) return false;
             ref var t = ref Board[c];
             if (t.Blocked) return false;
-            return skill switch
+            return card.Skill switch
             {
                 Skill.Warp => !t.IsProtectedFrom(s),
                 Skill.Lock => Turn >= Rules.LockFromTurn, // 초반에는 못 쓴다 (손패에도 안 들어오지만 만일을 위해)
                 Skill.Bleach => t.HasUnit && t.Unit != Element.Grey && !t.IsProtectedFrom(s),
                 // 빈 칸이면 어디든. 상대 지뢰가 있는지는 모르므로 막지 않는다 (덮어쓴다). 내 지뢰 위에는 못 묻는다.
                 Skill.Mine => !t.HasUnit && t.Mine != s,
+                Skill.Transmute => (t.Unit.IsBase() || t.Unit == Element.Grey) && t.Unit != card.Element && !t.IsProtectedFrom(s),
+                Skill.Echo => t.Unit.IsBase() && t.UnitOwner == s,
+                Skill.Beacon => t.Owner == s && t.Beacon == Side.None,
                 _ => false,
             };
         }
 
-        public bool CanCast(Side s, Skill skill, Cell a, Cell b) =>
-            CanTarget(s, skill, a) && (skill != Skill.Warp || (a != b && CanTarget(s, Skill.Warp, b)));
+        public bool CanTarget(Side s, Skill skill, Cell c) => CanTarget(s, Card.Of(skill), c);
+
+        public bool CanCast(Side s, Card card, Cell a, Cell b) =>
+            CanTarget(s, card, a) && (card.Skill != Skill.Warp || (a != b && CanTarget(s, card, b)));
 
         /// <summary>
         /// 현재 차례인 쪽이 손패 handIndex 의 유닛을 at 에 놓는다. 물의 방향을 null 로 주면 가장 많이 먹는 방향을 고른다.
@@ -174,15 +183,39 @@ namespace ChromaFrontier.Core
             return r;
         }
 
-        /// <summary>손패 handIndex 의 스킬을 쓴다. 공간 왜곡은 턴을 끝내지 않는다 (같은 턴에 한 장 더).</summary>
+        /// <summary>
+        /// 손패 handIndex 의 스킬을 쓴다. 턴은 끝나지 않는다 (이어서 유닛을 놓거나 패 버리기). 턴마다 한 장.
+        /// 물 유닛 재점화는 가장 많이 먹는 방향으로 흐른다.
+        /// </summary>
         public PlayResult Cast(int handIndex, Cell target, Cell target2 = default)
         {
-            var skill = DeckOf(Current).Play(handIndex).Skill;
-            var r = Resolver.CastSkill(Board, Current, skill, target, target2);
+            var deck = DeckOf(Current);
+            var card = deck.Hand[handIndex];
+            var echoDir = card.Skill == Skill.Echo && Board[target].Unit == Element.Blue ? BestEchoDirection(target) : Cell.Orthogonal[0];
+            deck.Play(handIndex);
+            var r = Resolver.CastSkill(Board, _rng, Current, card, target, target2, echoDir);
             LastResult = r;
-            if (skill != Skill.Warp) EndTurn(false);
-            else CheckStuck(); // 공간 왜곡으로 내 전선이 사라졌을 수도 있다
+            SkillUsed = true;
+            CheckStuck(); // 공간 왜곡으로 내 전선이 사라졌을 수도 있다
             return r;
+        }
+
+        private Cell BestEchoDirection(Cell at)
+        {
+            var best = Cell.Orthogonal[0];
+            var bestScore = int.MinValue;
+            foreach (var d in Cell.Orthogonal)
+            {
+                var b = Board.Clone();
+                Resolver.CastSkill(b, _rng.Clone(), Current, Card.Of(Skill.Echo), at, default, d);
+                var score = b.Count(Current) - b.Count(Current.Opponent());
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = d;
+                }
+            }
+            return best;
         }
 
         public void Mulligan()
@@ -215,6 +248,7 @@ namespace ChromaFrontier.Core
         {
             DeckOf(Current).Refill(_rng, HoldLockFor(extraTurn));
             Board.TickTimers();
+            SkillUsed = false;
             if (!extraTurn)
             {
                 Turn++;
@@ -249,13 +283,14 @@ namespace ChromaFrontier.Core
             return Board.IsFrontline(c, s);
         }
 
-        /// <summary>라운드 끝 기믹: 컨베이어 이동 → 블랙홀 흡입 → (주기마다) 화산 분출.</summary>
+        /// <summary>라운드 끝 기믹: 컨베이어 이동 → 블랙홀 흡입 → 거점 확장 → (주기마다) 화산 분출.</summary>
         private void EndRound()
         {
             Round++;
             RoundEvents.Clear();
             MoveConveyors();
             SuckBlackHoles();
+            GrowBeacons();
             if (Rules.LavaEvery > 0 && Round % Rules.LavaEvery == 0) EruptLava();
         }
 
@@ -315,8 +350,42 @@ namespace ChromaFrontier.Core
                     pool.RemoveAt(k);
                     Board[c].Unit = Element.None;
                     Board[c].UnitOwner = Side.None;
-                    Board[c].Owner = Side.None;
+                    Board[c].SetOwner(Side.None);
                     RoundEvents.Add(new RoundEvent(RoundEventKind.Lava, c));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 거점마다 주변 8칸 중 아직 내 것이 아닌 칸을 BeaconClaims 개 무작위로 점유한다 (상대 땅 포함, 보호된 칸은 못 함).
+        /// 칸 주인이 바뀌면 거점은 이미 무너졌다 (Tile.SetOwner). 거점끼리는 칸 순서대로 처리한다.
+        /// </summary>
+        private void GrowBeacons()
+        {
+            var beacons = new List<Cell>();
+            foreach (var c in Board.Cells())
+                if (Board[c].Beacon != Side.None) beacons.Add(c);
+            foreach (var at in beacons)
+            {
+                var side = Board[at].Beacon;
+                if (side == Side.None) continue; // 앞선 거점이 이 칸을 빼앗았다
+                if (Board[at].Owner != side)
+                {
+                    Board[at].Beacon = Side.None;
+                    continue;
+                }
+                var pool = new List<Cell>();
+                foreach (var d in Cell.Around8)
+                {
+                    var c = at + d;
+                    if (Board.InBounds(c) && !Board[c].Blocked && Board[c].Owner != side && !Board[c].IsProtectedFrom(side)) pool.Add(c);
+                }
+                for (var i = 0; i < Balance.BeaconClaims && pool.Count > 0; i++)
+                {
+                    var k = _rng.Next(pool.Count);
+                    Board[pool[k]].SetOwner(side);
+                    RoundEvents.Add(new RoundEvent(RoundEventKind.Beacon, pool[k]));
+                    pool.RemoveAt(k);
                 }
             }
         }
