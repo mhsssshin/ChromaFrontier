@@ -102,6 +102,16 @@ namespace ChromaFrontier.Core
         }
 
         /// <summary>대기실 난이도 보정(-1 쉬움, 0 보통, +1 어려움)을 더한 실제 AI 난이도.</summary>
+        /// <summary>
+        /// 모드: 쉬움 → 보통 → 어려움. 쉬움 모드에서 5-10 을 깨면 보통 모드가, 보통 모드에서 깨면 어려움 모드가 열리고
+        /// 1-1 부터 다시 한다. 모드마다 AI 난이도가 스테이지 기본값에서 −1 / 0 / +1 이고,
+        /// 앞 모드와 똑같아지지 않게 모드별 하한(입문 / 쉬움 / 보통)을 둔다.
+        /// </summary>
+        public const int Modes = 3;
+        public static readonly string[] ModeNames = { "쉬움", "보통", "어려움" };
+
+        public static AiLevel LevelForMode(StageDef s, int mode) => (AiLevel)Math.Max(mode, (int)LevelFor(s, mode - 1));
+
         public static AiLevel LevelFor(StageDef s, int offset) => (AiLevel)Math.Max(0, Math.Min((int)AiLevel.Hard, (int)s.Level + offset));
 
         private static StageDef[] Build()

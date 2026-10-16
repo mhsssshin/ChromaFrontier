@@ -257,10 +257,11 @@ namespace ChromaFrontier.Core
         // 카드를 금방 다 사지 않도록 낮게 잡았다 (강화·소모품까지 쓸 곳이 많다)
         public const int Loss = 5, WinBase = 10, PerStar = 5, FirstClear = 15, BossFirstClear = 50, PerObjective = 3;
 
-        public static int ForBattle(StageDef stage, int stars, bool firstClear, int objectives) =>
-            (stars > 0 ? WinBase + PerStar * stars : Loss)
-            + (firstClear ? (stage.IsBoss ? BossFirstClear : FirstClear) : 0)
-            + PerObjective * objectives;
+        /// <param name="mode">모드 (StageCatalog.Modes). 보통은 1.5배, 어려움은 2배.</param>
+        public static int ForBattle(StageDef stage, int stars, bool firstClear, int objectives, int mode = 0) =>
+            ((stars > 0 ? WinBase + PerStar * stars : Loss)
+             + (firstClear ? (stage.IsBoss ? BossFirstClear : FirstClear) : 0)
+             + PerObjective * objectives) * (2 + mode) / 2;
     }
 
     /// <summary>판 시작 전 소모품: 출격할 때 결정을 내고 그 판에만 쓴다.</summary>

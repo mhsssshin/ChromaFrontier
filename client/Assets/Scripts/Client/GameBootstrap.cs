@@ -27,6 +27,8 @@ namespace ChromaFrontier.Client
         public int LastStars { get; private set; }
         public int LastGems { get; private set; }        // 직전 판에서 받은 결정
         public bool LastFirstClear { get; private set; }
+        public bool LastNewMode { get; private set; }    // 직전 판으로 다음 모드가 열렸다
+        public float ModeHintUntil { get; private set; } // 대기실: 아직 열린 모드가 하나뿐일 때 안내를 이 시각까지
         public readonly Dictionary<string, float> ObjectiveFlash = new(); // 게임 중 목표를 이룬 시각 (HUD 반짝임)
 
         // 대기실 창 (덱 편성·퀘스트)
@@ -187,9 +189,24 @@ namespace ChromaFrontier.Client
             PanelMessage = "";
         }
 
-        public void CycleLevelOffset() => Progress.LevelOffset = Progress.LevelOffset >= 1 ? -1 : Progress.LevelOffset + 1;
+        /// <summary>대기실 모드 버튼: 열린 모드끼리 돌아가며 바꾼다. 하나뿐이면 여는 방법을 잠깐 보여 준다.</summary>
+        public void CycleMode()
+        {
+            var next = (Progress.Mode + 1) % StageCatalog.Modes;
+            if (!Progress.ModeUnlocked(next)) next = 0;
+            if (next == Progress.Mode)
+            {
+                ModeHintUntil = Time.time + 3f;
+                return;
+            }
+            Progress.Mode = next;
+            SelectLobbyStage(Mathf.Min(Progress.Unlocked - 1, StageCatalog.Count - 1));
+        }
 
-        public AiLevel StageLevel(StageDef s) => StageCatalog.LevelFor(s, Progress.LevelOffset);
+        /// <summary>새로 열린 모드의 1-1 (결과 창).</summary>
+        public void StartNewMode() => StartStage(0);
+
+        public AiLevel StageLevel(StageDef s) => StageCatalog.LevelForMode(s, Progress.Mode);
 
         public int BoostCost
         {
@@ -273,17 +290,27 @@ namespace ChromaFrontier.Client
             LastStars = 0;
             LastGems = 0;
             LastFirstClear = false;
+            LastNewMode = false;
             ObjectiveFlash.Clear();
             _history.Clear();
             _snapKey = -1;
             SnapCamera();
         }
 
-        public void Retry() => StartStage(Stage.Index);
+        public void Retry()
+        {
+            // 방금 다음 모드가 열려 모드가 바뀌었으면 그 스테이지는 아직 잠겨 있다
+            if (Progress.IsUnlocked(Stage.Index)) StartStage(Stage.Index);
+            else ExitToLobby();
+        }
 
         public void NextStage() => StartStage(Mathf.Min(Stage.Index + 1, StageCatalog.Count - 1));
 
-        public void ExitToLobby() => ShowLobby(Stage?.Index ?? LobbyStage);
+        public void ExitToLobby()
+        {
+            var index = Stage?.Index ?? LobbyStage;
+            ShowLobby(index >= 0 && Progress.IsUnlocked(index) ? index : Progress.Unlocked - 1);
+        }
 
         public bool PlayerTurn => Mode == AppScreen.Battle && !Game.IsOver && Game.Current == Side.Player
             && !(Tutorial && LessonDone) && ActiveTip == null;
@@ -346,8 +373,9 @@ namespace ChromaFrontier.Client
             {
                 _recorded = true;
                 LastStars = StageCatalog.Stars(Game);
-                LastGems = Progress.RecordBattle(Stage.Index, LastStars, Game, out var first);
+                LastGems = Progress.RecordBattle(Stage.Index, LastStars, Game, out var first, out var newMode);
                 LastFirstClear = first;
+                LastNewMode = newMode;
                 Deselect();
             }
 

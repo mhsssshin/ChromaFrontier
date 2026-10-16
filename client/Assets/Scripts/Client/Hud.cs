@@ -169,9 +169,10 @@ namespace ChromaFrontier.Client
 
         private static string LevelName(AiLevel l) => l switch { AiLevel.Beginner => "입문", AiLevel.Easy => "쉬움", AiLevel.Normal => "보통", _ => "어려움" };
 
-        private static string OffsetName(int o) => o < 0 ? "쉬움" : o > 0 ? "어려움" : "보통";
 
-        private static Color OffsetColor(int o) => o < 0 ? new Color(0.35f, 0.8f, 0.45f) : o > 0 ? new Color(0.85f, 0.3f, 0.45f) : new Color(0.95f, 0.7f, 0.25f);
+        private static Color ModeColor(int m) => m == 0 ? new Color(0.35f, 0.8f, 0.45f) : m == 2 ? new Color(0.85f, 0.3f, 0.45f) : new Color(0.95f, 0.7f, 0.25f);
+
+        private static string ModeName(int m) => StageCatalog.ModeNames[m] + " 모드";
 
         /// <summary>상대의 얼굴로 쓸 유닛 그림.</summary>
         private static string Portrait(StageDef s) => s.Persona.Id switch
@@ -273,7 +274,7 @@ namespace ChromaFrontier.Client
                 if (Button(r, tint, open ? $"{c + 1}장" : $"{c + 1}장 잠김", 18)) gb.SelectLobbyChapter(c);
                 GUI.enabled = true;
             }
-            Text(R(16, 140, RefW - 32, 26), $"{stage.Chapter + 1}장 {chapter.Name} — {chapter.Theme}", 15, Soft);
+            Text(R(16, 140, RefW - 32, 26), $"[{ModeName(Progress.Mode)}]  {stage.Chapter + 1}장 {chapter.Name} — {chapter.Theme}", 15, Soft);
 
             // (보드 미리보기는 카메라가 165~465 띠에 그린다)
 
@@ -310,11 +311,13 @@ namespace ChromaFrontier.Client
                 if (s.IsBoss) Image(new Rect(r.xMax - 26 * _s, r.y - 10 * _s, 30 * _s, 30 * _s), "UI/crown", Color.white);
             }
 
-            // 난이도 보정 + 덱 + 퀘스트 + 출격
-            var offset = Progress.LevelOffset;
-            if (Button(R(14, 854, 124, 76), OffsetColor(offset))) gb.CycleLevelOffset();
-            Text(R(14, 862, 124, 26), "난이도 보정", 14, Color.white);
-            Text(R(14, 888, 124, 34), OffsetName(Progress.LevelOffset), 21, Color.white);
+            // 모드 + 덱 + 퀘스트 + 출격
+            var mode = Progress.Mode;
+            if (Button(R(14, 854, 124, 76), ModeColor(mode))) gb.CycleMode();
+            Text(R(14, 862, 124, 26), "모드", 14, Color.white);
+            Text(R(14, 888, 124, 34), StageCatalog.ModeNames[mode], 21, Color.white);
+            if (Time.time < gb.ModeHintUntil && mode + 1 < StageCatalog.Modes)
+                Text(R(0, 832, RefW, 22), $"{ModeName(mode)} 5-10 을 깨면 {ModeName(mode + 1)}가 열려요", 14, Gold, TextAnchor.MiddleCenter, 0.7f);
             if (IconButton(R(144, 854, 96, 76), new Color(0.35f, 0.5f, 0.9f), "UI/icon_deck", "덱")) gb.OpenPanel(LobbyPanel.Deck);
             if (IconButton(R(246, 854, 96, 76), new Color(0.6f, 0.45f, 0.85f), "UI/icon_quest", "퀘스트")) gb.OpenPanel(LobbyPanel.Quest);
             var ready = Progress.QuestsReady();
@@ -927,7 +930,7 @@ namespace ChromaFrontier.Client
             GUI.color = prev;
 
             var w = g.Winner;
-            var hasNext = w == Side.Player && gb.Stage.Index + 1 < StageCatalog.Count;
+            var hasNext = w == Side.Player && (gb.Stage.Index + 1 < StageCatalog.Count || gb.LastNewMode);
             Nine(R(50, 250, 440, hasNext ? 462 : 400), "UI/panel", 28, Color.white);
             var title = w == Side.Player ? "승리!" : w == Side.Ai ? "패배" : "무승부";
             Text(R(50, 264, 440, 70), title, 54, w == Side.Player ? Gold : w == Side.Ai ? new Color(1f, 0.6f, 0.55f) : Color.white, TextAnchor.MiddleCenter, 0.7f);
@@ -935,10 +938,11 @@ namespace ChromaFrontier.Client
             Stars(R(50, 364, 440, 56), gb.LastStars, 50);
             var total = Mathf.Max(1, g.Board.Playable);
             Text(R(50, 426, 440, 34), $"나 {g.Board.Count(Side.Player) * 100 / total}%   vs   AI {g.Board.Count(Side.Ai) * 100 / total}%", 22, Color.white);
-            var note = g.Stuck == Side.Player ? "내가 놓을 칸이 없어 게임이 끝났어요"
+            var note = gb.LastNewMode ? $"{ModeName(Progress.Mode)}가 열렸어요! 1-1부터 다시 도전하세요"
+                : g.Stuck == Side.Player ? "내가 놓을 칸이 없어 게임이 끝났어요"
                 : g.Stuck == Side.Ai ? "AI가 놓을 칸이 없어 게임이 끝났어요"
                 : "별: 승리 1개 · 점유율 50% 이상 2개 · 65% 이상 3개";
-            Text(R(50, 460, 440, 26), note, 14, new Color(1f, 0.9f, 0.7f));
+            Text(R(50, 460, 440, 26), note, gb.LastNewMode ? 17 : 14, gb.LastNewMode ? Gold : new Color(1f, 0.9f, 0.7f));
 
             // 받은 결정 (+ 첫 클리어·목표 보너스)
             var gemRow = R(110, 492, 320, 44);
@@ -951,7 +955,10 @@ namespace ChromaFrontier.Client
             if (Progress.QuestsReady() > 0) extras.Add("받을 퀘스트 보상이 있어요");
             Text(R(50, 538, 440, 24), string.Join("  ·  ", extras), 13, Soft, TextAnchor.MiddleCenter, 0f);
 
-            if (hasNext && Button(R(80, 568, 380, 62), new Color(1f, 0.55f, 0.2f), "다음 스테이지", 24)) gb.NextStage();
+            if (hasNext && Button(R(80, 568, 380, 62), new Color(1f, 0.55f, 0.2f), gb.LastNewMode ? $"{ModeName(Progress.Mode)} 1-1" : "다음 스테이지", 24))
+            {
+                if (gb.LastNewMode) gb.StartNewMode(); else gb.NextStage();
+            }
             var y = hasNext ? 640 : 576;
             if (Button(R(80, y, 184, 58), Palette.Player, "다시 하기", 21)) gb.Retry();
             if (Button(R(276, y, 184, 58), new Color(0.4f, 0.42f, 0.58f), "대기실", 21)) gb.ExitToLobby();

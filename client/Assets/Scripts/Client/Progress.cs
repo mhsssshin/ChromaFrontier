@@ -11,23 +11,36 @@ namespace ChromaFrontier.Client
     /// </summary>
     public static class Progress
     {
-        private const string UnlockedKey = "cf.unlocked", StarsKey = "cf.stars", OffsetKey = "cf.levelOffset";
+        // 해금·별은 모드마다 따로: 쉬움은 예전 키 그대로(cf.unlocked), 보통·어려움은 뒤에 .1 / .2
+        private const string UnlockedKey = "cf.unlocked", StarsKey = "cf.stars", ModeKey = "cf.mode";
         private const string TutorialKey = "cf.tutorial", LessonKey = "cf.tutorialLesson", TipPrefix = "cf.tip.";
 
-        private static int[] _stars;
+        private static readonly int[][] _stars = new int[StageCatalog.Modes][];
 
-        /// <summary>플레이할 수 있는 스테이지 수 (1 이면 첫 스테이지만).</summary>
-        public static int Unlocked
+        private static string Suffix(int mode) => mode == 0 ? "" : "." + mode;
+
+        /// <summary>지금 하는 모드 (0 쉬움, 1 보통, 2 어려움). 열린 모드까지만.</summary>
+        public static int Mode
         {
-            get => Mathf.Clamp(LocalStore.GetInt(UnlockedKey, 1), 1, StageCatalog.Count);
-            private set => LocalStore.SetInt(UnlockedKey, value);
+            get
+            {
+                var m = Mathf.Clamp(LocalStore.GetInt(ModeKey, 0), 0, StageCatalog.Modes - 1);
+                while (m > 0 && !ModeUnlocked(m)) m--;
+                return m;
+            }
+            set => LocalStore.SetInt(ModeKey, value);
         }
 
-        /// <summary>대기실 난이도 보정: -1 쉬움, 0 보통, +1 어려움.</summary>
-        public static int LevelOffset
+        /// <summary>앞 모드의 마지막 스테이지(5-10)를 깨면 열린다.</summary>
+        public static bool ModeUnlocked(int mode) => mode == 0 || (mode < StageCatalog.Modes && StarsOf(mode - 1, StageCatalog.Count - 1) > 0);
+
+        public static int UnlockedIn(int mode) => Mathf.Clamp(LocalStore.GetInt(UnlockedKey + Suffix(mode), 1), 1, StageCatalog.Count);
+
+        /// <summary>지금 모드에서 플레이할 수 있는 스테이지 수 (1 이면 첫 스테이지만).</summary>
+        public static int Unlocked
         {
-            get => Mathf.Clamp(LocalStore.GetInt(OffsetKey, -1), -1, 1);
-            set => LocalStore.SetInt(OffsetKey, value);
+            get => UnlockedIn(Mode);
+            private set => LocalStore.SetInt(UnlockedKey + Suffix(Mode), value);
         }
 
         public static bool IsUnlocked(int index) => index < Unlocked;
@@ -50,27 +63,25 @@ namespace ChromaFrontier.Client
 
         public static void MarkTipSeen(string id) => LocalStore.SetInt(TipPrefix + id, 1);
 
-        public static int StarsOf(int index)
-        {
-            Load();
-            return _stars[index];
-        }
+        public static int StarsOf(int index) => StarsOf(Mode, index);
+
+        public static int StarsOf(int mode, int index) => Load(mode)[index];
 
         public static int TotalStars()
         {
-            Load();
             var n = 0;
-            foreach (var s in _stars) n += s;
+            foreach (var s in Load(Mode)) n += s;
             return n;
         }
 
-        /// <summary>판 결과 기록: 최고 별 갱신, 이기면 다음 스테이지 해금.</summary>
+        /// <summary>판 결과 기록 (지금 모드): 최고 별 갱신, 이기면 다음 스테이지 해금.</summary>
         public static void Record(int index, int stars)
         {
-            Load();
-            _stars[index] = Math.Max(_stars[index], stars);
+            var mode = Mode;
+            var arr = Load(mode);
+            arr[index] = Math.Max(arr[index], stars);
             if (stars > 0 && index + 1 >= Unlocked) Unlocked = Math.Min(StageCatalog.Count, index + 2);
-            LocalStore.SetString(StarsKey, string.Join(",", _stars));
+            LocalStore.SetString(StarsKey + Suffix(mode), string.Join(",", arr));
         }
 
         // ---------------------------------------------------------------- 재화·덱·퀘스트
@@ -194,16 +205,21 @@ namespace ChromaFrontier.Client
         /// <summary>
         /// 판 결과 기록: 별·해금(Record) + 판 기록을 퀘스트 누적에 더하고 결정을 준다. 받은 결정 수.
         /// </summary>
-        public static int RecordBattle(int index, int stars, Game g, out bool firstClear)
+        /// <param name="newMode">이 판으로 다음 모드가 열렸다 (그 모드로 바로 넘어간다)</param>
+        public static int RecordBattle(int index, int stars, Game g, out bool firstClear, out bool newMode)
         {
+            var mode = Mode;
             firstClear = stars > 0 && StarsOf(index) == 0;
+            var wasOpen = ModeUnlocked(mode + 1);
             Record(index, stars);
+            newMode = mode + 1 < StageCatalog.Modes && !wasOpen && ModeUnlocked(mode + 1);
+            if (newMode) Mode = mode + 1;
             var m = g.StatsOf(Side.Player);
             for (var s = 0; s < (int)Stat.Count; s++) AddStat((Stat)s, m.Counts[s]);
             AddStat(Stat.Games, 1);
             AddStat(Stat.Wins, stars > 0 ? 1 : 0);
             AddStat(Stat.Objectives, g.ObjectivesDone);
-            var gems = Rewards.ForBattle(StageCatalog.Get(index), stars, firstClear, g.ObjectivesDone);
+            var gems = Rewards.ForBattle(StageCatalog.Get(index), stars, firstClear, g.ObjectivesDone, mode);
             Gems += gems;
             return gems;
         }
@@ -214,21 +230,22 @@ namespace ChromaFrontier.Client
         /// <summary>개발 빌드 전용: 모든 스테이지 해금.</summary>
         public static void UnlockAll() => Unlocked = StageCatalog.Count;
 
-        /// <summary>개발 빌드 전용: 진행 초기화 (해금·별·난이도·튜토리얼·팁 전부).</summary>
+        /// <summary>개발 빌드 전용: 진행 초기화 (해금·별·모드·튜토리얼·팁 전부).</summary>
         public static void ResetAll()
         {
             LocalStore.Clear();
-            _stars = null;
+            for (var m = 0; m < _stars.Length; m++) _stars[m] = null;
             _cards = null;
         }
 
-        private static void Load()
+        private static int[] Load(int mode)
         {
-            if (_stars != null) return;
-            _stars = new int[StageCatalog.Count];
-            var parts = LocalStore.GetString(StarsKey, "").Split(',');
-            for (var i = 0; i < parts.Length && i < _stars.Length; i++)
-                if (int.TryParse(parts[i], out var v)) _stars[i] = Mathf.Clamp(v, 0, 3);
+            if (_stars[mode] != null) return _stars[mode];
+            var arr = _stars[mode] = new int[StageCatalog.Count];
+            var parts = LocalStore.GetString(StarsKey + Suffix(mode), "").Split(',');
+            for (var i = 0; i < parts.Length && i < arr.Length; i++)
+                if (int.TryParse(parts[i], out var v)) arr[i] = Mathf.Clamp(v, 0, 3);
+            return arr;
         }
     }
 }

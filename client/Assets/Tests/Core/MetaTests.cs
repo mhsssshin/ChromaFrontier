@@ -66,6 +66,17 @@ namespace ChromaFrontier.Core.Tests
             Assert.Greater(Rewards.ForBattle(stage, 3, false, 0), Rewards.ForBattle(stage, 1, false, 0));
             Assert.Greater(Rewards.ForBattle(boss, 1, true, 0), Rewards.ForBattle(stage, 1, true, 0));
             Assert.AreEqual(Rewards.ForBattle(stage, 1, false, 0) + 2 * Rewards.PerObjective, Rewards.ForBattle(stage, 1, false, 2));
+            Assert.AreEqual(Rewards.ForBattle(stage, 2, false, 0) * 2, Rewards.ForBattle(stage, 2, false, 0, mode: 2), "어려움 모드는 2배");
+        }
+
+        [Test]
+        public void Modes_RaiseAiLevel_ClampedToHard()
+        {
+            var first = StageCatalog.Get(0);
+            var last = StageCatalog.Get(StageCatalog.Count - 1);
+            Assert.Less(StageCatalog.LevelForMode(first, 0), StageCatalog.LevelForMode(first, 1));
+            Assert.Less(StageCatalog.LevelForMode(first, 1), StageCatalog.LevelForMode(first, 2));
+            Assert.AreEqual(AiLevel.Hard, StageCatalog.LevelForMode(last, 2));
         }
 
         [Test]

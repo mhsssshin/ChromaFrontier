@@ -135,7 +135,8 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
 - **스테이지**(`Stages.cs`): `StageCatalog.All`에 50개(5챕터 × 10, 각 챕터 10번째가 보스)가 있다. `StageDef`는 맵, `StageRules`, 상대 성향(`AiPersona`), 기본 난이도, AI 덱을 갖는다.
   - 1장 초원(기믹 없음, 7x7 → 8x8) → 2장 화산(유닛 무작위 폭발) → 3장 얼음성(얼음) → 4장 끊어진 다리(낭떠러지) → 5장 공허의 탑(9x9, 컨베이어·블랙홀·침묵, 22턴).
   - 보스: 1장 이그니스(화염 덱, 어그로), 2장 각성 이그니스, 3장 글라시아(물·잠금·탈색, 통제), 4장 호문클루스(약탈), 5장 각성 호문클루스.
-  - 기본 난이도는 스테이지 0~14가 입문, 15~29가 쉬움, 30~44가 보통, 45 이상이 어려움이다. 보스는 한 단계 위다. 1장 일반 스테이지의 AI 덱은 유닛만 있다(스킬 없음). 대기실의 난이도 보정(−1/0/+1)을 더한다(`StageCatalog.LevelFor`).
+  - 기본 난이도는 스테이지 0~14가 입문, 15~29가 쉬움, 30~44가 보통, 45 이상이 어려움이다. 보스는 한 단계 위다. 1장 일반 스테이지의 AI 덱은 유닛만 있다(스킬 없음). 
+  - **모드**: 쉬움 → 보통 → 어려움(`StageCatalog.Modes`). 쉬움 모드 5-10을 깨면 보통 모드가, 보통 모드 5-10을 깨면 어려움 모드가 열리고 1-1부터 다시 한다. AI 난이도는 기본값에 모드별 −1/0/+1을 더하고, 앞 모드와 같아지지 않게 모드별 하한(입문/쉬움/보통)을 둔다(`StageCatalog.LevelForMode`). 판 보상은 보통 1.5배, 어려움 2배이고, 첫 클리어 보너스도 모드마다 다시 받는다. 예전의 대기실 난이도 보정은 없앴다.
   - 별(`StageCatalog.Stars`): 승리 1개, 점유율 50% 이상 2개, 65% 이상 3개.
   - 테스트 `EveryStage_StartsWithMovesForBothSides_AndPlaysToTheEnd`가 50개 스테이지를 모두 AI끼리 끝까지 돌려 본다. 맵을 고치면 이 테스트로 확인한다.
 - 배치 규칙(`Game.CanPlace`, `Board.IsFrontline`): 빈 칸이어야 하고, 내 타일이거나 내 타일과 상하좌우로 맞닿은 칸이어야 한다.
@@ -176,7 +177,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 테스트 `AiVsAi_UsesEverySkillAcrossGames`가 AI가 스킬 7종을 모두 쓰는지 확인한다. `AiVsAi_SkillUsageReport`는 턴당 스킬 사용률을 출력한다(측정값: 보통 AI끼리 턴의 56%에서 스킬 사용).
   - **성향**(`AiPersona`)은 점수 가중치다. StealWeight는 빼앗은 칸, CatalystSteal은 상대 유닛 촉매, LoneUnitPenalty는 상대 유닛과 안 맞닿은 배치 감점, ShieldWeight는 보호 칸, Lock/Bleach/MineWeight는 스킬 배율, WarpBonus는 공간 왜곡 가산이다.
   - 난이도 `AiLevel`(입문, 쉬움, 보통, 어려움)은 `AiBrain.Profile`에서 정한다. `Perfect`는 실수 없는 기준 AI로, 게임에서는 쓰지 않고 테스트에서 플레이어 자리 대역으로만 쓴다. 플레이어들이 너무 어렵다고 해서 전체를 순하게 낮췄다. 후보 점수에 무작위를 섞고(noise), 일정 확률로 아무 수나 두게 하고(mistake), 공간 왜곡 탐색 후보 수를 줄여서 AI를 약하게 만든다.
-  - 실제 난이도는 스테이지 기본값에 대기실 난이도 보정을 더한 값이다.
+  - 실제 난이도는 스테이지 기본값과 모드로 정한다(`LevelForMode`).
   - 테스트 `AiLevels_EasierLevelsLoseMoreOften`이 Perfect AI를 플레이어 자리에 두고 승률을 잰다. 측정값은 대 입문 100%, 대 쉬움 100%, 대 보통 92%, 대 어려움 74%, 대 Perfect 53%다(각 60판, 스킬 보조 행동 도입 후). 난이도 숫자를 바꾸면 상세 출력(`--logger "console;verbosity=detailed"`)으로 승률을 다시 확인한다.
 
 **Client**
@@ -185,10 +186,10 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - `GameBootstrap.Input.cs`: 드래그 앤 드롭 입력, 보드 강조, 미리보기.
   - `GameBootstrap.Effects.cs`: 메시지, 이펙트, 라운드 기믹 연출.
   - `GameBootstrap.Tutorial.cs`: 튜토리얼 진행과 상황 팁.
-- **대기실**: 고른 스테이지의 맵을 실제 `BoardView`로 미리 보여 준다(`_previewBoard`). 챕터 탭, 스테이지 노드(별·잠금·보스 왕관), 상대 정보, 난이도 보정, 출격 버튼이 있다.
-  - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`, `cf.levelOffset`, `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`, `cf.gems`(결정), `cf.cards`(소장·덱, `Collection.Serialize`), `cf.stat.<stat>`(퀘스트 누적 기록), `cf.quest.<id>`(받은 단계 수), `cf.items.undo`(모아 둔 무르기)다. 이기면 다음 스테이지가 해금된다.
+- **대기실**: 고른 스테이지의 맵을 실제 `BoardView`로 미리 보여 준다(`_previewBoard`). 챕터 탭, 스테이지 노드(별·잠금·보스 왕관), 상대 정보, 모드, 출격 버튼이 있다.
+  - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`(쉬움 모드, 보통·어려움은 뒤에 `.1`/`.2`), `cf.mode`(지금 모드), `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`, `cf.gems`(결정), `cf.cards`(소장·덱, `Collection.Serialize`), `cf.stat.<stat>`(퀘스트 누적 기록), `cf.quest.<id>`(받은 단계 수), `cf.items.undo`(모아 둔 무르기)다. 이기면 다음 스테이지가 해금된다.
   - 판이 끝나면 `Progress.RecordBattle`이 별·해금 기록, 누적 기록 더하기, 결정 지급을 한 번에 한다. 결과 창에 받은 결정과 목표 달성 수를 보여 준다.
-  - 위쪽 줄에 로고, 보유 결정, 별 합계, 배우기가 있다. 아래 줄은 난이도 보정, 덱, 퀘스트(받을 보상 수 배지), 출격이다.
+  - 위쪽 줄에 로고, 보유 결정, 별 합계, 배우기가 있다. 아래 줄은 모드(열린 모드끼리 돌아가며 바꿈, 하나뿐이면 여는 방법을 잠깐 보여 줌), 덱, 퀘스트(받을 보상 수 배지), 출격이다.
   - 출격을 누르면 출격 준비 창(`LobbyPanel.Prep`)이 뜬다. 소모품을 켜고 끄고(`GameBootstrap.Boosts`), 무르기를 사고, 출격(`Sortie`)하면 값을 낸다. 다시·다음 스테이지는 소모품 없이 시작한다.
   - 덱·퀘스트 창(`LobbyPanel`)은 대기실 위에 뜬다. 창이 떠 있으면 대기실은 Repaint 때만 그려서 아래 버튼이 클릭을 받지 않는다. 덱 창은 9종 카드를 3x3으로 보여 주고, −/+로 넣고 빼고, 결정으로 사고 강화한다. 강화 버튼은 처음 누르면 다음 단계 효과를 보여 주고 4초 안에 한 번 더 눌러야 강화한다. 손패 카드에도 Lv2 이상이면 단계 배지가 붙는다.
   - 개발 빌드의 대기실에서 `G` 키를 누르면 결정 500개를 받는다.
