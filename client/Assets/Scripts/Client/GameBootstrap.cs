@@ -157,6 +157,7 @@ namespace ChromaFrontier.Client
             Mode = AppScreen.Lobby;
             Panel = LobbyPanel.None;
             Tutorial = false;
+            EndCine();
             _tips.Clear();
             Game = null;
             _fx?.Destroy();
@@ -285,6 +286,7 @@ namespace ChromaFrontier.Client
             _fx = new FxView(transform);
             Hand.Reset();
             Deselect();
+            EndCine();
             _lastRound = 0;
             _recorded = false;
             LastStars = 0;
@@ -313,7 +315,7 @@ namespace ChromaFrontier.Client
         }
 
         public bool PlayerTurn => Mode == AppScreen.Battle && !Game.IsOver && Game.Current == Side.Player
-            && !(Tutorial && LessonDone) && ActiveTip == null;
+            && !(Tutorial && LessonDone) && ActiveTip == null && Concept == null;
 
         /// <summary>지금 낼 수 있는 카드인가: 스킬은 한 턴에 한 장.</summary>
         public bool CanUse(Card c) => c.IsUnit || !Game.SkillUsed;
@@ -347,6 +349,7 @@ namespace ChromaFrontier.Client
                 return;
             }
 
+            UpdateCine();
             if (!Tutorial && !Game.IsOver && Game.Current == Side.Ai)
             {
                 _aiTimer -= Time.deltaTime;
@@ -380,6 +383,7 @@ namespace ChromaFrontier.Client
             }
 
             BuildHighlight();
+            CineHighlight();
             UpdateAim();
             _view.Sync(Game.Board, _hl, Time.time, Time.deltaTime);
             _fx.Update(Time.deltaTime);
@@ -421,7 +425,15 @@ namespace ChromaFrontier.Client
                 targetPos = targetSize >= full - 0.01f ? fullPos : zoomPos;
             }
 
-            var t = 1f - Mathf.Exp(-7f * Time.deltaTime);
+            // 합성 연출: 합성한 칸으로 클로즈업 (슬로모션 중이라 실제 시간으로 움직인다)
+            var cine = CineAmount;
+            if (cine > 0f)
+            {
+                var closeSize = Mathf.Max(Frame(_cineFocus, new Vector2(4.6f, 3.4f), top, bottom, out var closePos), full / 2.4f);
+                targetSize = Mathf.Lerp(targetSize, closeSize, cine);
+                targetPos = Vector3.Lerp(targetPos, closePos, cine);
+            }
+            var t = 1f - Mathf.Exp(-(CineActive ? 14f : 7f) * (CineActive ? Time.unscaledDeltaTime : Time.deltaTime));
             _camSize = Mathf.Lerp(_camSize, targetSize, t);
             _camPos = Vector3.Lerp(_camPos, targetPos, t);
             _cam.orthographicSize = _camSize;

@@ -18,7 +18,9 @@ namespace ChromaFrontier.Client
         private static float _s = 1f, _ox, _oy;
         private static Font _font;
         private static float _retryArmedUntil; // 전투 상단 '다시' 버튼: 이 시각까지 한 번 더 누르면 다시 시작
-        private static GUIStyle _label, _button;
+        private static GUIStyle _label, _button, _rich;
+        private static readonly Color Ink = new(0.24f, 0.16f, 0.08f);      // 밝은 말풍선 위 글자
+        private static readonly Color InkSoft = new(0.5f, 0.38f, 0.24f);
 
         private static readonly Color Gold = new(1f, 0.88f, 0.3f);
         private static readonly Color Soft = new(1f, 0.98f, 0.85f);
@@ -47,7 +49,13 @@ namespace ChromaFrontier.Client
             if (gb.Tutorial) DrawCoach(gb);
             else DrawTop(gb, g);
             DrawHand(gb, g);
+            DrawCine(gb);
             if (gb.Tutorial) DrawFinger(gb);
+            if (gb.Concept != null)
+            {
+                DrawConcept(gb, gb.Concept);
+                return;
+            }
             if (gb.ActiveTip != null)
             {
                 DrawTip(gb, gb.ActiveTip);
@@ -88,6 +96,7 @@ namespace ChromaFrontier.Client
             if (_font == null) _font = Resources.Load<Font>("Fonts/Pretendard-Bold");
             _label ??= new GUIStyle { font = _font, alignment = TextAnchor.MiddleCenter, wordWrap = true, normal = { textColor = Color.white } };
             _button ??= new GUIStyle(_label);
+            _rich ??= new GUIStyle(_label) { richText = true };
         }
 
         // ---------------------------------------------------------------- 그리기 도구
@@ -129,6 +138,15 @@ namespace ChromaFrontier.Client
             GUI.color = tint;
             GUI.DrawTexture(r, t, ScaleMode.ScaleToFit);
             GUI.color = prev;
+        }
+
+        /// <summary>리치 텍스트(&lt;color&gt;) 글자. 그림자 없이 (밝은 말풍선 위 진한 글자용).</summary>
+        private static void Rich(Rect r, string text, int size, Color color, TextAnchor anchor = TextAnchor.MiddleCenter)
+        {
+            _rich.fontSize = Mathf.RoundToInt(size * _s);
+            _rich.alignment = anchor;
+            _rich.normal.textColor = color;
+            GUI.Label(r, text, _rich);
         }
 
         private static void Text(Rect r, string text, int size, Color color, TextAnchor anchor = TextAnchor.MiddleCenter, float shadow = 0.45f)
@@ -725,7 +743,8 @@ namespace ChromaFrontier.Client
                 if (gb.LessonDone)
                 {
                     var last = gb.LessonIndex + 1 >= TutorialCatalog.Count;
-                    if (Button(R(RefW - 254, 700, 240, 60), new Color(1f, 0.55f, 0.2f), last ? "실전 시작!" : "다음 →", 24)) gb.NextLesson();
+                    var glow = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 5f);
+                    if (Button(R(RefW - 274, 690, 260, 72), Color.Lerp(new Color(1f, 0.55f, 0.2f), new Color(1f, 0.75f, 0.35f), glow), last ? "실전 시작!" : "다음 →", 28)) gb.NextLesson();
                 }
             }
             else
@@ -863,20 +882,30 @@ namespace ChromaFrontier.Client
                 Image(dot, i <= gb.LessonIndex ? "UI/star_on" : "UI/star_off", Color.white);
             }
 
-            var bubble = R(14, 80, RefW - 28, 124);
-            Nine(bubble, "UI/panel", 28, gb.LessonDone ? new Color(0.75f, 1f, 0.8f) : Color.white);
-            var bob = Mathf.Sin(Time.time * 3f) * 3f * _s;
-            Image(new Rect(bubble.x + 6 * _s, bubble.y + 14 * _s + bob, 76 * _s, 90 * _s), "Units/unit_blue", Color.white);
-            Text(new Rect(bubble.x + 6 * _s, bubble.yMax - 26 * _s, 76 * _s, 22 * _s), "방울이", 13, Soft, TextAnchor.MiddleCenter, 0f);
+            // 말풍선: 밝은 종이에 진한 큰 글자 (어두운 패널 위 작은 글자는 잘 안 보였다)
+            var bubble = R(10, 80, RefW - 20, 172);
+            Nine(bubble, "UI/bubble", 28, gb.LessonDone ? new Color(0.85f, 1f, 0.85f) : Color.white);
+            var bob = Mathf.Sin(Time.unscaledTime * 3f) * 3f * _s;
+            Image(new Rect(bubble.x + 8 * _s, bubble.y + 18 * _s + bob, 84 * _s, 98 * _s), "Units/unit_blue", Color.white);
+            Rich(new Rect(bubble.x + 8 * _s, bubble.yMax - 34 * _s, 84 * _s, 24 * _s), "방울이", 14, InkSoft);
             var head = gb.LessonDone ? "잘했어요!" : "따라 해 보세요";
-            Text(new Rect(bubble.x + 92 * _s, bubble.y + 8 * _s, bubble.width - 100 * _s, 26 * _s), head, 18, gb.LessonDone ? Gold : new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft);
-            Text(new Rect(bubble.x + 92 * _s, bubble.y + 34 * _s, bubble.width - 104 * _s, 84 * _s), gb.Message, 15, Soft, TextAnchor.UpperLeft, 0f);
+            Rich(new Rect(bubble.x + 104 * _s, bubble.y + 12 * _s, bubble.width - 116 * _s, 30 * _s), head, 21, gb.LessonDone ? new Color(0.15f, 0.55f, 0.2f) : new Color(0.85f, 0.4f, 0.1f), TextAnchor.MiddleLeft);
+            Rich(new Rect(bubble.x + 104 * _s, bubble.y + 46 * _s, bubble.width - 118 * _s, 116 * _s), gb.Message, 19, Ink, TextAnchor.UpperLeft);
         }
 
         /// <summary>손가락 시범: 카드에서 목표 칸까지(또는 물을 흘릴 방향으로) 끄는 동작을 반복해서 보여 준다.</summary>
         private static void DrawFinger(GameBootstrap gb)
         {
-            if (Event.current.type != EventType.Repaint || !gb.HintGesture(out var from, out var to, out var fromCard)) return;
+            if (Event.current.type != EventType.Repaint) return;
+            // 목표 칸 위에 통통 튀는 "여기!" 표시
+            if (gb.TutorialTarget(out var target, out var label))
+            {
+                var hop = Mathf.Abs(Mathf.Sin(Time.unscaledTime * 4f)) * 10f * _s;
+                var tag = new Rect(target.x - 56 * _s, target.y - 86 * _s - hop, 112 * _s, 42 * _s);
+                Nine(tag, "UI/button", 22, new Color(1f, 0.85f, 0.3f));
+                Rich(tag, label, 19, Ink);
+            }
+            if (!gb.HintGesture(out var from, out var to, out var fromCard)) return;
             const float cycle = 2f;
             var t = Time.time % cycle / cycle;
             float move = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.18f, 0.72f, t));
@@ -889,6 +918,78 @@ namespace ChromaFrontier.Client
                 Image(new Rect(pos.x - 24 * _s, pos.y + 6 * _s, 48 * _s, 66 * _s), "UI/card_back", new Color(1f, 1f, 1f, 0.55f * alpha));
             // 손끝(그림의 약 (22, 8)/96)이 pos 에 오도록
             Image(new Rect(pos.x - size * 0.23f, pos.y - size * 0.08f, size, size), "UI/finger", new Color(1f, 1f, 1f, alpha));
+        }
+
+        /// <summary>튜토리얼 개념 카드: 레슨 전에 그림과 짧은 설명. 열려 있는 동안 다른 입력은 막는다.</summary>
+        private static void DrawConcept(GameBootstrap gb, ConceptPage page)
+        {
+            Dim(0.55f);
+            var panel = R(24, 214, RefW - 48, 476);
+            Nine(panel, "UI/bubble", 28, Color.white);
+            Rich(R(24, 230, RefW - 48, 24), $"튜토리얼 {gb.LessonIndex + 1} / {TutorialCatalog.Count}", 15, InkSoft);
+            Rich(R(24, 254, RefW - 48, 50), page.Title, 34, new Color(0.85f, 0.4f, 0.1f));
+
+            // 그림 줄: 그림은 96, 기호는 44 폭
+            var widths = new List<float>();
+            var total = 0f;
+            foreach (var p in page.Picture)
+            {
+                var w = p.Contains("/") ? 96f : 44f;
+                widths.Add(w);
+                total += w;
+            }
+            var scale = Mathf.Min(1f, (RefW - 80f) / total);
+            var x = RefW * 0.5f - total * scale * 0.5f;
+            for (var i = 0; i < page.Picture.Length; i++)
+            {
+                var w = widths[i] * scale;
+                var p = page.Picture[i];
+                if (p.Contains("/"))
+                {
+                    var bob = Mathf.Sin(Time.unscaledTime * 3f + i) * 3f;
+                    foreach (var layer in p.Split('|')) Image(R(x + 4 * scale, 316 + bob, w - 8 * scale, 104 * scale), layer, Color.white);
+                }
+                else Rich(R(x, 330, w, 70), p, 34, InkSoft);
+                x += w;
+            }
+
+            Rich(R(48, 432, RefW - 96, 150), page.Body, 20, Ink);
+
+            for (var i = 0; i < gb.ConceptCount; i++)
+                Image(R(RefW * 0.5f - gb.ConceptCount * 10 + i * 20, 588, 14, 14), i <= gb.ConceptIndex ? "UI/star_on" : "UI/star_off", Color.white);
+            var lastPage = gb.ConceptIndex + 1 >= gb.ConceptCount;
+            if (Button(R(140, 612, 260, 64), new Color(1f, 0.55f, 0.2f), lastPage ? "해 볼게요!" : "다음", 26)) gb.NextConcept();
+            SwallowInput();
+        }
+
+        /// <summary>합성 연출: 처음에 섬광, 화면 아래쪽에 융합 이름 띠가 튀어나온다.</summary>
+        private static void DrawCine(GameBootstrap gb)
+        {
+            if (!gb.CineActive || Event.current.type != EventType.Repaint) return;
+            var t = gb.CineTime;
+            var a = gb.CineAmount;
+            var prev = GUI.color;
+            var flash = Mathf.Clamp01((gb.CineStrong ? 0.75f : 0.5f) - t * 2.6f);
+            if (flash > 0f)
+            {
+                GUI.color = new Color(1f, 1f, 1f, flash);
+                GUI.DrawTexture(new Rect(0, 0, UnityEngine.Screen.width, UnityEngine.Screen.height), Texture2D.whiteTexture);
+            }
+            var color = Palette.Of(gb.CineElement);
+            var strip = R(0, 590, RefW, 104);
+            GUI.color = new Color(0f, 0f, 0.05f, 0.6f * a);
+            GUI.DrawTexture(strip, Texture2D.whiteTexture);
+            GUI.color = new Color(color.r, color.g, color.b, 0.9f * a);
+            GUI.DrawTexture(R(0, 590, RefW, 4), Texture2D.whiteTexture);
+            GUI.DrawTexture(R(0, 690, RefW, 4), Texture2D.whiteTexture);
+            GUI.color = prev;
+            var pop = 1f + 0.5f * Mathf.Exp(-t * 8f);
+            var slide = (1f - Mathf.Clamp01(t / 0.2f)) * 60f;
+            Image(R(24 - slide, 586, 90, 105), "Units/unit_" + gb.CineElement.ToString().ToLowerInvariant(), new Color(1f, 1f, 1f, a));
+            var title = Color.Lerp(color, Color.white, 0.6f); // 흑색처럼 어두운 색도 띠 위에서 읽히게
+            title.a = a;
+            Text(R(110 + slide, 596, RefW - 130, 54), gb.CineTitle, Mathf.RoundToInt(38 * pop), title, TextAnchor.MiddleLeft, 0.9f);
+            Text(R(112 + slide, 650, RefW - 130, 32), gb.CineSub, 17, new Color(1f, 0.98f, 0.85f, a), TextAnchor.MiddleLeft, 0.7f);
         }
 
         /// <summary>처음 만나는 맵 기믹·보스 설명 카드. 열려 있는 동안 다른 입력은 막는다.</summary>

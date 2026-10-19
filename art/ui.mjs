@@ -70,6 +70,13 @@ export function ui() {
   p.path(rect(2, 2, 124, 124, 24), 'none', 'stroke="#ffffff" stroke-width="3" opacity="0.35"');
   out.push(p.sprite('UI/panel'));
 
+  // 밝은 말풍선 (9-slice 28): 튜토리얼 안내. 진한 글자를 올려 잘 읽히게
+  p = new Pic(128, 128);
+  p.path(rect(3, 7, 122, 118, 24), '#000000', 'opacity="0.3"');
+  p.path(rect(2, 2, 122, 118, 24), p.lin([[0, '#fffdf4'], [1, '#f6ebcf']]), stroke(4, '#b07a2a'));
+  p.path(rect(10, 9, 106, 14, 7), '#ffffff', 'opacity="0.7"');
+  out.push(p.sprite('UI/bubble'));
+
   // ---- 대기실: 별(획득/미획득), 보스 왕관 (64x64)
   for (const [name, fill, line] of [['star_on', p0 => p0.lin([[0, '#fff3a0'], [1, '#ffb21f']]), '#8a4a00'], ['star_off', () => '#3a4466', '#1c2240']]) {
     p = new Pic(64, 64);

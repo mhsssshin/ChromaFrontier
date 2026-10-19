@@ -41,7 +41,9 @@ namespace ChromaFrontier.Client
             Selected = handIndex;
             _warpFirst = null;
             _blueAt = _blueTap = null;
-            Message = Palette.TargetPrompt(SelectedCard.Value, false);
+            Message = Tutorial
+                ? "좋아요! 이제 <color=#d0471a>'여기!'</color> 표시가 있는 칸을 눌러요.\n(카드를 끌어다 놓아도 돼요)"
+                : Palette.TargetPrompt(SelectedCard.Value, false);
         }
 
         private void Deselect()
@@ -68,7 +70,7 @@ namespace ChromaFrontier.Client
         public void PointerDown(Vector2 gui)
         {
             if (PlayerTurn && Selected < 0 && Tutorial)
-                Message = "먼저 아래 카드를 고르세요.\n카드를 끌어서 빛나는 칸에 놓거나, 카드를 누른 뒤 칸을 누르면 돼요.";
+                Message = "먼저 <color=#d0471a>아래 카드</color>를 눌러 고르세요.\n그다음 <color=#d0471a>'여기!'</color> 칸을 누르면 돼요.";
             if (!PlayerTurn || Selected < 0) return;
             _boardPress = true;
             _pressGui = _pointerGui = gui;
@@ -96,7 +98,7 @@ namespace ChromaFrontier.Client
                 }
                 // 노리는 칸은 손을 뗀 순간의 위치로 다시 계산한다 (빠르게 끌면 프레임 계산이 못 따라온다)
                 if (SelectedCard is { } card && Snap(_pointerGui - new Vector2(0f, CardLift * UiScale), CardSnap) is { } target) Commit(card, target);
-                else Message = "카드를 밝게 빛나는 칸 위로 끌어다 놓으세요.";
+                else Message = Tutorial ? "조금 빗나갔어요! 카드를 <color=#d0471a>'여기!'</color> 칸 위까지 끌어 와서 놓아요." : "카드를 밝게 빛나는 칸 위로 끌어다 놓으세요.";
                 _aim = null;
                 return;
             }

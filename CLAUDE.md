@@ -77,7 +77,7 @@ bash scripts/deploy-pages.sh
     - `tiles.mjs`: 타일 4종, 윗면 오버레이(glow/select/lock/shield), 장식, 바다, 거품
     - `units.mjs`: 원소 유닛 9종, 팀 링, 지뢰, 거점 깃발
     - `fx.mjs`: 프레임 이펙트 `<이름>_<n>`
-    - `ui.mjs`: 카드 틀, 아이콘(카드, 결정 `icon_gem`, 덱, 퀘스트), 바, 버튼, 패널, 스플래시 엠블럼
+    - `ui.mjs`: 카드 틀, 아이콘(카드, 결정 `icon_gem`, 덱, 퀘스트), 바, 버튼, 패널, 밝은 말풍선(`bubble`, 튜토리얼), 스플래시 엠블럼
     - `logo.mjs`: 영문 로고 "CHROMA FRONTIER"(`UI/logo_title`). 스플래시와 대기실에 쓰고, 빌드할 때 WebGL 템플릿(`WebGLTemplates/Portrait/logo.png`, 웹 로딩 화면)에도 복사한다.
       - 글꼴은 `art/vendor/fonts/Jua-Regular.ttf`(SIL OFL, `Jua-OFL.txt`)다. base64로 SVG에 넣고, Chrome은 `--virtual-time-budget`으로 글꼴이 다 불러와진 뒤 찍는다.
       - 게임 제목은 한글 텍스트 대신 이 로고 이미지로 보여 준다.
@@ -199,6 +199,8 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
 - **튜토리얼**: 레슨 데이터는 Core의 `TutorialCatalog`에 있다(8단계: 화염 → 물 방향 → 번개 → 융합 → 가로채기 → 3차 조합(흑색) → 공명 → 탈색).
   - 레슨은 6x6 연습 보드에 카드 한 장(`Lesson.Card`, 섞지 않은 덱 `Game.Create(..., shuffle: false)`)을 목표 칸(`Target`, 물은 `WaterDir`까지)에 내는 것이다. 테스트 `EveryLesson_TargetIsPlayable_AndProducesTheLessonResult`가 목표 수가 `Check`를 만족하는지 검증한다. 레슨을 고치면 이 테스트로 확인한다.
   - 놓을 수 있는 칸은 목표로만 좁힌다(`RestrictToLesson`). AI는 두지 않는다. 카드는 미리 고르지 않는다. 실제 게임과 똑같이 카드를 끌어 놓거나, 카드를 누른 뒤 칸을 눌러야 놓인다. 목표 칸은 카드를 고르기 전부터 빛나고 그쪽으로 확대된다. 카드 없이 칸을 누르면 카드를 먼저 고르라는 안내가 뜬다.
+  - **개념 카드**(`ConceptPage`, `GameBootstrap.Concepts`): 레슨마다 시작 전에 그림(유닛·타일 그림과 `+`·`=`·`→`·`vs`)과 짧은 설명을 먼저 보여 준다. 첫 레슨은 "게임 목표", "카드 놓는 곳" 두 장이다. 떠 있는 동안은 입력을 막는다(`PlayerTurn`이 거짓).
+  - 안내 글은 밝은 말풍선(`UI/bubble`)에 진한 큰 글자(19~20pt)로 쓰고, 핵심 말은 리치 텍스트 `<color>`로 강조한다(`Hud.Rich`). 예전의 어두운 패널 위 15pt 글자는 잘 안 보였다. 목표 칸 위에는 통통 튀는 "여기!"(물 방향은 "이쪽으로!") 표시가 뜬다(`TutorialTarget`).
   - 가이드 방울이 말풍선(`Hud.DrawCoach`)과, 카드에서 목표 칸까지 끄는(물은 쓸어 넘기는) 손가락 시범(`HintGesture`, `Hud.DrawFinger`, `UI/finger`)이 있다.
   - 처음 실행(`Progress.TutorialDone` false)이면 자동으로 시작한다. 마지막 레슨을 마치는 순간 완료로 기록되어 다시 나오지 않는다. 중간에 나가면 `cf.tutorialLesson`의 레슨부터 이어진다. 대기실 배우기로 다시 볼 수 있다. 마치면 1-1로 바로 이어진다.
 - **상황 팁**(`TipDef`, `Tips`): 스테이지를 시작할 때 처음 보는 챕터 기믹(ch2~ch5)이나 보스(ignis, glacia, homunculus)가 있으면 설명 카드를 띄운다. 본 팁은 `cf.tip.<id>`에 남는다. 카드가 떠 있는 동안은 입력을 막는다.
@@ -230,6 +232,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
 - `FxView`: 풀링된 SpriteRenderer로 프레임 이펙트를 재생한다. `delay`로 시차를 준다.
   - 연출은 `GameBootstrap.PlayEffects` 한 곳에서 정한다. 원소별 배치 이펙트 → 융합 이펙트 → 점유된 칸에 거리순으로 고리와 반짝임이 퍼진다.
   - 큰 반응(마그마, 백색, 흑색, 지뢰)은 화면을 흔든다(`_shake`).
+  - **합성 연출**(`StartCine`): 융합하면 시간이 0.25배까지 느려지고(`Time.timeScale`), 카메라가 그 칸으로 클로즈업하고, 반응에 휘말린 칸만 밝게 남긴다(`CineHighlight`). HUD는 섬광과 융합 이름·효과 띠를 띄운다(`Hud.DrawCine`). 2단계 1.6초, 3단계 2.2초(실제 시간, `CineTime`은 `unscaledDeltaTime`로 센다)이고 AI의 융합은 0.75배다. 화면을 나가거나 새 판을 시작하면 `EndCine`으로 시간 배율을 되돌린다.
 - `Hud`는 IMGUI다. 스킨은 `Resources/Art/UI` 텍스처를 쓴다.
   - 기준 해상도는 540x960이다. `GUI.matrix`를 쓰지 않고 사각형과 글자 크기를 직접 키운다. 행렬로 확대하면 글자가 흐려지기 때문이다.
   - 한글은 `Resources/Fonts/Pretendard-Bold`로 그린다(OFL, `ThirdParty/Pretendard`). WebGL 기본 폰트에는 한글이 없다.

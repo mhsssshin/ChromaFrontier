@@ -10,6 +10,7 @@ namespace ChromaFrontier.Core
     public sealed class Lesson
     {
         public string Title;
+        // 안내 문구는 IMGUI 리치 텍스트(<color>)로 강조한다 (밝은 말풍선 위 진한 글자 기준 색)
         public string Intro;       // 시작할 때 안내
         public string WaterIntro;  // 물: 칸에 놓은 뒤 방향 안내
         public string Outro;       // 완료 후 설명
@@ -63,8 +64,8 @@ namespace ChromaFrontier.Core
             new()
             {
                 Title = "카드 놓기",
-                Intro = "아래 화염 카드를 끌어서 빛나는 칸에 놓아 보세요.\n(카드를 눌러 고른 뒤 빛나는 칸을 눌러도 돼요)",
-                Outro = "좋아요! 화염은 놓인 칸과 십자 방향으로 땅을 넓혀요.\n카드는 내 땅(파랑)이나 그 바로 옆 칸에만 놓을 수 있어요.",
+                Intro = "아래 <color=#e0442a>화염</color> 카드를 손가락으로 끌어서\n<color=#d0471a>반짝이는 칸</color>에 놓아 보세요.",
+                Outro = "<color=#e0442a>화염</color>은 놓은 칸과 <color=#d0471a>위아래 양옆</color> 칸을 차지해요.\n파란 칸이 늘었죠? 이게 <color=#2a6fe0>내 땅</color>이에요.",
                 Map = BaseMap,
                 Card = Card.Unit(Element.Red),
                 Target = new Cell(2, 4),
@@ -73,9 +74,9 @@ namespace ChromaFrontier.Core
             new()
             {
                 Title = "물의 방향",
-                Intro = "이번엔 물 카드예요.\n빛나는 칸에 끌어다 놓아 보세요.",
-                WaterIntro = "이제 오른쪽 아래로 보드를 쓸어 넘기거나\n화살표 칸을 눌러 물을 흘려 보세요.",
-                Outro = "물은 고른 방향으로 3칸 흘러요.\n길게 뻗어 나가 상대 쪽으로 다가갈 때 좋아요.",
+                Intro = "<color=#2a6fe0>물</color> 카드를 <color=#d0471a>반짝이는 칸</color>에 끌어다 놓아 보세요.",
+                WaterIntro = "이제 물이 흐를 방향을 골라요.\n<color=#d0471a>화살표 칸</color>을 누르거나 그쪽으로 쓸어 넘기세요.",
+                Outro = "<color=#2a6fe0>물</color>은 고른 방향으로 <color=#d0471a>곧게 3칸</color> 흘러요.\n멀리 뻗어 나갈 때 좋아요.",
                 Map = BaseMap,
                 Card = Card.Unit(Element.Blue),
                 Target = new Cell(2, 5),
@@ -85,8 +86,8 @@ namespace ChromaFrontier.Core
             new()
             {
                 Title = "번개",
-                Intro = "번개 카드를 빛나는 칸에 놓아 보세요.",
-                Outro = "번개는 주변 무작위 4칸에 떨어져요.\n어디로 튈지 모르는 대신 넓게 퍼지죠.",
+                Intro = "<color=#c48a00>번개</color> 카드를 <color=#d0471a>반짝이는 칸</color>에 놓아 보세요.",
+                Outro = "<color=#c48a00>번개</color>는 주변 <color=#d0471a>아무 데나 4칸</color>에 떨어져요.\n어디로 튈지 모르지만 넓게 퍼져요.",
                 Map = BaseMap,
                 Card = Card.Unit(Element.Yellow),
                 Target = new Cell(2, 4),
@@ -95,8 +96,8 @@ namespace ChromaFrontier.Core
             new()
             {
                 Title = "융합",
-                Intro = "다른 원소끼리 맞닿으면 융합해요!\n물 유닛 옆에 화염을 놓아 보세요.",
-                Outro = "빨강 + 파랑 = 보라(폭풍)! 넓게 점유하고 그 땅을 2턴 동안 지켜요.\n파랑+노랑은 초록(돌풍), 빨강+노랑은 주황(마그마)이에요.",
+                Intro = "<color=#2a6fe0>물</color> 유닛 바로 옆에 <color=#e0442a>화염</color>을 놓아 보세요.\n두 원소가 <color=#d0471a>합쳐져요</color>!",
+                Outro = "<color=#e0442a>화염</color> + <color=#2a6fe0>물</color> = <color=#8a3ad0>폭풍</color>! 넓게 차지하고 2턴 동안 지켜요.\n<color=#2a6fe0>물</color>+<color=#c48a00>번개</color> = <color=#2a9a40>돌풍</color>,  <color=#e0442a>화염</color>+<color=#c48a00>번개</color> = <color=#e07010>마그마</color>",
                 Map = BaseMap,
                 Setup = b => Put(b, 2, 4, Element.Blue, Side.Player),
                 Card = Card.Unit(Element.Red),
@@ -106,8 +107,8 @@ namespace ChromaFrontier.Core
             new()
             {
                 Title = "가로채기",
-                Intro = "상대 유닛도 융합 재료가 돼요!\n상대의 번개 유닛 옆에 화염을 놓아 보세요.",
-                Outro = "반응에 휘말린 칸은 상대 땅이어도 모두 내 것!\n상대가 놓은 유닛을 재료로 삼는 게 역전의 열쇠예요.",
+                Intro = "<color=#d0471a>상대</color>의 <color=#c48a00>번개</color> 유닛 옆에 <color=#e0442a>화염</color>을 놓아 보세요.\n상대 유닛도 재료로 쓸 수 있어요!",
+                Outro = "상대 유닛으로 <color=#e07010>마그마</color>를 만들었어요!\n휘말린 칸은 <color=#d0471a>상대 땅이어도 전부 내 것</color>이 돼요.",
                 Map = BaseMap,
                 Setup = b =>
                 {
@@ -122,8 +123,8 @@ namespace ChromaFrontier.Core
             new()
             {
                 Title = "3원색 완성",
-                Intro = "2단계 유닛은 색 두 개를 품고 있어요.\n초록(파랑+노랑) 옆에 빠진 빨강을 놓아 보세요!",
-                Outro = "3원색 완성! 상대 유닛을 썼으니 흑색 —\n주변 상대 땅을 통째로 흡수하고 한 번 더 둘 수 있어요.\n내 유닛만으로 완성하면 백색: 내 땅을 5턴 동안 지켜요.",
+                Intro = "<color=#2a9a40>초록</color>은 <color=#2a6fe0>파랑</color>+<color=#c48a00>노랑</color>을 품고 있어요.\n옆에 빠진 <color=#e0442a>빨강</color>을 놓아 세 색을 모아 보세요!",
+                Outro = "3원색 완성! 상대 유닛을 썼으니 <color=#d0471a>흑색</color>:\n주변 상대 땅을 흡수하고 <color=#d0471a>한 번 더</color> 둬요.\n내 유닛만 쓰면 백색: 내 땅을 5턴 지켜요.",
                 Map = BaseMap,
                 Setup = b =>
                 {
@@ -138,8 +139,8 @@ namespace ChromaFrontier.Core
             new()
             {
                 Title = "공명",
-                Intro = "같은 원소끼리는 공명해요.\n화염 옆에 화염을 놓아 보세요.",
-                Outro = "공명! 화염은 업화(3x3 + 십자 2칸),\n물은 해일(넓고 긴 물결), 번개는 뇌우(8칸)로 강해져요.",
+                Intro = "<color=#e0442a>화염</color> 옆에 또 <color=#e0442a>화염</color>을 놓아 보세요.\n같은 원소끼리는 <color=#d0471a>힘이 세져요</color>.",
+                Outro = "공명! <color=#e0442a>화염</color>은 업화로 훨씬 넓게 터져요.\n<color=#2a6fe0>물</color>은 해일, <color=#c48a00>번개</color>는 뇌우가 돼요.",
                 Map = BaseMap,
                 Setup = b => Put(b, 2, 4, Element.Red, Side.Player),
                 Card = Card.Unit(Element.Red),
@@ -149,8 +150,8 @@ namespace ChromaFrontier.Core
             new()
             {
                 Title = "스킬 카드",
-                Intro = "스킬은 보드 어디에나 쓸 수 있고 턴을 쓰지 않아요.\n탈색 카드를 상대 물 유닛에 놓아 재료로 못 쓰게 만들어요.",
-                Outro = "스킬은 한 턴에 한 장, 쓰고 나서 유닛도 놓을 수 있어요.\n변환·재점화·거점·지뢰 등으로 배치를 도와요. 20턴 뒤 땅이 많으면 승리!",
+                Intro = "<color=#d0471a>탈색</color> 카드를 상대의 <color=#2a6fe0>물</color> 유닛에 놓아 보세요.\n상대가 그 유닛을 재료로 못 쓰게 돼요.",
+                Outro = "스킬은 <color=#d0471a>한 턴에 한 장</color>, 쓰고 나서 유닛도 놓을 수 있어요.\n이제 실전이에요! 턴이 끝났을 때 <color=#2a6fe0>땅이 많으면</color> 승리!",
                 Map = BaseMap,
                 Setup = b =>
                 {

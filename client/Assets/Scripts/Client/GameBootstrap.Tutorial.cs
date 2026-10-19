@@ -12,6 +12,16 @@ namespace ChromaFrontier.Client
     }
 
     /// <summary>
+    /// 튜토리얼 개념 카드: 레슨을 시작하기 전에 그림(그림 이름 또는 "+", "=", "→", "vs")과 짧은 설명으로 먼저 알려 준다.
+    /// 그림 이름에 '|'가 있으면 겹쳐 그린다 (예: 상대 팀 링 + 유닛). Body 는 리치 텍스트.
+    /// </summary>
+    public sealed class ConceptPage
+    {
+        public string Title, Body;
+        public string[] Picture;
+    }
+
+    /// <summary>
     /// 튜토리얼과 상황 팁.
     ///   · 튜토리얼: TutorialCatalog 의 레슨을 차례로. 놓을 수 있는 칸은 레슨의 목표 칸으로만 좁히고, AI 는 두지 않는다.
     ///     처음 실행하면 자동으로 시작, 대기실 '배우기'로 다시 볼 수 있다. 끝나면 1-1 로 바로 이어진다.
@@ -23,6 +33,72 @@ namespace ChromaFrontier.Client
         public int LessonIndex { get; private set; }
         public bool LessonDone { get; private set; }
         public Lesson Lesson => TutorialCatalog.Lessons[LessonIndex];
+
+        /// <summary>레슨마다 시작 전에 보여 주는 개념 카드 (TutorialCatalog.Lessons 와 같은 순서).</summary>
+        private static readonly ConceptPage[][] Concepts =
+        {
+            new ConceptPage[]
+            {
+                new() { Title = "게임 목표", Picture = new[] { "Tiles/tile_player", "vs", "Tiles/tile_ai" }, Body = "나(<color=#2a6fe0>파랑</color>)와 상대(<color=#e0442a>빨강</color>)가 번갈아 카드를 한 장씩 내요.\n턴이 다 끝났을 때 <color=#d0471a>땅이 더 많은 쪽</color>이 이겨요!" },
+                new() { Title = "카드 놓는 곳", Picture = new[] { "UI/icon_red", "→", "Tiles/tile_player" }, Body = "카드는 <color=#2a6fe0>내 땅</color>이나 내 땅과 <color=#d0471a>맞닿은 칸</color>에만 놓을 수 있어요.\n원소마다 땅을 넓히는 모양이 달라요." },
+            },
+            new ConceptPage[]
+            {
+                new() { Title = "물", Picture = new[] { "Units/unit_blue", "→", "Tiles/tile_player", "Tiles/tile_player", "Tiles/tile_player" }, Body = "<color=#2a6fe0>물</color>은 놓은 다음 <color=#d0471a>방향을 골라</color> 곧게 3칸 흘러요.\n상대 쪽으로 길게 뻗어 나갈 때 좋아요." },
+            },
+            new ConceptPage[]
+            {
+                new() { Title = "번개", Picture = new[] { "Units/unit_yellow" }, Body = "<color=#c48a00>번개</color>는 주변 <color=#d0471a>아무 데나 4칸</color>에 떨어져요.\n어디로 튈지 몰라도 한 번에 넓게 퍼져요." },
+            },
+            new ConceptPage[]
+            {
+                new() { Title = "융합", Picture = new[] { "Units/unit_blue", "+", "Units/unit_red", "=", "Units/unit_purple" }, Body = "<color=#d0471a>다른 원소</color>가 위아래·양옆으로 맞닿으면 하나로 합쳐져요.\n합쳐진 유닛은 훨씬 넓게 땅을 차지해요!" },
+            },
+            new ConceptPage[]
+            {
+                new() { Title = "상대 유닛 가로채기", Picture = new[] { "Units/ring_ai|Units/unit_yellow", "+", "Units/unit_red", "=", "Units/unit_orange" }, Body = "<color=#d0471a>상대가 놓은 유닛</color>도 융합 재료로 쓸 수 있어요.\n상대 땅에서 터져도 휘말린 칸은 모두 내 것!" },
+            },
+            new ConceptPage[]
+            {
+                new() { Title = "3원색 완성", Picture = new[] { "Units/ring_ai|Units/unit_green", "+", "Units/unit_red", "=", "Units/unit_black" }, Body = "<color=#2a9a40>초록</color>·<color=#8a3ad0>보라</color>·<color=#e07010>주황</color>은 색 두 개를 품고 있어요.\n남은 한 색을 놓으면 <color=#d0471a>세 색이 모여</color> 가장 센 유닛이 돼요." },
+            },
+            new ConceptPage[]
+            {
+                new() { Title = "공명", Picture = new[] { "Units/unit_red", "+", "Units/unit_red", "=", "UI/icon_red" }, Body = "<color=#d0471a>같은 원소</color>끼리 맞닿으면 공명해서\n그 원소의 효과가 훨씬 커져요." },
+            },
+            new ConceptPage[]
+            {
+                new() { Title = "스킬 카드", Picture = new[] { "UI/icon_bleach", "UI/icon_mine", "UI/icon_echo" }, Body = "스킬 카드는 <color=#d0471a>보드 어디에나</color> 쓸 수 있고 턴도 쓰지 않아요.\n한 턴에 한 장 쓰고, 이어서 유닛을 놓으면 돼요." },
+            },
+        };
+
+        /// <summary>지금 보여 주는 개념 카드 번호 (-1 = 없음, 레슨 진행 중).</summary>
+        public int ConceptIndex { get; private set; } = -1;
+        public ConceptPage Concept => Tutorial && ConceptIndex >= 0 && LessonIndex < Concepts.Length ? Concepts[LessonIndex][ConceptIndex] : null;
+        public int ConceptCount => LessonIndex < Concepts.Length ? Concepts[LessonIndex].Length : 0;
+
+        public void NextConcept()
+        {
+            if (++ConceptIndex >= ConceptCount) ConceptIndex = -1;
+        }
+
+        /// <summary>튜토리얼 목표 표시: 놓을 칸(물은 흘릴 방향 칸)의 화면 좌표와 글자.</summary>
+        public bool TutorialTarget(out Vector2 gui, out string label)
+        {
+            gui = default;
+            label = null;
+            if (!Tutorial || LessonDone || !PlayerTurn) return false;
+            if (_blueAt is { } at)
+            {
+                if (!(Lesson.WaterDir is { } d)) return false;
+                gui = WorldToGui(_view.ToWorld(at + d));
+                label = "이쪽으로!";
+                return true;
+            }
+            gui = WorldToGui(_view.ToWorld(Lesson.Target));
+            label = "여기!";
+            return true;
+        }
 
         private readonly Queue<TipDef> _tips = new();
         public TipDef ActiveTip => _tips.Count > 0 ? _tips.Peek() : null;
@@ -78,6 +154,7 @@ namespace ChromaFrontier.Client
             Tutorial = true;
             LessonIndex = Mathf.Clamp(lesson, 0, TutorialCatalog.Count - 1);
             LessonDone = false;
+            ConceptIndex = ConceptCount > 0 ? 0 : -1;
             _tips.Clear();
             var l = Lesson;
             Progress.TutorialLesson = LessonIndex; // 중간에 나가도 이 레슨부터 이어서

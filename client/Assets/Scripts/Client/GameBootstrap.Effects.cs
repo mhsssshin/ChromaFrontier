@@ -108,6 +108,80 @@ namespace ChromaFrontier.Client
             if (r.ExtraTurn) Message += "   추가 턴!";
         }
 
+        // ---------------------------------------------------------------- 합성 연출 (슬로모션·클로즈업·하이라이트)
+
+        public float CineTime { get; private set; } = -1f; // 연출이 시작된 뒤 흐른 실제 시간 (<0 이면 없음)
+        public float CineLength { get; private set; }
+        public Element CineElement { get; private set; }
+        public string CineTitle { get; private set; } = "";
+        public string CineSub { get; private set; } = "";
+        public bool CineStrong { get; private set; } // 3단계 (백색·흑색): 더 길고 세게
+        public bool CineActive => CineTime >= 0f;
+        private Vector2 _cineFocus;
+        private readonly HashSet<Cell> _cineCells = new();
+
+        /// <summary>연출 세기 0~1: 0.18초 동안 들어가고, 끝나기 0.45초 전부터 풀린다.</summary>
+        public float CineAmount
+        {
+            get
+            {
+                if (!CineActive) return 0f;
+                var a = Mathf.Min(CineTime / 0.18f, (CineLength - CineTime) / 0.45f);
+                return Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(a));
+            }
+        }
+
+        /// <summary>
+        /// 융합하면: 시간이 느려지고(최저 0.25배), 카메라가 그 칸으로 다가가고, 반응에 휘말린 칸만 밝게 남기고
+        /// 나머지는 어두워진다. HUD 는 섬광과 융합 이름 띠를 띄운다 (Hud.DrawCine). AI 의 융합은 조금 짧게.
+        /// </summary>
+        private void StartCine(Side actor, PlayResult r, Cell at)
+        {
+            CineStrong = r.Fused.Tier() == 3;
+            CineLength = (CineStrong ? 2.2f : 1.6f) * (actor == Side.Ai ? 0.75f : 1f);
+            CineTime = 0f;
+            CineElement = r.Fused;
+            CineTitle = (actor == Side.Ai ? "AI " : "") + (r.Boosted ? $"3차 조합! {Palette.Name(r.Fused)}" : $"{Palette.Name(r.Fused)} 융합!");
+            CineSub = r.Fused switch
+            {
+                Element.Purple => "주변을 차지하고 2턴 동안 지켜요",
+                Element.Green => "주변 유닛을 밀어내고 차지해요",
+                Element.Orange => "8방향으로 불길이 뻗어요",
+                Element.White => "성역 — 넓은 땅을 5턴 동안 지켜요",
+                Element.Black => "상대 땅을 흡수하고 한 번 더!",
+                _ => "",
+            } + (r.StoleCatalyst ? "  · 상대 유닛 흡수" : "");
+            _cineCells.Clear();
+            _cineCells.Add(at);
+            foreach (var c in r.Catalysts) _cineCells.Add(c);
+            foreach (var c in r.Captured) _cineCells.Add(c);
+            var w = _view.ToWorld(at);
+            _cineFocus = new Vector2(w.x, w.y);
+        }
+
+        private void UpdateCine()
+        {
+            if (!CineActive) return;
+            CineTime += Time.unscaledDeltaTime;
+            if (CineTime >= CineLength) EndCine();
+            else Time.timeScale = Mathf.Lerp(1f, 0.25f, CineAmount);
+        }
+
+        private void EndCine()
+        {
+            CineTime = -1f;
+            Time.timeScale = 1f;
+        }
+
+        /// <summary>연출 중에는 반응에 휘말린 칸만 밝게, 나머지는 어둡게.</summary>
+        private void CineHighlight()
+        {
+            if (CineAmount < 0.05f) return;
+            _hl.Clear();
+            _hl.Dim = true;
+            foreach (var c in _cineCells) _hl.Legal.Add(c);
+        }
+
         /// <summary>
         /// 수 하나의 연출: 놓은 자리에 원소 이펙트 → 융합 이펙트 → 점유된 칸마다 거리순 시차로 고리·반짝임.
         /// </summary>
@@ -170,6 +244,15 @@ namespace ChromaFrontier.Client
                     case Element.Yellow: _fx.Spawn(FxView.Zap, pos + lift, white, r.Resonance ? 2.4f : 1.3f, 0.12f); break;
                 }
                 var fuseDelay = 0.3f;
+                if (r.Fused != Element.None)
+                {
+                    StartCine(actor, r, at);
+                    // 합쳐지는 순간: 재료 유닛에서 합성 칸으로 빛이 모인다
+                    foreach (var c in r.Catalysts)
+                        _fx.Spawn(FxView.Ring, _view.ToWorld(c), Color.Lerp(Palette.Of(r.Fused), Color.white, 0.4f), 1.6f, 0.05f);
+                    _fx.Spawn(FxView.Ring, pos, Color.white, CineStrong ? 4.5f : 3.4f, fuseDelay + 0.05f);
+                    _fx.Spawn(FxView.Sparkle, pos + lift * 2f, Color.white, CineStrong ? 2.6f : 2f, fuseDelay + 0.1f);
+                }
                 switch (r.Fused)
                 {
                     case Element.Orange:
