@@ -44,6 +44,7 @@ namespace ChromaFrontier.Client
                 if (gb.Panel == LobbyPanel.Deck) DrawDeckPanel(gb);
                 else if (gb.Panel == LobbyPanel.Quest) DrawQuestPanel(gb);
                 else if (gb.Panel == LobbyPanel.Prep) DrawPrepPanel(gb);
+                else if (gb.Panel == LobbyPanel.Road) DrawRoadPanel(gb);
                 return;
             }
 
@@ -288,9 +289,16 @@ namespace ChromaFrontier.Client
             Image(R(4, 10, 172, 74), "UI/logo_title", Color.white);
             GemPill(R(182, 22, 116, 44));
             var starPill = R(304, 22, 124, 44);
-            Nine(starPill, "UI/panel", 28, Color.white);
+            if (Button(starPill, new Color(0.85f, 0.6f, 0.2f))) gb.OpenPanel(LobbyPanel.Road);
             Image(new Rect(starPill.x + 8 * _s, starPill.y + 6 * _s, 32 * _s, 32 * _s), "UI/star_on", Color.white);
-            Text(new Rect(starPill.x + 40 * _s, starPill.y, starPill.width - 44 * _s, starPill.height), $"{Progress.TotalStars()}/{StageCatalog.Count * 3}", 17, Color.white);
+            Text(new Rect(starPill.x + 40 * _s, starPill.y, starPill.width - 44 * _s, starPill.height), Progress.AllStars().ToString(), 19, Color.white);
+            var roadReady = Progress.RoadReadyCount();
+            if (roadReady > 0)
+            {
+                var badge = R(410, 12, 26, 26);
+                Nine(badge, "UI/button", 22, new Color(0.95f, 0.25f, 0.3f));
+                Text(badge, roadReady.ToString(), 14, Color.white, TextAnchor.MiddleCenter, 0f);
+            }
             if (Button(R(434, 22, 92, 44), new Color(0.3f, 0.7f, 0.55f), "배우기", 18)) gb.StartTutorial(0);
 
             // 챕터 탭
@@ -303,7 +311,7 @@ namespace ChromaFrontier.Client
                 if (Button(r, tint, open ? $"{c + 1}장" : $"{c + 1}장 잠김", 18)) gb.SelectLobbyChapter(c);
                 GUI.enabled = true;
             }
-            Text(R(16, 140, RefW - 32, 26), $"[{ModeName(Progress.Mode)}]  {stage.Chapter + 1}장 {chapter.Name} — {chapter.Theme}", 15, Soft);
+            Text(R(16, 140, RefW - 32, 26), $"[{ModeName(Progress.Mode)}]  {stage.Chapter + 1}장 {chapter.Name} — {chapter.Theme}   ·   {StarRoad.RankOf(Progress.AllStars())}", 15, Soft);
 
             // (보드 미리보기는 카메라가 165~465 띠에 그린다)
 
@@ -411,7 +419,7 @@ namespace ChromaFrontier.Client
 
         /// <summary>
         /// 덱 편성: 스킬 카드 9종을 3x3 으로. 가진 카드는 −/+ 로 덱에 넣고 빼고, 덜 가진 카드는 결정으로 산다.
-        /// 유닛은 원소별 4장 고정이고 스킬은 CardShop.SkillSlots 장까지.
+        /// 유닛은 원소별 4장 고정이고 스킬은 Collection.Slots 장까지 (기본 9, 별의 길 보상으로 늘어남).
         /// </summary>
         private static void DrawDeckPanel(GameBootstrap gb)
         {
@@ -421,7 +429,7 @@ namespace ChromaFrontier.Client
             Text(R(24, 48, 300, 44), "덱 편성", 30, Gold, TextAnchor.MiddleLeft, 0.7f);
             GemPill(R(RefW - 150, 50, 124, 40));
             var units = CardShop.UnitsPerElement * Elements.Base.Length;
-            Text(R(24, 96, RefW - 48, 24), $"유닛 {units}장(원소별 {CardShop.UnitsPerElement}장) + 스킬 {cards.Skills.Count}/{CardShop.SkillSlots}장 = 총 {units + cards.Skills.Count}장", 15, Soft, TextAnchor.MiddleLeft, 0f);
+            Text(R(24, 96, RefW - 48, 24), $"유닛 {units}장(원소별 {CardShop.UnitsPerElement}장) + 스킬 {cards.Skills.Count}/{cards.Slots}장 = 총 {units + cards.Skills.Count}장", 15, Soft, TextAnchor.MiddleLeft, 0f);
             Text(R(24, 120, RefW - 48, 22), $"결정으로 카드를 사고 강화하세요. 같은 카드는 {CardShop.MaxCopies}장까지, 강화는 Lv{CardShop.MaxLevel}까지.", 13, new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft, 0f);
 
             const float cw = 160f, ch = 212f, gap = 8f;
@@ -592,7 +600,7 @@ namespace ChromaFrontier.Client
             Nine(R(10, 36, RefW - 20, 904), "UI/panel", 28, Color.white);
             Text(R(24, 48, 300, 44), "퀘스트", 30, Gold, TextAnchor.MiddleLeft, 0.7f);
             GemPill(R(RefW - 150, 50, 124, 40));
-            Text(R(24, 98, RefW - 48, 24), "판을 하며 목표를 채우면 결정을 받아요. 결정으로 덱에 넣을 카드를 사세요.", 13, new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft, 0f);
+            Text(R(24, 98, RefW - 48, 24), "목표를 채우면 결정을 받고, 받은 단계마다 별의 길 별이 1개씩 쌓여요.", 13, new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft, 0f);
 
             var lines = QuestCatalog.Lines;
             for (var i = 0; i < lines.Length; i++)
@@ -646,6 +654,148 @@ namespace ChromaFrontier.Client
             SwallowInput();
         }
 
+        // ---------------------------------------------------------------- 별의 길·보드 테마
+
+        /// <summary>
+        /// 별의 길: 모든 곳에서 모은 별(스테이지 모든 모드·첨탑·퀘스트)과 칭호, 단계 보상(한 쪽에 7개씩), 보드 테마 상점.
+        /// </summary>
+        private static void DrawRoadPanel(GameBootstrap gb)
+        {
+            Dim(0.6f);
+            Nine(R(10, 36, RefW - 20, 904), "UI/panel", 28, Color.white);
+            Text(R(24, 48, 300, 44), "별의 길", 30, Gold, TextAnchor.MiddleLeft, 0.7f);
+            GemPill(R(RefW - 150, 50, 124, 40));
+
+            // 칭호와 별
+            var stars = Progress.AllStars();
+            var card = R(22, 98, RefW - 44, 132);
+            Nine(card, "UI/panel", 28, new Color(1f, 0.92f, 0.7f));
+            Image(new Rect(card.x + 12 * _s, card.y + 14 * _s, 64 * _s, 64 * _s), "UI/star_on", Color.white);
+            var rank = StarRoad.RankIndex(stars);
+            Text(new Rect(card.x + 86 * _s, card.y + 8 * _s, card.width - 96 * _s, 32 * _s), StarRoad.Ranks[rank].Title, 23, Gold, TextAnchor.MiddleLeft);
+            Text(new Rect(card.x + 86 * _s, card.y + 40 * _s, card.width - 96 * _s, 26 * _s), $"별 {stars} / {StarRoad.MaxStars}", 17, Color.white, TextAnchor.MiddleLeft);
+            var bar = new Rect(card.x + 86 * _s, card.y + 70 * _s, card.width - 100 * _s, 22 * _s);
+            Nine(bar, "UI/bar_frame", 30, Color.white);
+            var inner = Inset(bar, 4);
+            var hasNext = rank + 1 < StarRoad.Ranks.Length;
+            var from = StarRoad.Ranks[rank].Stars;
+            var to = hasNext ? StarRoad.Ranks[rank + 1].Stars : from;
+            var fw = hasNext ? inner.width * (stars - from) / Mathf.Max(1, to - from) : inner.width;
+            if (fw > 1f) Nine(new Rect(inner.x, inner.y, Mathf.Max(fw, inner.height), inner.height), "UI/bar_fill", 22, Gold);
+            Text(bar, hasNext ? $"다음 칭호 「{StarRoad.Ranks[rank + 1].Title}」까지 ★{to - stars}" : "최고 칭호!", 12, Color.white, TextAnchor.MiddleCenter, 0.7f);
+            Text(new Rect(card.x + 12 * _s, card.y + 98 * _s, card.width - 24 * _s, 26 * _s),
+                $"스테이지 ★{Progress.StageStars()} (모드 3개)  ·  첨탑 ★{Progress.TowerStars()}  ·  퀘스트 ★{Progress.QuestStars()}", 13, Soft, TextAnchor.MiddleCenter, 0f);
+
+            // 탭
+            for (var t = 0; t < 2; t++)
+            {
+                var label = t == 0 ? (Progress.RoadReadyCount() > 0 ? $"보상 ({Progress.RoadReadyCount()})" : "보상") : "보드 테마";
+                if (Button(R(22 + t * 252, 240, 244, 46), gb.RoadTab == t ? new Color(0.3f, 0.6f, 1f) : new Color(0.35f, 0.38f, 0.55f), label, 19))
+                {
+                    gb.RoadTab = t;
+                    gb.PanelMessage = "";
+                }
+            }
+            if (gb.RoadTab == 0) DrawRoadSteps(gb, stars);
+            else DrawThemes(gb);
+
+            if (Button(R(280, 822, 210, 56), new Color(1f, 0.55f, 0.2f), "닫기", 22)) gb.OpenPanel(LobbyPanel.None);
+            Text(R(24, 880, RefW - 48, 44), gb.PanelMessage, 16, Gold, TextAnchor.MiddleCenter, 0f);
+            SwallowInput();
+        }
+
+        private static void DrawRoadSteps(GameBootstrap gb, int stars)
+        {
+            var steps = StarRoad.Steps;
+            var pages = (steps.Length + GameBootstrap.RoadPerPage - 1) / GameBootstrap.RoadPerPage;
+            gb.RoadPage = Mathf.Clamp(gb.RoadPage, 0, pages - 1);
+            for (var k = 0; k < GameBootstrap.RoadPerPage; k++)
+            {
+                var i = gb.RoadPage * GameBootstrap.RoadPerPage + k;
+                if (i >= steps.Length) break;
+                var s = steps[i];
+                var r = R(22, 296 + k * 64, RefW - 44, 58);
+                var reached = stars >= s.Stars;
+                var claimed = Progress.RoadClaimed(i);
+                var ready = Progress.RoadReady(i);
+                Nine(r, "UI/panel", 28, ready ? new Color(1f, 0.92f, 0.6f) : reached ? new Color(0.7f, 0.72f, 0.8f) : Color.white);
+                var pill = new Rect(r.x + 8 * _s, r.y + 9 * _s, 84 * _s, 40 * _s);
+                Nine(pill, "UI/button", 22, reached ? new Color(0.85f, 0.6f, 0.2f) : new Color(0.35f, 0.38f, 0.55f));
+                Image(new Rect(pill.x + 4 * _s, pill.y + 6 * _s, 28 * _s, 28 * _s), "UI/star_on", reached ? Color.white : new Color(1f, 1f, 1f, 0.5f));
+                Text(new Rect(pill.x + 30 * _s, pill.y, pill.width - 32 * _s, pill.height), s.Stars.ToString(), 17, Color.white);
+                Text(new Rect(r.x + 102 * _s, r.y, r.width - 230 * _s, r.height), StarRoad.Text(s), 16, Color.white, TextAnchor.MiddleLeft);
+
+                var btn = new Rect(r.xMax - 120 * _s, r.y + 8 * _s, 110 * _s, 42 * _s);
+                if (!s.Claimable) Text(btn, reached ? "열림" : $"★{s.Stars - stars} 더", 15, reached ? Gold : Soft);
+                else if (claimed) Text(btn, "받음", 16, new Color(0.85f, 0.85f, 0.9f));
+                else if (ready)
+                {
+                    if (Button(btn, new Color(0.3f, 0.75f, 0.4f), "받기", 18) && Progress.ClaimRoad(i))
+                        gb.PanelMessage = $"{StarRoad.Text(s)}을(를) 받았어요!";
+                }
+                else Text(btn, $"★{s.Stars - stars} 더", 15, Soft);
+            }
+
+            GUI.enabled = gb.RoadPage > 0;
+            if (Button(R(22, 750, 64, 50), new Color(0.4f, 0.42f, 0.58f), "◀", 20)) gb.RoadPage--;
+            GUI.enabled = gb.RoadPage + 1 < pages;
+            if (Button(R(164, 750, 64, 50), new Color(0.4f, 0.42f, 0.58f), "▶", 20)) gb.RoadPage++;
+            GUI.enabled = true;
+            Text(R(86, 750, 78, 50), $"{gb.RoadPage + 1} / {pages}", 17, Color.white);
+            var ready2 = Progress.RoadReadyCount();
+            GUI.enabled = ready2 > 0;
+            if (Button(R(240, 750, 278, 50), new Color(0.3f, 0.75f, 0.4f), ready2 > 0 ? $"모두 받기 ({ready2})" : "모두 받기", 19))
+            {
+                var n = Progress.ClaimAllRoad();
+                if (n > 0) gb.PanelMessage = $"보상 {n}개를 받았어요!";
+            }
+            GUI.enabled = true;
+        }
+
+        /// <summary>보드 테마: 빈 칸·장식·바다 그림. 별의 길에서 열리면 결정으로 산다.</summary>
+        private static void DrawThemes(GameBootstrap gb)
+        {
+            var current = Progress.Theme;
+            var all = ThemeShop.All;
+            for (var i = 0; i < all.Length; i++)
+            {
+                var t = all[i];
+                var r = R(22 + i % 2 * 252, 296 + i / 2 * 128, 244, 122);
+                var owned = Progress.ThemeOwned(t.Id);
+                var inUse = t.Id == current;
+                Nine(r, "UI/panel", 28, inUse ? new Color(1f, 0.92f, 0.6f) : Color.white);
+                var tail = t.Id == "" ? "" : "_" + t.Id;
+                var tileRect = new Rect(r.x + 8 * _s, r.y + 16 * _s, 84 * _s, 64 * _s);
+                Image(tileRect, "Tiles/tile_grass_a" + tail, Color.white);
+                Image(new Rect(tileRect.x + 34 * _s, tileRect.y - 14 * _s, 32 * _s, 40 * _s), "Decor/tree_round" + tail, Color.white);
+                Text(new Rect(r.x + 98 * _s, r.y + 8 * _s, r.width - 104 * _s, 26 * _s), t.Name, 17, inUse ? Gold : Color.white, TextAnchor.MiddleLeft);
+                Text(new Rect(r.x + 98 * _s, r.y + 34 * _s, r.width - 104 * _s, 40 * _s), t.Note, 12, Soft, TextAnchor.UpperLeft, 0f);
+
+                var btn = new Rect(r.x + 98 * _s, r.yMax - 46 * _s, r.width - 108 * _s, 38 * _s);
+                var step = ThemeShop.StepOf(t.Id);
+                if (inUse) Text(btn, "사용 중", 16, Gold);
+                else if (owned)
+                {
+                    if (Button(btn, Palette.Player, "사용하기", 16))
+                    {
+                        gb.UseTheme(t.Id);
+                        gb.PanelMessage = $"보드 테마를 「{t.Name}」(으)로 바꿨어요.";
+                    }
+                }
+                else if (Progress.ThemeForSale(t))
+                {
+                    GUI.enabled = Progress.Gems >= t.Price;
+                    if (PriceButton(btn, new Color(1f, 0.55f, 0.2f), "", t.Price, 16) && Progress.BuyTheme(t))
+                    {
+                        gb.UseTheme(t.Id);
+                        gb.PanelMessage = $"「{t.Name}」을(를) 사서 바로 적용했어요!";
+                    }
+                    GUI.enabled = true;
+                }
+                else Text(btn, step == null ? "" : step.Kind == RoadReward.ThemeGift ? $"★{step.Stars} 선물" : $"★{step.Stars} 에 열림", 15, Soft);
+            }
+        }
+
         // ---------------------------------------------------------------- 크로마 첨탑
 
         /// <summary>
@@ -665,8 +815,9 @@ namespace ChromaFrontier.Client
             var info = R(16, 418, RefW - 32, 150);
             Nine(info, "UI/panel", 28, Color.white);
             var cleared = Progress.FloorCleared(floor);
-            Text(new Rect(info.x + 14 * _s, info.y + 8 * _s, info.width - 28 * _s, 32 * _s), $"{p.Floor}층  {p.Name}" + (cleared ? "  ★" : ""), 22, cleared ? Gold : Color.white, TextAnchor.MiddleLeft);
-            Text(new Rect(info.x + 14 * _s, info.y + 40 * _s, info.width - 28 * _s, 24 * _s), $"{p.Moves}수 안에 모든 칸 차지  ·  처음 깨면 결정 {Rewards.ForFloor(floor)}개", 15, new Color(1f, 0.8f, 0.75f), TextAnchor.MiddleLeft, 0f);
+            Text(new Rect(info.x + 14 * _s, info.y + 8 * _s, info.width - 140 * _s, 32 * _s), $"{p.Floor}층  {p.Name}", 22, cleared ? Gold : Color.white, TextAnchor.MiddleLeft);
+            Stars(new Rect(info.xMax - 124 * _s, info.y + 10 * _s, 112 * _s, 28 * _s), Progress.FloorStars(floor), 26);
+            Text(new Rect(info.x + 14 * _s, info.y + 40 * _s, info.width - 28 * _s, 24 * _s), $"{p.Moves}수 · 첫 보상 결정 {Rewards.ForFloor(floor)} · ★ 깨기·무르기 없이·힌트 없이", 14, new Color(1f, 0.8f, 0.75f), TextAnchor.MiddleLeft, 0f);
             // 손패 미리보기
             var cards = p.Cards();
             for (var i = 0; i < cards.Count; i++)
@@ -692,7 +843,12 @@ namespace ChromaFrontier.Client
                 if (i == floor) Nine(Inset(r, -3), "UI/button", 22, Gold);
                 var tint = !open ? new Color(0.3f, 0.32f, 0.42f) : done ? new Color(0.25f, 0.62f, 0.7f) : new Color(1f, 0.55f, 0.2f);
                 if (Button(r, tint) && open) gb.SelectFloor(i);
-                if (open) Text(r, done ? $"{i + 1}층 ★" : $"{i + 1}층", 17, Color.white);
+                if (open && done)
+                {
+                    Text(new Rect(r.x, r.y + 2 * _s, r.width, 24 * _s), $"{i + 1}층", 16, Color.white);
+                    Stars(new Rect(r.x, r.y + 25 * _s, r.width, 17 * _s), Progress.FloorStars(i), 16);
+                }
+                else if (open) Text(r, $"{i + 1}층", 17, Color.white);
                 else Image(Inset(r, 10), "UI/icon_lock", new Color(1f, 1f, 1f, 0.7f));
             }
 
@@ -750,22 +906,35 @@ namespace ChromaFrontier.Client
             var canUndo = !solved && gb.CanUndo;
             Nine(R(50, 250, 440, hasNext || canUndo ? 366 : 296), "UI/panel", 28, Color.white);
             Text(R(50, 264, 440, 70), solved ? "성공!" : "실패", 54, solved ? Gold : new Color(1f, 0.6f, 0.55f), TextAnchor.MiddleCenter, 0.7f);
-            Text(R(50, 330, 440, 28), $"{p.Floor}층 {p.Name}", 18, Soft);
             var total = g.Board.Playable;
             var mine = g.Board.Count(Side.Player);
             if (solved)
             {
+                Stars(R(50, 324, 440, 30), Progress.FloorStars(p.Floor - 1), 28);
+                var bits = gb.LastFloorStars;
+                var got = (bits & 1) + ((bits >> 1) & 1) + ((bits >> 2) & 1);
+                var missing = new List<string>();
+                if ((Progress.FloorStarBits(p.Floor - 1) & Progress.FloorNoUndo) == 0) missing.Add("무르기 없이");
+                if ((Progress.FloorStarBits(p.Floor - 1) & Progress.FloorNoHint) == 0) missing.Add("힌트 없이");
+                var starNote = got > 0 ? $"새 별 +{got}" : missing.Count > 0 ? "남은 별: " + string.Join(" · ", missing) : "별 3개 모두 모았어요";
+                Text(R(50, 356, 440, 24), $"{p.Floor}층 {p.Name}  ·  {starNote}", 16, got > 0 ? Gold : Soft);
                 var played = p.Cards().Count - g.DeckOf(Side.Player).Hand.Count; // 흑색의 추가 턴은 수를 안 써서 Turn 대신 쓴 카드 수
-                Text(R(50, 366, 440, 34), $"카드 {played}장으로 모든 칸을 물들였어요!", 20, Color.white);
-                var gemRow = R(110, 410, 320, 44);
+                Text(R(50, 382, 440, 30), $"카드 {played}장으로 모든 칸을 물들였어요!", 18, Color.white);
+                var gemRow = R(110, 418, 320, 42);
                 Nine(gemRow, "UI/panel", 28, new Color(1f, 0.95f, 0.75f));
-                Image(new Rect(gemRow.x + 10 * _s, gemRow.y + 5 * _s, 34 * _s, 34 * _s), "UI/icon_gem", Color.white);
-                Text(new Rect(gemRow.x + 48 * _s, gemRow.y, gemRow.width - 56 * _s, gemRow.height), gb.LastFirstClear ? $"+{gb.LastGems}  (처음 깬 보상)" : "이미 깬 층 (보상 없음)", 18, Gold, TextAnchor.MiddleLeft);
+                Image(new Rect(gemRow.x + 10 * _s, gemRow.y + 4 * _s, 34 * _s, 34 * _s), "UI/icon_gem", Color.white);
+                Text(new Rect(gemRow.x + 48 * _s, gemRow.y, gemRow.width - 56 * _s, gemRow.height), gb.LastFirstClear ? $"+{gb.LastGems}  (처음 깬 보상)" : "이미 깬 층 (결정 없음)", 18, Gold, TextAnchor.MiddleLeft);
             }
             else
             {
-                Text(R(50, 366, 440, 34), $"{total - mine}칸이 남았어요 ({mine}/{total})", 20, Color.white);
-                Text(R(66, 404, 408, 56), "힌트: " + p.Hint, 15, Gold, TextAnchor.MiddleCenter, 0f);
+                Text(R(50, 330, 440, 28), $"{p.Floor}층 {p.Name}", 18, Soft);
+                Text(R(50, 362, 440, 34), $"{total - mine}칸이 남았어요 ({mine}/{total})", 20, Color.white);
+                if (gb.HintShown) Text(R(66, 400, 408, 64), "힌트: " + p.Hint, 15, Gold, TextAnchor.MiddleCenter, 0f);
+                else
+                {
+                    if (Button(R(170, 402, 200, 40), new Color(0.45f, 0.48f, 0.65f), "힌트 보기", 17)) gb.ToggleHint();
+                    if (gb.HintFree(p.Floor - 1)) Text(R(50, 444, 440, 22), "힌트를 보면 이 층의 '힌트 없이' 별은 못 받아요", 12, Soft, TextAnchor.MiddleCenter, 0f);
+                }
             }
             var y = hasNext || canUndo ? 546 : 476;
             if (hasNext && Button(R(80, 478, 380, 58), new Color(1f, 0.55f, 0.2f), $"{p.Floor + 1}층으로", 24)) gb.NextStage();
@@ -1204,6 +1373,7 @@ namespace ChromaFrontier.Client
             if (gb.LastFirstClear) extras.Add(gb.Stage.IsBoss ? "보스 첫 클리어 보너스" : "첫 클리어 보너스");
             if (g.Objectives.Count > 0) extras.Add($"목표 {g.ObjectivesDone}/{g.Objectives.Count} 달성");
             if (Progress.QuestsReady() > 0) extras.Add("받을 퀘스트 보상이 있어요");
+            if (Progress.RoadReadyCount() > 0) extras.Add("별의 길 보상이 있어요");
             Text(R(50, 538, 440, 24), string.Join("  ·  ", extras), 13, Soft, TextAnchor.MiddleCenter, 0f);
 
             if (hasNext && Button(R(80, 568, 380, 62), new Color(1f, 0.55f, 0.2f), gb.LastNewMode ? $"{ModeName(Progress.Mode)} 1-1" : "다음 스테이지", 24))

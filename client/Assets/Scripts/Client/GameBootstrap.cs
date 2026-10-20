@@ -7,7 +7,7 @@ namespace ChromaFrontier.Client
     public enum AppScreen { Splash, Lobby, Battle, Tower }
 
     /// <summary>대기실 위에 뜨는 창.</summary>
-    public enum LobbyPanel { None, Deck, Quest, Prep }
+    public enum LobbyPanel { None, Deck, Quest, Prep, Road }
 
     /// <summary>
     /// 씬의 유일한 진입점 (씬에는 카메라 + 이것뿐). 대기실(스테이지 선택) ↔ 전투를 오가며,
@@ -189,6 +189,28 @@ namespace ChromaFrontier.Client
         {
             Panel = p;
             PanelMessage = "";
+            if (p == LobbyPanel.Road) RoadPage = FirstOpenRoadStep() / RoadPerPage;
+        }
+
+        // ---------------------------------------------------------------- 별의 길
+
+        public const int RoadPerPage = 7;
+        public int RoadTab { get; set; }  // 0 보상, 1 보드 테마
+        public int RoadPage { get; set; }
+
+        /// <summary>받을 수 있거나 아직 못 이른 첫 단계 (별의 길을 열면 그 쪽으로).</summary>
+        private static int FirstOpenRoadStep()
+        {
+            for (var i = 0; i < StarRoad.Steps.Length; i++)
+                if (!Progress.RoadClaimed(i)) return i;
+            return StarRoad.Steps.Length - 1;
+        }
+
+        /// <summary>보드 테마를 바꾸고 대기실 미리보기를 다시 그린다.</summary>
+        public void UseTheme(string id)
+        {
+            Progress.Theme = id;
+            SelectLobbyStage(LobbyStage);
         }
 
         /// <summary>대기실 모드 버튼: 열린 모드끼리 돌아가며 바꾼다. 하나뿐이면 여는 방법을 잠깐 보여 준다.</summary>
@@ -279,6 +301,7 @@ namespace ChromaFrontier.Client
             if (!CanUndo) return;
             var i = UndoTarget;
             if (Puzzle == null && !Progress.UseUndo()) return; // 첨탑에서는 공짜
+            if (Puzzle != null) _towerUndo = true;              // 대신 '무르기 없이' 별은 못 받는다
             _history.RemoveRange(i + 1, _history.Count - i - 1);
             Game = _history[i].Clone();
             _snapKey = Game.TurnsTaken;
@@ -404,8 +427,9 @@ namespace ChromaFrontier.Client
             if (!Tutorial && Game.IsOver && !_recorded && Puzzle != null)
             {
                 _recorded = true;
-                LastGems = Progress.RecordFloor(TowerFloor, Game.Solved, out var firstFloor);
+                LastGems = Progress.RecordFloor(TowerFloor, Game.Solved, !_towerUndo, !_hintFloors.Contains(TowerFloor), out var firstFloor, out var newStars);
                 LastFirstClear = firstFloor;
+                LastFloorStars = newStars;
                 Deselect();
             }
             if (!Tutorial && Game.IsOver && !_recorded)

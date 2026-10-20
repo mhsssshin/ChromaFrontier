@@ -12,7 +12,7 @@ const top = (inset = 0, r = 10) => {
 };
 
 /** 윗면 색, 옆면 띠 색으로 타일 한 장. */
-function tile(name, { topA, topB, band, seed, grass = true }) {
+function tile(name, { topA, topB, band, seed, grass = true, sprinkle = null }) {
   const p = new Pic(T.w, T.h);
   const L = [T.cx - T.hw, T.cy], B = [T.cx, T.cy + T.hh], R = [T.cx + T.hw, T.cy];
   const d = T.depth;
@@ -45,6 +45,16 @@ function tile(name, { topA, topB, band, seed, grass = true }) {
       const u = r() - 0.5, v = r() - 0.5;
       const x = T.cx + (u - v) * T.hw * 0.9, y = T.cy + (u + v) * T.hh * 0.9;
       p.path(`M${f(x - 3)} ${f(y + 1)} Q${f(x - 1)} ${f(y - 4)} ${f(x)} ${f(y + 1)} Q${f(x + 1)} ${f(y - 5)} ${f(x + 3)} ${f(y + 1)} Z`, dark(topA, 0.12), 'opacity="0.7"');
+    }
+  }
+  // 테마 흩뿌림: 꽃잎·낙엽·조약돌·반짝임
+  if (sprinkle) {
+    const r2 = rng(seed * 7 + 3);
+    for (let i = 0; i < sprinkle.count; i++) {
+      const u = r2() - 0.5, v = r2() - 0.5;
+      const x = T.cx + (u - v) * T.hw * 0.8, y = T.cy + (u + v) * T.hh * 0.8;
+      if (sprinkle.star) p.path(star(x, y, 4.5, 1.4), sprinkle.color, 'opacity="0.9"');
+      else p.path(ell(x, y, 3.4, 2.2), sprinkle.color, `opacity="0.85" transform="rotate(${Math.round(r2() * 180)} ${f(x)} ${f(y)})"`);
     }
   }
   // 위쪽 두 변 하이라이트, 아래 두 변 그늘
@@ -102,10 +112,63 @@ export function tiles() {
     }),
 
     ...terrain(),
-    ...decor(),
-    background(),
+    ...decor(THEMES[0]),
+    background(THEMES[0]),
+    ...THEMES.slice(1).flatMap((t) => [
+      tile(`Tiles/tile_grass_a_${t.id}`, { ...t.a, seed: 1 }),
+      tile(`Tiles/tile_grass_b_${t.id}`, { ...t.b, seed: 2 }),
+      ...decor(t),
+      background(t),
+    ]),
   ];
 }
+
+// ---------------------------------------------------------------- 보드 테마 (Core ThemeShop 과 id 를 맞춘다)
+// 빈 칸 풀밭 두 장(a/b), 장식 색, 바다. 내 땅·상대 땅 타일은 테마와 상관없이 그대로다.
+const BASE_DECOR = {
+  leaf: ['#9ee26a', '#4fb33a', '#2f8a2a'], leafLine: '#2a5a20', leafHi: '#c8f59a',
+  pine: ['#6fd06a', '#2f8a3a'], pineLine: '#22562a',
+  bush: ['#a6e878', '#3e9a34'], bushLine: '#2a5a20',
+  rock: ['#c9c4bd', '#7d7670'], rockLine: '#4a4440', snow: false,
+};
+export const THEMES = [
+  { id: '', decor: BASE_DECOR, sea: ['#7fd3f5', '#4fb4ea', '#3a8fd6'], wave: '#ffffff' },
+  { id: 'blossom',
+    a: { topA: '#7fca62', topB: '#ade07e', band: '#64a646', sprinkle: { color: '#ffb6d2', count: 6 } },
+    b: { topA: '#a9cf5a', topB: '#d3ea88', band: '#8eb048', sprinkle: { color: '#ffd0e2', count: 5 } },
+    decor: { ...BASE_DECOR, leaf: ['#ffe4f0', '#ff9fc6', '#e0679a'], leafLine: '#9a3f68', leafHi: '#fff4fa', bush: ['#ffd2e6', '#e27aa8'], bushLine: '#9a3f68' },
+    sea: ['#a6e6f2', '#7fcbeb', '#6aa6e2'], wave: '#ffffff' },
+  { id: 'autumn',
+    a: { topA: '#c39a34', topB: '#e2c058', band: '#a07c26', sprinkle: { color: '#e0662a', count: 5 } },
+    b: { topA: '#d1ae44', topB: '#ecd27a', band: '#ae8c30', sprinkle: { color: '#b8401e', count: 4 } },
+    decor: { ...BASE_DECOR, leaf: ['#ffd27a', '#f0902a', '#bf501a'], leafLine: '#7a3410', leafHi: '#ffe8b0', pine: ['#5a9a50', '#2a5a32'], bush: ['#ffb060', '#c0582a'], bushLine: '#7a3410' },
+    sea: ['#63bccb', '#3f9ab2', '#2a7192'], wave: '#e8fbff' },
+  { id: 'snow',
+    a: { topA: '#c9d6e0', topB: '#e4edf4', band: '#a4b8c8', grass: false, sprinkle: { color: '#ffffff', count: 4, star: true } },
+    b: { topA: '#d6e0e8', topB: '#f0f5f9', band: '#b0c2d0', grass: false, sprinkle: { color: '#ffffff', count: 3, star: true } },
+    decor: { ...BASE_DECOR, leaf: ['#ffffff', '#d6e6f2', '#a2bad2'], leafLine: '#5f7a98', leafHi: '#ffffff', pine: ['#6fb39a', '#2c665a'], pineLine: '#1e4a40', bush: ['#f6f9ff', '#b6c6da'], bushLine: '#5f7a98', snow: true },
+    sea: ['#5c8cba', '#3c6c9c', '#2a4a7c'], wave: '#e8f4ff' },
+  { id: 'desert',
+    a: { topA: '#ddb260', topB: '#f0d08c', band: '#be9244', grass: false, sprinkle: { color: '#b98446', count: 5 } },
+    b: { topA: '#e6c070', topB: '#f6dea2', band: '#c8a050', grass: false, sprinkle: { color: '#c89a5a', count: 4 } },
+    decor: { ...BASE_DECOR, leaf: ['#cfe07a', '#8eaa3a', '#5a7a2a'], leafLine: '#3e5418', pine: ['#80c474', '#3a7a42'], pineLine: '#24502a', bush: ['#dcc474', '#9a883a'], bushLine: '#5e5220', rock: ['#e6a878', '#a2603a'], rockLine: '#5e3418' },
+    sea: ['#ffb27a', '#f07a7e', '#8a5aa8'], wave: '#fff0d2' },
+  { id: 'night',
+    a: { topA: '#3a7460', topB: '#538f6c', band: '#2c5848', sprinkle: { color: '#fff27a', count: 3, star: true } },
+    b: { topA: '#46826a', topB: '#62a07a', band: '#346452', sprinkle: { color: '#fff7a8', count: 2, star: true } },
+    decor: { ...BASE_DECOR, leaf: ['#6ab08e', '#2f6a5a', '#1c4638'], leafLine: '#0e2c26', leafHi: '#a8e8c8', pine: ['#40806e', '#1a4840'], pineLine: '#0e2c26', bush: ['#62a284', '#2a5a4a'], bushLine: '#0e2c26', rock: ['#9294aa', '#4c4c64'], rockLine: '#2a2a3c' },
+    sea: ['#2c3c7c', '#1c265a', '#10143a'], wave: '#9fb4ff', stars: '#fff6c0' },
+  { id: 'sky',
+    a: { topA: '#94d8a6', topB: '#c6eebc', band: '#74b88e', sprinkle: { color: '#ffffff', count: 3 } },
+    b: { topA: '#a8e0b8', topB: '#d8f6d2', band: '#84c49c', sprinkle: { color: '#fff8d0', count: 3 } },
+    decor: { ...BASE_DECOR, leaf: ['#e6fff2', '#a0e8c8', '#58bea0'], leafLine: '#2a7a64', leafHi: '#ffffff', pine: ['#b4e8ff', '#68aee0'], pineLine: '#346c9a', bush: ['#ffffff', '#c6dcf0'], bushLine: '#7a96b4', rock: ['#f2f2ff', '#b0b8d8'], rockLine: '#6a7298' },
+    sea: ['#d2f0ff', '#a2daff', '#7cb6f0'], wave: '#ffffff', clouds: true },
+  { id: 'golden',
+    a: { topA: '#dcb036', topB: '#f2d866', band: '#bc8e26', grass: false, sprinkle: { color: '#fffbe0', count: 4, star: true } },
+    b: { topA: '#e6c04a', topB: '#f8e48a', band: '#c69c30', grass: false, sprinkle: { color: '#ffffff', count: 3, star: true } },
+    decor: { ...BASE_DECOR, leaf: ['#fff0a0', '#f0c040', '#bf8820'], leafLine: '#7a5210', leafHi: '#fffbe0', pine: ['#f2d462', '#b08a20'], pineLine: '#6a4e10', bush: ['#ffe890', '#cfa030'], bushLine: '#6a4e10', rock: ['#fff4d2', '#c0a060'], rockLine: '#6a5220' },
+    sea: ['#6c4cba', '#4a3092', '#2a1a62'], wave: '#d8c8ff', stars: '#ffe27a' },
+];
 
 // ---------------------------------------------------------------- 지형 (스테이지 기믹)
 function terrain() {
@@ -167,48 +230,60 @@ function terrain() {
 }
 
 // ---------------------------------------------------------------- 장식 (캔버스 64x80, 바닥점 (32, 72))
-function decor() {
+function decor(theme) {
+  const d = theme.decor, tail = theme.id ? `_${theme.id}` : '';
   const shadow = (p, w = 18) => p.path(ell(32, 72, w, w * 0.4), '#1a2a10', 'opacity="0.25"');
   const out = [];
 
   let p = new Pic(64, 80);
   shadow(p);
   p.path('M28 72 L29 52 L35 52 L36 72 Z', p.lin([[0, '#a0683a'], [1, '#6e4426']], 0, 0, 1, 0), 'stroke="#4a2c18" stroke-width="2"');
-  p.path(ell(32, 36, 20, 21), p.rad([[0, '#9ee26a'], [0.7, '#4fb33a'], [1, '#2f8a2a']], 0.38, 0.32, 0.7), 'stroke="#2a5a20" stroke-width="2.5"');
-  p.path(ell(25, 28, 6, 4.5), '#c8f59a', 'opacity="0.8"');
-  out.push(p.sprite('Decor/tree_round'));
+  p.path(ell(32, 36, 20, 21), p.rad([[0, d.leaf[0]], [0.7, d.leaf[1]], [1, d.leaf[2]]], 0.38, 0.32, 0.7), `stroke="${d.leafLine}" stroke-width="2.5"`);
+  p.path(ell(25, 28, 6, 4.5), d.leafHi, 'opacity="0.8"');
+  out.push(p.sprite(`Decor/tree_round${tail}`));
 
   p = new Pic(64, 80);
   shadow(p, 15);
   p.path('M29 72 L30 60 L34 60 L35 72 Z', '#7a4a2a', 'stroke="#4a2c18" stroke-width="2"');
   for (const [y, w] of [[62, 17], [48, 14], [34, 10]])
-    p.path(rounded([[32, y - 22], [32 + w, y], [32 - w, y]], 4), p.lin([[0, '#6fd06a'], [1, '#2f8a3a']], 0, 0, 1, 1), 'stroke="#22562a" stroke-width="2.5"');
-  out.push(p.sprite('Decor/tree_pine'));
+    p.path(rounded([[32, y - 22], [32 + w, y], [32 - w, y]], 4), p.lin([[0, d.pine[0]], [1, d.pine[1]]], 0, 0, 1, 1), `stroke="${d.pineLine}" stroke-width="2.5"`);
+  if (d.snow) for (const [y, w] of [[62, 17], [48, 14], [34, 10]])
+    p.path(rounded([[32, y - 22], [32 + w * 0.45, y - 12], [32 - w * 0.45, y - 12]], 3), '#ffffff', 'opacity="0.95"');
+  out.push(p.sprite(`Decor/tree_pine${tail}`));
 
   p = new Pic(64, 80);
   shadow(p, 17);
-  p.path(rounded([[14, 72], [17, 56], [30, 48], [46, 52], [52, 66], [48, 72]], 7), p.lin([[0, '#c9c4bd'], [1, '#7d7670']], 0, 0, 1, 1), 'stroke="#4a4440" stroke-width="2.5"');
+  p.path(rounded([[14, 72], [17, 56], [30, 48], [46, 52], [52, 66], [48, 72]], 7), p.lin([[0, d.rock[0]], [1, d.rock[1]]], 0, 0, 1, 1), `stroke="${d.rockLine}" stroke-width="2.5"`);
   p.path('M24 56 Q30 52 38 54', 'none', 'stroke="#eeebe6" stroke-width="3" stroke-linecap="round" opacity="0.8"');
-  out.push(p.sprite('Decor/rock'));
+  if (d.snow) p.path(rounded([[19, 57], [30, 49], [46, 53], [48, 58], [32, 56]], 5), '#ffffff', 'opacity="0.95"');
+  out.push(p.sprite(`Decor/rock${tail}`));
 
   p = new Pic(64, 80);
   shadow(p, 16);
   for (const [x, y, r] of [[22, 62, 10], [42, 62, 10], [32, 56, 12]])
-    p.path(ell(x, y, r, r * 0.9), p.rad([[0, '#a6e878'], [1, '#3e9a34']], 0.4, 0.3, 0.7), 'stroke="#2a5a20" stroke-width="2"');
-  out.push(p.sprite('Decor/bush'));
+    p.path(ell(x, y, r, r * 0.9), p.rad([[0, d.bush[0]], [1, d.bush[1]]], 0.4, 0.3, 0.7), `stroke="${d.bushLine}" stroke-width="2"`);
+  out.push(p.sprite(`Decor/bush${tail}`));
   return out;
 }
 
 // ---------------------------------------------------------------- 배경: 물결치는 바다 (540x960, 세로)
-function background() {
+function background(theme) {
   const p = new Pic(540, 960);
-  p.add(`<rect width="540" height="960" fill="${p.lin([[0, '#7fd3f5'], [0.5, '#4fb4ea'], [1, '#3a8fd6']])}"/>`);
+  const [s0, s1, s2] = theme.sea;
+  p.add(`<rect width="540" height="960" fill="${p.lin([[0, s0], [0.5, s1], [1, s2]])}"/>`);
   const r = rng(7);
   for (let i = 0; i < 70; i++) {
     const x = r() * 560 - 10, y = r() * 960, w = 18 + r() * 34;
-    p.path(`M${f(x)} ${f(y)} q${f(w / 4)} ${-5} ${f(w / 2)} 0 t${f(w / 2)} 0`, 'none', `stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="${f(0.15 + r() * 0.25)}"`);
+    p.path(`M${f(x)} ${f(y)} q${f(w / 4)} ${-5} ${f(w / 2)} 0 t${f(w / 2)} 0`, 'none', `stroke="${theme.wave}" stroke-width="3" stroke-linecap="round" opacity="${f(0.15 + r() * 0.25)}"`);
   }
-  return p.sprite('Bg/sea');
+  if (theme.stars) for (let i = 0; i < 60; i++) p.path(star(r() * 540, r() * 960, 3 + r() * 4, 1), theme.stars, `opacity="${f(0.5 + r() * 0.5)}"`);
+  if (theme.clouds) for (let i = 0; i < 9; i++) {
+    const x = r() * 540, y = r() * 960, w = 40 + r() * 40;
+    for (const [dx, dy, k] of [[-0.5, 0.1, 0.55], [0, -0.15, 0.75], [0.5, 0.1, 0.55]]) p.path(ell(x + dx * w, y + dy * w, w * k, w * k * 0.6), '#ffffff', 'opacity="0.8"');
+  }
+  if (!theme.id) return p.sprite('Bg/sea');
+  const sp = p.sprite(`Bg/sea_${theme.id}`);
+  return { ...sp, w: 270, h: 480, svg: sp.svg.replace('width="540" height="960"', 'width="270" height="480"') };
 }
 
 /** 보드 밑 물거품 섬 그림자 (보드 크기 8x8 기준, 1100x620 — 아래로 조금 길게). */

@@ -6,7 +6,8 @@ namespace ChromaFrontier.Client
 {
     /// <summary>
     /// 오프라인 진행 저장 (LocalStore: WebGL 은 브라우저 localStorage, 그 밖은 PlayerPrefs).
-    /// 해금된 스테이지 수, 스테이지별 최고 별, 난이도 보정, 튜토리얼 완료·진행 레슨, 본 팁, 재화(결정), 카드 소장·덱, 퀘스트 누적 기록·받은 단계.
+    /// 해금된 스테이지 수, 스테이지별 최고 별, 튜토리얼 완료·진행 레슨, 본 팁, 재화(결정), 카드 소장·덱, 퀘스트 누적 기록·받은 단계,
+    /// 첨탑 층·층별 별, 별의 길 받은 단계, 보드 테마.
     /// 값은 바뀌는 즉시 저장된다.
     /// </summary>
     public static class Progress
@@ -67,12 +68,32 @@ namespace ChromaFrontier.Client
 
         public static int StarsOf(int mode, int index) => Load(mode)[index];
 
-        public static int TotalStars()
+        /// <summary>한 모드의 스테이지 별 합계.</summary>
+        public static int ModeStars(int mode)
         {
             var n = 0;
-            foreach (var s in Load(Mode)) n += s;
+            foreach (var s in Load(mode)) n += s;
             return n;
         }
+
+        /// <summary>모든 모드의 스테이지 별.</summary>
+        public static int StageStars()
+        {
+            var n = 0;
+            for (var m = 0; m < StageCatalog.Modes; m++) n += ModeStars(m);
+            return n;
+        }
+
+        /// <summary>퀘스트 별: 받은 단계마다 1개.</summary>
+        public static int QuestStars()
+        {
+            var n = 0;
+            foreach (var q in QuestCatalog.Lines) n += Mathf.Min(QuestClaimed(q), q.Targets.Length);
+            return n;
+        }
+
+        /// <summary>별의 길에 쓰는 전체 별: 스테이지(모든 모드) + 첨탑 + 퀘스트.</summary>
+        public static int AllStars() => StageStars() + TowerStars() + QuestStars();
 
         /// <summary>판 결과 기록 (지금 모드): 최고 별 갱신, 이기면 다음 스테이지 해금.</summary>
         public static void Record(int index, int stars)
@@ -89,6 +110,7 @@ namespace ChromaFrontier.Client
         private const string GemsKey = "cf.gems", CardsKey = "cf.cards", StatPrefix = "cf.stat.", QuestPrefix = "cf.quest.", UndoKey = "cf.items.undo";
 
         private static Collection _cards;
+        private static int[] _floorStars;
 
         /// <summary>재화 (크로마 결정). 판을 끝내거나 퀘스트를 깨면 받고, 스킬 카드를 사는 데 쓴다.</summary>
         public static int Gems
@@ -98,7 +120,7 @@ namespace ChromaFrontier.Client
         }
 
         /// <summary>카드 소장과 덱 편성. 바꾼 뒤에는 SaveCards().</summary>
-        public static Collection Cards => _cards ??= Collection.Parse(LocalStore.GetString(CardsKey, ""));
+        public static Collection Cards => _cards ??= Collection.Parse(LocalStore.GetString(CardsKey, ""), StarRoad.SlotsFor(RoadClaimed));
 
         public static void SaveCards() => LocalStore.SetString(CardsKey, Cards.Serialize());
 
@@ -235,15 +257,141 @@ namespace ChromaFrontier.Client
 
         public static bool FloorCleared(int floor) => floor < TowerCleared;
 
-        /// <summary>첨탑 한 판 기록: 처음 깬 층이면 다음 층을 열고 결정을 준다. 받은 결정 수.</summary>
-        public static int RecordFloor(int floor, bool solved, out bool firstClear)
+        // 층별 별 (비트: 1 깨기, 2 무르기 없이, 4 힌트 없이)
+        public const int FloorClear = 1, FloorNoUndo = 2, FloorNoHint = 4;
+        private const string FloorStarsKey = "cf.tower.stars";
+
+        /// <summary>층에서 받은 별 비트. 별이 생기기 전에 깬 층은 '깨기' 별 하나.</summary>
+        public static int FloorStarBits(int floor)
+        {
+            if (_floorStars == null)
+            {
+                _floorStars = new int[PuzzleCatalog.Count];
+                var parts = LocalStore.GetString(FloorStarsKey, "").Split(',');
+                for (var i = 0; i < parts.Length && i < _floorStars.Length; i++)
+                    if (int.TryParse(parts[i], out var v)) _floorStars[i] = v & 7;
+            }
+            var bits = _floorStars[floor];
+            return FloorCleared(floor) ? bits | FloorClear : bits;
+        }
+
+        public static int FloorStars(int floor)
+        {
+            var b = FloorStarBits(floor);
+            return (b & 1) + ((b >> 1) & 1) + ((b >> 2) & 1);
+        }
+
+        public static int TowerStars()
+        {
+            var n = 0;
+            for (var i = 0; i < PuzzleCatalog.Count; i++) n += FloorStars(i);
+            return n;
+        }
+
+        /// <summary>
+        /// 첨탑 한 판 기록: 처음 깬 층이면 다음 층을 열고 결정을 준다. 깼으면 별(깨기·무르기 없이·힌트 없이)을 더한다. 받은 결정 수.
+        /// </summary>
+        /// <param name="newStars">이번에 새로 받은 별 비트</param>
+        public static int RecordFloor(int floor, bool solved, bool noUndo, bool noHint, out bool firstClear, out int newStars)
         {
             firstClear = solved && floor == TowerCleared;
+            newStars = 0;
+            if (!solved) return 0;
+            var before = FloorStarBits(floor);
+            var bits = before | FloorClear | (noUndo ? FloorNoUndo : 0) | (noHint ? FloorNoHint : 0);
+            newStars = bits & ~before;
+            _floorStars[floor] = bits;
+            LocalStore.SetString(FloorStarsKey, string.Join(",", _floorStars));
             if (!firstClear) return 0;
             TowerCleared = floor + 1;
             var gems = Rewards.ForFloor(floor);
             Gems += gems;
             return gems;
+        }
+
+        // ---------------------------------------------------------------- 별의 길·보드 테마
+
+        private const string RoadKey = "cf.road", ThemesKey = "cf.themes", ThemeKey = "cf.theme";
+
+        /// <summary>별의 길 단계를 받았는가 (테마 해금 단계는 별만 모으면 받은 것으로 친다).</summary>
+        public static bool RoadClaimed(int step)
+        {
+            var s = StarRoad.Steps[step];
+            if (!s.Claimable) return AllStars() >= s.Stars;
+            return ("," + LocalStore.GetString(RoadKey, "") + ",").Contains("," + step + ",");
+        }
+
+        public static bool RoadReady(int step) => StarRoad.Steps[step].Claimable && !RoadClaimed(step) && AllStars() >= StarRoad.Steps[step].Stars;
+
+        public static int RoadReadyCount()
+        {
+            var n = 0;
+            for (var i = 0; i < StarRoad.Steps.Length; i++)
+                if (RoadReady(i)) n++;
+            return n;
+        }
+
+        /// <summary>별의 길 보상을 받는다. 못 받으면 false.</summary>
+        public static bool ClaimRoad(int step)
+        {
+            if (!RoadReady(step)) return false;
+            var s = StarRoad.Steps[step];
+            var list = LocalStore.GetString(RoadKey, "");
+            LocalStore.SetString(RoadKey, list.Length == 0 ? step.ToString() : list + "," + step);
+            switch (s.Kind)
+            {
+                case RoadReward.Gems: Gems += s.Amount; break;
+                case RoadReward.Undos: Undos += s.Amount; break;
+                case RoadReward.Slot: Cards.Slots = StarRoad.SlotsFor(RoadClaimed); break;
+                case RoadReward.ThemeGift: GiveTheme(s.Theme); break;
+            }
+            return true;
+        }
+
+        /// <summary>받을 수 있는 별의 길 보상을 모두 받는다. 받은 개수.</summary>
+        public static int ClaimAllRoad()
+        {
+            var n = 0;
+            for (var i = 0; i < StarRoad.Steps.Length; i++)
+                if (ClaimRoad(i)) n++;
+            return n;
+        }
+
+        public static bool ThemeOwned(string id) => id == "" || ("," + LocalStore.GetString(ThemesKey, "") + ",").Contains("," + id + ",");
+
+        /// <summary>상점에서 살 수 있는가: 별의 길에서 열렸고, 값이 있고, 아직 없다.</summary>
+        public static bool ThemeForSale(ThemeDef t)
+        {
+            var step = ThemeShop.StepOf(t.Id);
+            return t.Price > 0 && !ThemeOwned(t.Id) && step != null && AllStars() >= step.Stars;
+        }
+
+        private static void GiveTheme(string id)
+        {
+            if (ThemeOwned(id)) return;
+            var list = LocalStore.GetString(ThemesKey, "");
+            LocalStore.SetString(ThemesKey, list.Length == 0 ? id : list + "," + id);
+        }
+
+        public static bool BuyTheme(ThemeDef t)
+        {
+            if (!ThemeForSale(t) || !SpendGems(t.Price)) return false;
+            GiveTheme(t.Id);
+            return true;
+        }
+
+        /// <summary>지금 쓰는 보드 테마 (가진 것만, 아니면 기본).</summary>
+        public static string Theme
+        {
+            get
+            {
+                var id = LocalStore.GetString(ThemeKey, "");
+                return ThemeShop.Find(id) != null && ThemeOwned(id) ? id : "";
+            }
+            set
+            {
+                if (ThemeOwned(value)) LocalStore.SetString(ThemeKey, value);
+            }
         }
 
         /// <summary>개발 빌드 전용: 결정 지급.</summary>
@@ -262,6 +410,7 @@ namespace ChromaFrontier.Client
             LocalStore.Clear();
             for (var m = 0; m < _stars.Length; m++) _stars[m] = null;
             _cards = null;
+            _floorStars = null;
         }
 
         private static int[] Load(int mode)

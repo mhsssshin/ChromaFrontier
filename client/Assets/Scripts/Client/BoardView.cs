@@ -59,15 +59,29 @@ namespace ChromaFrontier.Client
         private readonly Transform _root;
         private readonly SpriteRenderer _sea, _foam;
 
+        // 보드 테마 (Progress.Theme): 빈 칸 풀밭·장식·바다 그림 이름. 보드를 만들 때 정해진다.
+        private static string _grassA = "Tiles/tile_grass_a", _grassB = "Tiles/tile_grass_b", _seaName = "Bg/sea";
+        private static string[] _decorNames = { "Decor/tree_round", "Decor/tree_pine", "Decor/rock", "Decor/bush" };
+
+        private static void UseTheme(string id)
+        {
+            var tail = string.IsNullOrEmpty(id) ? "" : "_" + id;
+            _grassA = "Tiles/tile_grass_a" + tail;
+            _grassB = "Tiles/tile_grass_b" + tail;
+            _seaName = "Bg/sea" + tail;
+            _decorNames = new[] { "Decor/tree_round" + tail, "Decor/tree_pine" + tail, "Decor/rock" + tail, "Decor/bush" + tail };
+        }
+
         public BoardView(Transform parent, int width, int height)
         {
+            UseTheme(Progress.Theme);
             _w = width;
             _h = height;
             _offset = new Vector3(-(width - height) * 0.5f * HalfW, (width + height - 2) * 0.5f * HalfH, 0f);
             _root = new GameObject("Board").transform;
             _root.SetParent(parent, false);
 
-            _sea = NewRenderer(_root, "Sea", Art.Sprite("Bg/sea"), Vector3.zero, -200);
+            _sea = NewRenderer(_root, "Sea", Art.Sprite(_seaName), Vector3.zero, -200);
             _foam = NewRenderer(_root, "Foam", Art.Sprite("Bg/foam"), new Vector3(0f, -0.2f, 0f), -100);
             _foam.transform.localScale = new Vector3((width + height) / 16f, (width + height) / 16f, 1f);
 
@@ -263,7 +277,7 @@ namespace ChromaFrontier.Client
             {
                 Side.Player => Art.Sprite("Tiles/tile_player"),
                 Side.Ai => Art.Sprite("Tiles/tile_ai"),
-                _ => Art.Sprite((c.X + c.Y) % 2 == 0 ? "Tiles/tile_grass_a" : "Tiles/tile_grass_b"),
+                _ => Art.Sprite((c.X + c.Y) % 2 == 0 ? _grassA : _grassB),
             };
         }
 
@@ -283,8 +297,7 @@ namespace ChromaFrontier.Client
             h *= 0x5bd1e995;
             h ^= h >> 15;
             if (h % 100 >= 24) return null;
-            string[] names = { "Decor/tree_round", "Decor/tree_pine", "Decor/rock", "Decor/bush" };
-            return Art.Sprite(names[(h / 100) % (uint)names.Length]);
+            return Art.Sprite(_decorNames[(h / 100) % (uint)_decorNames.Length]);
         }
 
         private static float EaseOutBack(float t)

@@ -40,6 +40,43 @@ namespace ChromaFrontier.Core.Tests
         }
 
         [Test]
+        public void Collection_ExtraSlots_FromStarRoad_HoldMoreSkills_AndSurviveParse()
+        {
+            var c = new Collection();
+            var full = Collection.Parse("tr_red:2,tr_blue:2,tr_yellow:2,bleach:2,mine:2,echo:2||", 11);
+            full.FillDefault();
+            Assert.AreEqual(11, full.Skills.Count, "슬롯이 늘면 그만큼 더 넣는다");
+            var back = Collection.Parse(full.Serialize(), 11);
+            Assert.AreEqual(11, back.Skills.Count);
+            Assert.AreEqual(CardShop.SkillSlots, Collection.Parse(full.Serialize()).Skills.Count, "기본 슬롯으로 읽으면 넘치는 카드는 버린다");
+            Assert.AreEqual(CardShop.SkillSlots, c.Slots);
+        }
+
+        [Test]
+        public void StarRoad_StepsAscend_ThemesExist_AndAreReachable()
+        {
+            var steps = StarRoad.Steps;
+            for (var i = 1; i < steps.Length; i++) Assert.Greater(steps[i].Stars, steps[i - 1].Stars, $"{i}단계 별");
+            Assert.LessOrEqual(steps[steps.Length - 1].Stars, StarRoad.MaxStars, "마지막 단계도 별을 다 모으면 닿는다");
+            Assert.AreEqual(50 * 3 * 3 + 30 * 3 + 39, StarRoad.MaxStars);
+            for (var i = 1; i < StarRoad.Ranks.Length; i++) Assert.Greater(StarRoad.Ranks[i].Stars, StarRoad.Ranks[i - 1].Stars);
+            Assert.AreEqual(0, StarRoad.Ranks[0].Stars);
+            foreach (var s in steps)
+            {
+                if (s.Kind == RoadReward.ThemeUnlock || s.Kind == RoadReward.ThemeGift) Assert.IsNotNull(ThemeShop.Find(s.Theme), s.Theme);
+                if (s.Kind == RoadReward.ThemeUnlock) Assert.Greater(ThemeShop.Find(s.Theme).Price, 0, "열리는 테마는 결정으로 산다");
+                Assert.IsNotEmpty(StarRoad.Text(s));
+            }
+            // 기본이 아닌 테마는 모두 별의 길 어딘가에서 열린다
+            foreach (var t in ThemeShop.All)
+                if (t.Id != "") Assert.IsNotNull(ThemeShop.StepOf(t.Id), t.Id);
+            Assert.AreEqual(CardShop.SkillSlots + 2, StarRoad.SlotsFor(_ => true));
+            Assert.AreEqual(CardShop.SkillSlots, StarRoad.SlotsFor(_ => false));
+            Assert.AreEqual("새싹 크로마술사", StarRoad.RankOf(0));
+            Assert.AreEqual("크로마 마스터", StarRoad.RankOf(StarRoad.MaxStars));
+        }
+
+        [Test]
         public void Collection_SerializeRoundTrips_AndBrokenSaveFallsBackToStarter()
         {
             var c = Collection.Starter();

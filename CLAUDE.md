@@ -77,7 +77,7 @@ CF_GEN_TIER=3 "$T/dotnet/dotnet.exe" test tests/Core.Tests --filter "FullyQualif
   - PNG를 직접 고치지 말고, 정의를 고친 뒤 다시 굽는다. 결과는 `build/art-preview.png`를 열어 눈으로 확인한다.
   - 정의 파일:
     - `kit.mjs`: 색 섞기(`mix`/`dark`/`light`), 그라데이션이나 필터를 쓰는 `Pic` 클래스, 둥근 도형
-    - `tiles.mjs`: 타일 4종, 윗면 오버레이(glow/select/lock/shield), 장식, 바다, 거품
+    - `tiles.mjs`: 타일 4종, 윗면 오버레이(glow/select/lock/shield), 장식, 바다, 거품. 보드 테마(`THEMES`, id는 Core `ThemeShop`과 맞춤)마다 풀밭 두 장(`tile_grass_a_<id>`/`_b_<id>`), 장식 4종(`Decor/<이름>_<id>`), 바다(`Bg/sea_<id>`, 빌드 크기 때문에 반 해상도 270x480)를 따로 굽는다
     - `units.mjs`: 원소 유닛 9종, 팀 링, 지뢰, 거점 깃발
     - `fx.mjs`: 프레임 이펙트 `<이름>_<n>`
     - `ui.mjs`: 카드 틀, 아이콘(카드, 결정 `icon_gem`, 덱, 퀘스트, 첨탑 `icon_tower`), 바, 버튼, 패널, 밝은 말풍선(`bubble`, 튜토리얼), 스플래시 엠블럼
@@ -155,7 +155,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 잠복 지뢰: 유닛이 없는 칸이면 어디든(상대 땅, 빈 땅 포함) `Tile.Mine`을 설정한다. 상대 지뢰가 있는지는 모르므로 그 위에도 묻을 수 있고 덮어쓴다(내 지뢰 위에는 불가). 상대가 그 칸에 유닛을 놓으면 유닛은 사라지고 주변 3x3이 지뢰 주인의 것이 된다(`PlayResult.MineTriggered`).
   - 지속 효과(잠금, 보라 침묵, 백색 성역)는 "내 턴 기준"으로 센다. 타이머는 양측 턴마다 1씩 줄어들기 때문에 상수는 `턴 수 × Balance.TicksPerRound`(2)로 정의한다. 예를 들어 잠금 2턴은 상대 턴 2번 동안 유지되고, 그사이 내 다음 턴에도 잠겨 있다.
 - **메타 성장**(`Meta.cs`): 재화(크로마 결정), 덱 편성, 카드 강화, 소모품, 퀘스트.
-  - 덱 편성은 **스킬 카드만** 한다. 유닛은 원소별 4장 고정이고, 스킬은 `CardShop.SkillSlots`(9)장까지, 한 종류는 `CardShop.MaxCopies`(2)장까지다. 덱이 9장보다 적어도 된다.
+  - 덱 편성은 **스킬 카드만** 한다. 유닛은 원소별 4장 고정이고, 스킬은 `Collection.Slots`장까지(기본 `CardShop.SkillSlots` 9, 별의 길 보상으로 최대 11), 한 종류는 `CardShop.MaxCopies`(2)장까지다. 덱이 슬롯보다 적어도 된다.
   - `CardShop.All`: 9종의 값과 처음 가진 장수. 처음에는 변환 3색·탈색·지뢰·재점화를 1장씩 갖고(스킬 6장, 총 18장), 거점(120)·공간 왜곡(160)·영역 잠금(200)은 결정으로 해금한다. 두 번째 장도 같은 값으로 산다.
   - `Collection`이 소장(종류별 장수), 덱, 강화 단계를 갖는다. `Serialize`/`Parse`로 저장(`owned|deck|levels`, 강화 전 두 칸짜리 저장도 읽음)하고, 가진 장수를 넘는 덱 카드는 읽을 때 버린다.
   - **카드 강화**: 종류마다 Lv1~`CardShop.MaxLevel`(3). 값은 한 장 값의 1.5배(Lv2), 3배(Lv3)(`UpgradePrice`). 효과는 `CardShop.LevelText`에 적혀 있고 실제 처리는 `Resolver.CastSkill(level)`, 지뢰는 터질 때 `PlaceUnit(mineLevel)`, 거점은 `Game.GrowBeacons`(단계 × 1칸)다. 판에는 `Loadout.Levels`로 넘기고 `Game.LevelOf(side, card)`로 읽는다. **AI 는 늘 Lv1**이다.
@@ -170,6 +170,11 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - `PuzzleSolver`: 모든 수(유닛 칸·물 방향·스킬 대상·왜곡 쌍)를 깊이 우선으로 두고 같은 상태는 한 번만 본다. `CountWinningFirstActions`(묘수가 몇 개인지), `GreedySolves`(욕심쟁이로 풀리면 쉬운 문제).
   - 층은 손으로 짜지 않고 `tests/Core.Tests/Tools/PuzzleGen.cs`가 무작위 판을 만들어 풀이기로 거른 후보에서 골랐다(Moves 수로 풀리고, 한 수 적게는 안 풀리고, 첫 묘수가 적고, 위층은 욕심쟁이로 안 풀리는 것). 각 층 위 주석이 해답 하나다. 테스트 `EveryFloor_IsSolvableInItsMoves_ButNotInFewer`가 30층을 모두 확인한다. 층을 고치면 이 테스트를 돌린다.
   - 처음 깬 층은 결정 `Rewards.ForFloor`(10 + 층×2)를 준다. 다시 깨면 없다.
+  - 층마다 별 3개: 깨기, 무르기 없이 깨기, 힌트 없이 깨기(그 실행에서 그 층의 힌트를 한 번이라도 열면 못 받음). 비트로 `cf.tower.stars`에 저장한다(`Progress.RecordFloor`). 실패 결과 창의 힌트는 버튼을 눌러야 보인다.
+- **별의 길**(`Meta.cs` `StarRoad`, `ThemeShop`): 게임의 장기 목표. 별은 세 곳에서 모은다 — 스테이지(쉬움·보통·어려움 모드마다 3개씩, 450), 크로마 첨탑(층마다 깨기·무르기 없이·힌트 없이 3개, 90), 퀘스트(받은 단계마다 1개, 39). 합 579(`StarRoad.MaxStars`).
+  - 모은 별 수로 단계 보상 20개(`StarRoad.Steps`)를 받는다: 결정, 무르기, 덱 스킬 슬롯 +1(두 번), 보드 테마. 테마 해금(`ThemeUnlock`) 단계는 받기 없이 별만 모으면 열리고 그 테마를 결정으로 살 수 있게 된다(250~600). 마지막 단계(560)는 황금 성역 테마 선물.
+  - 칭호(`StarRoad.Ranks`, 8단계: 새싹 크로마술사 → 크로마 마스터)는 별 수로 정해진다.
+  - 보드 테마는 빈 칸 풀밭·장식·바다만 바꾼다. 내 땅·상대 땅 색은 그대로라 게임에는 영향이 없다. 결정이 쌓이기만 한다는 의견에 게임에 영향 없는 큰 사용처로 넣었다.
 - **게임 중 목표**(`Objectives.cs`): 판마다 플레이어에게 목표 3개(`ObjectiveCatalog.Pick`, seed로 결정적)를 준다. 덱으로 못 이루는 목표(지뢰가 없는데 지뢰 폭발 등)는 뽑지 않는다. `StageDef.CreateGame`이 뽑는다. AI에게는 없다.
   - 수가 끝날 때마다(`Game.AfterResolve`) 한 판 기록(`Game.StatsOf`, `MatchStats`)을 쌓고 목표를 확인한다. 달성하면 **그 자리에서 효과가 발동**한다: 땅 N칸 흡수(내 땅과 맞닿은 칸, 상대 땅 우선), 전선 2턴 보호, 거점 세우기, 한 번 더 두기(다음에 유닛을 놓은 뒤, `Game.BonusTurnTaken`).
   - 상대 차례에 일어난 일(상대가 내 지뢰를 밟음)로도 이뤄진다. 달성한 목표와 효과로 바뀐 칸은 `Game.ObjectiveEvents`에 남아 뷰가 연출한다.
@@ -197,9 +202,10 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - `GameBootstrap.Effects.cs`: 메시지, 이펙트, 라운드 기믹 연출.
   - `GameBootstrap.Tutorial.cs`: 튜토리얼 진행과 상황 팁.
 - **대기실**: 고른 스테이지의 맵을 실제 `BoardView`로 미리 보여 준다(`_previewBoard`). 챕터 탭, 스테이지 노드(별·잠금·보스 왕관), 상대 정보, 모드, 출격 버튼이 있다.
-  - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`(쉬움 모드, 보통·어려움은 뒤에 `.1`/`.2`), `cf.mode`(지금 모드), `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`, `cf.gems`(결정), `cf.cards`(소장·덱, `Collection.Serialize`), `cf.stat.<stat>`(퀘스트 누적 기록), `cf.quest.<id>`(받은 단계 수), `cf.items.undo`(모아 둔 무르기), `cf.tower`(첨탑에서 깬 층 수)다. 이기면 다음 스테이지가 해금된다.
+  - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`(쉬움 모드, 보통·어려움은 뒤에 `.1`/`.2`), `cf.mode`(지금 모드), `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`, `cf.gems`(결정), `cf.cards`(소장·덱, `Collection.Serialize`), `cf.stat.<stat>`(퀘스트 누적 기록), `cf.quest.<id>`(받은 단계 수), `cf.items.undo`(모아 둔 무르기), `cf.tower`(첨탑에서 깬 층 수), `cf.tower.stars`(층별 별 비트), `cf.road`(받은 별의 길 단계 번호 목록), `cf.themes`(가진 테마), `cf.theme`(쓰는 테마)다. 이기면 다음 스테이지가 해금된다.
   - 판이 끝나면 `Progress.RecordBattle`이 별·해금 기록, 누적 기록 더하기, 결정 지급을 한 번에 한다. 결과 창에 받은 결정과 목표 달성 수를 보여 준다.
-  - 위쪽 줄에 로고, 보유 결정, 별 합계, 배우기가 있다. 아래 줄은 모드(열린 모드끼리 돌아가며 바꿈, 하나뿐이면 여는 방법을 잠깐 보여 줌), 덱, 퀘스트(받을 보상 수 배지), 첨탑, 출격이다.
+  - 위쪽 줄에 로고, 보유 결정, 별(별의 길 전체 별, 받을 보상 수 배지, 누르면 별의 길 창 `LobbyPanel.Road`), 배우기가 있다. 챕터 줄 아래 안내에 칭호가 붙는다.
+  - 별의 길 창: 칭호·별·다음 칭호 바·별 출처, 탭 두 개(보상: 한 쪽에 7단계씩 넘기기 + 모두 받기 / 보드 테마: 8종 2x4, 사기·사용하기). 테마를 바꾸면 `GameBootstrap.UseTheme`이 미리보기를 다시 그리고, `BoardView`는 만들어질 때 `Progress.Theme`의 그림 이름을 쓴다. 아래 줄은 모드(열린 모드끼리 돌아가며 바꿈, 하나뿐이면 여는 방법을 잠깐 보여 줌), 덱, 퀘스트(받을 보상 수 배지), 첨탑, 출격이다.
   - 출격을 누르면 출격 준비 창(`LobbyPanel.Prep`)이 뜬다. 소모품을 켜고 끄고(`GameBootstrap.Boosts`), 무르기를 사고, 출격(`Sortie`)하면 값을 낸다. 다시·다음 스테이지는 소모품 없이 시작한다.
   - 덱·퀘스트 창(`LobbyPanel`)은 대기실 위에 뜬다. 창이 떠 있으면 대기실은 Repaint 때만 그려서 아래 버튼이 클릭을 받지 않는다. 덱 창은 9종 카드를 3x3으로 보여 주고, −/+로 넣고 빼고, 결정으로 사고 강화한다. 강화 버튼은 처음 누르면 다음 단계 효과를 보여 주고 4초 안에 한 번 더 눌러야 강화한다. 손패 카드에도 Lv2 이상이면 단계 배지가 붙는다.
   - 개발 빌드의 대기실에서 `G` 키를 누르면 결정 500개를 받는다.

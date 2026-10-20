@@ -10,7 +10,7 @@ namespace ChromaFrontier.Core
     public static class CardShop
     {
         public const int MaxCopies = 2;  // 한 종류를 덱에 넣을 수 있는(가질 수 있는) 최대 장수
-        public const int SkillSlots = 9; // 덱에 넣을 수 있는 스킬 카드 수
+        public const int SkillSlots = 9; // 덱에 넣을 수 있는 스킬 카드 수 (기본값, 별의 길 보상으로 늘어난다)
         public const int UnitsPerElement = 4;
         public const int MaxLevel = 3;   // 카드 강화 단계 (종류마다, Lv1 = 기본)
 
@@ -84,6 +84,7 @@ namespace ChromaFrontier.Core
         private readonly Dictionary<string, int> _owned = new();
         private readonly Dictionary<string, int> _levels = new(); // 강화 단계 (없으면 Lv1)
         public readonly List<Card> Skills = new(); // 덱에 넣은 스킬 카드
+        public int Slots = CardShop.SkillSlots;     // 덱에 넣을 수 있는 스킬 카드 수 (별의 길 보상으로 늘어난다)
 
         public static Collection Starter()
         {
@@ -144,7 +145,7 @@ namespace ChromaFrontier.Core
             return d;
         }
 
-        public bool CanAdd(Card card) => Skills.Count < CardShop.SkillSlots && InDeck(card) < Owned(card);
+        public bool CanAdd(Card card) => Skills.Count < Slots && InDeck(card) < Owned(card);
 
         public bool Add(Card card)
         {
@@ -161,7 +162,7 @@ namespace ChromaFrontier.Core
             Skills.Clear();
             for (var copy = 1; copy <= CardShop.MaxCopies; copy++)
                 foreach (var e in CardShop.All)
-                    if (Owned(e.Card) >= copy && Skills.Count < CardShop.SkillSlots) Skills.Add(e.Card);
+                    if (Owned(e.Card) >= copy && Skills.Count < Slots) Skills.Add(e.Card);
         }
 
         public List<Card> BuildDeck() => CardShop.BuildDeck(Skills);
@@ -179,10 +180,15 @@ namespace ChromaFrontier.Core
         }
 
         /// <summary>저장 문자열을 읽는다. 비었거나 깨졌으면 처음 상태. 규칙에 어긋나는 덱 카드는 버린다.</summary>
-        public static Collection Parse(string s)
+        public static Collection Parse(string s, int slots = CardShop.SkillSlots)
         {
-            if (string.IsNullOrEmpty(s) || s.IndexOf('|') < 0) return Starter();
-            var c = new Collection();
+            if (string.IsNullOrEmpty(s) || s.IndexOf('|') < 0)
+            {
+                var starter = Starter();
+                starter.Slots = slots;
+                return starter;
+            }
+            var c = new Collection { Slots = slots };
             var parts = s.Split('|');
             foreach (var item in parts[0].Split(','))
             {
@@ -295,5 +301,146 @@ namespace ChromaFrontier.Core
     {
         public Dictionary<Card, int> Levels = new();
         public readonly HashSet<Boost> Boosts = new();
+    }
+
+    /// <summary>별의 길 보상 종류.</summary>
+    public enum RoadReward : byte
+    {
+        Gems,        // 결정 Amount 개
+        Undos,       // 무르기 Amount 회
+        Slot,        // 덱 스킬 슬롯 +1
+        ThemeUnlock, // 보드 테마를 상점에서 살 수 있게 된다 (받기 없이 별만 모으면 열림)
+        ThemeGift,   // 보드 테마를 그냥 준다
+    }
+
+    public sealed class RoadStep
+    {
+        public int Stars;
+        public RoadReward Kind;
+        public int Amount;
+        public string Theme; // ThemeUnlock / ThemeGift
+
+        /// <summary>받기 버튼으로 받는 보상인가 (테마 해금은 별만 모으면 저절로 열린다).</summary>
+        public bool Claimable => Kind != RoadReward.ThemeUnlock;
+    }
+
+    /// <summary>
+    /// 별의 길: 스테이지(모드마다 3개씩), 크로마 첨탑(층마다 3개), 퀘스트(단계마다 1개)에서 모은 별의 합으로
+    /// 단계 보상을 받고 칭호가 오른다. 보상은 결정·무르기·덱 슬롯·보드 테마.
+    /// </summary>
+    public static class StarRoad
+    {
+        public const int TowerStarsPerFloor = 3; // 깨기 · 무르기 없이 · 힌트 없이
+
+        public static readonly RoadStep[] Steps =
+        {
+            new() { Stars = 5, Kind = RoadReward.Gems, Amount = 30 },
+            new() { Stars = 12, Kind = RoadReward.Undos, Amount = 2 },
+            new() { Stars = 20, Kind = RoadReward.ThemeUnlock, Theme = "blossom" },
+            new() { Stars = 30, Kind = RoadReward.Gems, Amount = 50 },
+            new() { Stars = 42, Kind = RoadReward.Slot },
+            new() { Stars = 55, Kind = RoadReward.Undos, Amount = 3 },
+            new() { Stars = 70, Kind = RoadReward.ThemeUnlock, Theme = "autumn" },
+            new() { Stars = 90, Kind = RoadReward.Gems, Amount = 80 },
+            new() { Stars = 110, Kind = RoadReward.Undos, Amount = 5 },
+            new() { Stars = 135, Kind = RoadReward.ThemeUnlock, Theme = "snow" },
+            new() { Stars = 160, Kind = RoadReward.Gems, Amount = 120 },
+            new() { Stars = 190, Kind = RoadReward.Slot },
+            new() { Stars = 225, Kind = RoadReward.ThemeUnlock, Theme = "desert" },
+            new() { Stars = 260, Kind = RoadReward.Gems, Amount = 150 },
+            new() { Stars = 300, Kind = RoadReward.Undos, Amount = 8 },
+            new() { Stars = 340, Kind = RoadReward.ThemeUnlock, Theme = "night" },
+            new() { Stars = 390, Kind = RoadReward.Gems, Amount = 200 },
+            new() { Stars = 440, Kind = RoadReward.ThemeUnlock, Theme = "sky" },
+            new() { Stars = 500, Kind = RoadReward.Gems, Amount = 300 },
+            new() { Stars = 560, Kind = RoadReward.ThemeGift, Theme = "golden" },
+        };
+
+        /// <summary>별 수에 따른 칭호 (오름차순).</summary>
+        public static readonly (int Stars, string Title)[] Ranks =
+        {
+            (0, "새싹 크로마술사"), (20, "견습 크로마술사"), (60, "크로마술사"), (120, "숙련 크로마술사"),
+            (200, "원소 조율사"), (300, "원소 현자"), (420, "첨탑의 현자"), (560, "크로마 마스터"),
+        };
+
+        /// <summary>모을 수 있는 별: 스테이지 50 × 3 × 모드 3 + 첨탑 층 × 3 + 퀘스트 단계 수.</summary>
+        public static int MaxStars => StageCatalog.Count * 3 * StageCatalog.Modes + PuzzleCatalog.Count * TowerStarsPerFloor + QuestTiers;
+
+        public static int QuestTiers
+        {
+            get
+            {
+                var n = 0;
+                foreach (var q in QuestCatalog.Lines) n += q.Targets.Length;
+                return n;
+            }
+        }
+
+        public static int RankIndex(int stars)
+        {
+            var k = 0;
+            for (var i = 0; i < Ranks.Length; i++)
+                if (stars >= Ranks[i].Stars) k = i;
+            return k;
+        }
+
+        public static string RankOf(int stars) => Ranks[RankIndex(stars)].Title;
+
+        public static string Text(RoadStep s) => s.Kind switch
+        {
+            RoadReward.Gems => $"결정 {s.Amount}개",
+            RoadReward.Undos => $"무르기 {s.Amount}회",
+            RoadReward.Slot => "덱 스킬 슬롯 +1",
+            RoadReward.ThemeUnlock => $"테마 「{ThemeShop.Find(s.Theme).Name}」 판매 시작",
+            RoadReward.ThemeGift => $"테마 「{ThemeShop.Find(s.Theme).Name}」 선물",
+            _ => "",
+        };
+
+        /// <summary>받은 단계 중 덱 슬롯 보상 수만큼 늘어난 덱 스킬 슬롯.</summary>
+        public static int SlotsFor(Func<int, bool> claimed)
+        {
+            var n = CardShop.SkillSlots;
+            for (var i = 0; i < Steps.Length; i++)
+                if (Steps[i].Kind == RoadReward.Slot && claimed(i)) n++;
+            return n;
+        }
+    }
+
+    /// <summary>보드 꾸미기: 빈 칸(풀밭)·장식·바다 그림을 바꾼다. 내 땅(파랑)과 상대 땅(빨강) 색은 그대로라 게임에는 영향이 없다.</summary>
+    public sealed class ThemeDef
+    {
+        public string Id;    // 그림 이름 뒤에 붙는 꼬리 ("" = 기본)
+        public string Name, Note;
+        public int Price;    // 결정 (0 = 사지 않음: 기본이거나 별의 길 선물)
+    }
+
+    public static class ThemeShop
+    {
+        public static readonly ThemeDef[] All =
+        {
+            new() { Id = "", Name = "초원", Note = "처음 섬의 풀밭" },
+            new() { Id = "blossom", Name = "벚꽃 동산", Note = "꽃잎이 흩날리는 봄 언덕", Price = 250 },
+            new() { Id = "autumn", Name = "가을 숲", Note = "단풍이 물든 황금 들판", Price = 300 },
+            new() { Id = "snow", Name = "설원", Note = "눈 덮인 겨울 섬", Price = 350 },
+            new() { Id = "desert", Name = "노을 사막", Note = "모래 언덕과 노을 바다", Price = 400 },
+            new() { Id = "night", Name = "별밤", Note = "반딧불이 반짝이는 밤의 섬", Price = 500 },
+            new() { Id = "sky", Name = "하늘 정원", Note = "구름 위에 뜬 정원", Price = 600 },
+            new() { Id = "golden", Name = "황금 성역", Note = "크로마 마스터의 땅 (별의 길 선물)" },
+        };
+
+        public static ThemeDef Find(string id)
+        {
+            foreach (var t in All)
+                if (t.Id == id) return t;
+            return null;
+        }
+
+        /// <summary>이 테마를 여는 별의 길 단계 (기본 테마면 null).</summary>
+        public static RoadStep StepOf(string id)
+        {
+            foreach (var s in StarRoad.Steps)
+                if (s.Theme == id) return s;
+            return null;
+        }
     }
 }
