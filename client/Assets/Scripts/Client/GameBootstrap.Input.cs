@@ -33,7 +33,7 @@ namespace ChromaFrontier.Client
         public void Select(int handIndex)
         {
             if (!PlayerTurn) return;
-            if (!CanUse(Game.DeckOf(Side.Player).Hand[handIndex]))
+            if (!CanUse(MyDeck.Hand[handIndex]))
             {
                 Message = "스킬은 한 턴에 한 장만 쓸 수 있어요. 유닛을 놓으세요.";
                 return;
@@ -190,7 +190,7 @@ namespace ChromaFrontier.Client
             }
             else if (card.IsUnit)
             {
-                foreach (var c in Game.LegalCells(Side.Player))
+                foreach (var c in Game.LegalCells(Me))
                 {
                     _hl.Legal.Add(c);
                     if (SlideTarget(c) is { } to) _hl.Slides[c] = to + c * -1;
@@ -201,8 +201,8 @@ namespace ChromaFrontier.Client
                 _hl.Picked = _warpFirst;
                 foreach (var c in Game.Board.Cells())
                     if (_warpFirst.HasValue
-                            ? Game.CanCast(Side.Player, card, _warpFirst.Value, c)
-                            : Game.CanTarget(Side.Player, card, c))
+                            ? Game.CanCast(Me, card, _warpFirst.Value, c)
+                            : Game.CanTarget(Me, card, c))
                         _hl.Legal.Add(c);
             }
             RestrictToLesson();
@@ -223,11 +223,11 @@ namespace ChromaFrontier.Client
                 PlayResult r = null;
                 if (_blueTap is { } tap && _blueAt is { } at)
                 {
-                    if (BlueDirToward(at, f) is { } d) r = Game.CloneFor(Side.Player).Play(Selected, tap, d);
+                    if (BlueDirToward(at, f) is { } d) r = Game.CloneFor(Me).Play(Selected, tap, d);
                 }
                 else if (card.Element == Element.Red)
                 {
-                    r = Game.CloneFor(Side.Player).Play(Selected, f);
+                    r = Game.CloneFor(Me).Play(Selected, f);
                 }
                 if (r != null)
                 {
@@ -239,8 +239,8 @@ namespace ChromaFrontier.Client
             if (card.Skill == Skill.Lock)
                 foreach (var c in Game.Board.Cells())
                     if (c.Chebyshev(f) <= Balance.LockRadius) _hl.Preview.Add(c);
-            if (card.Skill == Skill.Echo && Game.CanTarget(Side.Player, card, f))
-                foreach (var c in Game.CloneFor(Side.Player).Cast(Selected, f).Captured) _hl.Preview.Add(c);
+            if (card.Skill == Skill.Echo && Game.CanTarget(Me, card, f))
+                foreach (var c in Game.CloneFor(Me).Cast(Selected, f).Captured) _hl.Preview.Add(c);
         }
 
         /// <summary>정한 칸으로 카드를 낸다 (물·공간 왜곡은 다음 단계로 넘어갈 수 있음).</summary>
@@ -256,9 +256,9 @@ namespace ChromaFrontier.Client
                     Message = Tutorial ? Lesson.WaterIntro : "물이 흐를 방향으로 보드를 쓸어 넘기세요 (화살표 줄을 탭해도 돼요)";
                     return;
                 }
-                Game.Play(Selected, cell);
+                if (!PlayUnit(Selected, cell, null)) return;
                 Deselect();
-                AfterMove(Side.Player, cell, default);
+                AfterMove(Me, cell, default);
                 CheckLesson(Game.LastResult);
                 return;
             }
@@ -272,9 +272,9 @@ namespace ChromaFrontier.Client
 
             var first = _warpFirst ?? cell;
             var second = _warpFirst.HasValue ? cell : default;
-            Game.Cast(Selected, first, second);
+            if (!CastSkill(Selected, first, second)) return;
             Deselect();
-            AfterMove(Side.Player, first, second);
+            AfterMove(Me, first, second);
             CheckLesson(Game.LastResult);
             if (PlayerTurn && !Tutorial) Message += "\n" + Palette.AfterSkill;
         }
@@ -282,9 +282,9 @@ namespace ChromaFrontier.Client
         private void CommitWater(Cell dir)
         {
             var tap = _blueTap.Value;
-            Game.Play(Selected, tap, dir);
+            if (!PlayUnit(Selected, tap, dir)) return;
             Deselect();
-            AfterMove(Side.Player, tap, default);
+            AfterMove(Me, tap, default);
             CheckLesson(Game.LastResult);
         }
 
@@ -292,8 +292,8 @@ namespace ChromaFrontier.Client
         private Cell? SlideTarget(Cell c)
         {
             if (Game.Board[c].Terrain != Terrain.Ice) return null;
-            var to = c + Resolver.SlideDir(Game.Board, c, Side.Player);
-            return Resolver.CanLand(Game.Board, to, Side.Player) ? to : (Cell?)null;
+            var to = c + Resolver.SlideDir(Game.Board, c, Me);
+            return Resolver.CanLand(Game.Board, to, Me) ? to : (Cell?)null;
         }
 
         /// <summary>물 방향 단계에서 화살표가 서는 줄 (길이 BlueLength, 판 밖·낭떠러지에서 멈춤).</summary>

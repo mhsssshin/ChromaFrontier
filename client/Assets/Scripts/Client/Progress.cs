@@ -408,9 +408,33 @@ namespace ChromaFrontier.Client
         public static void ResetAll()
         {
             LocalStore.Clear();
+            Reload();
+        }
+
+        /// <summary>저장소가 통째로 바뀌었을 때(클라우드 기록을 받음, 로그아웃) 기억해 둔 값을 버리고 다시 읽게 한다.</summary>
+        public static void Reload()
+        {
             for (var m = 0; m < _stars.Length; m++) _stars[m] = null;
             _cards = null;
             _floorStars = null;
+        }
+
+        // ---------------------------------------------------------------- PvP 전적
+
+        private const string PvpWinKey = "cf.pvp.win", PvpDrawKey = "cf.pvp.draw", PvpLoseKey = "cf.pvp.lose";
+
+        public static int PvpWins => LocalStore.GetInt(PvpWinKey, 0);
+        public static int PvpDraws => LocalStore.GetInt(PvpDrawKey, 0);
+        public static int PvpLosses => LocalStore.GetInt(PvpLoseKey, 0);
+
+        /// <summary>대전 결과: 전적을 남기고 결정을 준다. 받은 결정 수.</summary>
+        public static int RecordPvp(Side winner, Side team)
+        {
+            var key = winner == team ? PvpWinKey : winner == Side.None ? PvpDrawKey : PvpLoseKey;
+            LocalStore.SetInt(key, LocalStore.GetInt(key, 0) + 1);
+            var gems = PvpCatalog.Reward(winner, team);
+            Gems += gems;
+            return gems;
         }
 
         private static int[] Load(int mode)

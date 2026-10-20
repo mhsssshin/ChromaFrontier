@@ -10,7 +10,13 @@ namespace ChromaFrontier.Client
         public static readonly Color Neutral = new(0.74f, 0.78f, 0.6f);
         public static readonly Color Background = new(0.36f, 0.62f, 0.86f);
 
-        public static Color Of(Side s) => s switch
+        /// <summary>화면을 보는 팀. PvP 에서 2팀(Side.Ai)이면 내 팀이 늘 파랑으로 보이게 두 팀의 그림·색을 맞바꾼다.</summary>
+        public static Side Viewer = Side.Player;
+
+        /// <summary>그림·색을 고를 때 쓰는 쪽: 내 팀은 Player, 상대 팀은 Ai.</summary>
+        public static Side Look(Side s) => Viewer == Side.Ai ? s.Opponent() : s;
+
+        public static Color Of(Side s) => Look(s) switch
         {
             Side.Player => Player,
             Side.Ai => Ai,

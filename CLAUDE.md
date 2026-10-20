@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 개요
 
 **크로마 프론티어 (Chroma Frontier)**(가제): 쿼터뷰 픽셀 영토전. 턴제 전략 땅따먹기 퍼즐 PvE이고, 엔진은 Unity 6000.3.25f1이다.
-- 최종 목표는 **안드로이드 전용 오프라인 APK**다. 서버나 네트워크 없이 진행도, 덱, 해금을 모두 기기에 저장한다.
+- 최종 목표는 **안드로이드 APK**다. 진행도, 덱, 해금은 기기에 저장하고 오프라인으로도 다 할 수 있다. 웹 버전은 **Firebase**(프로젝트 `chroma-frontier`)로 로그인·클라우드 저장·PvP 대전을 한다(아래 온라인). Android 의 온라인 기능은 아직 없다.
 - 지금은 **WebGL 빌드를 브라우저에서 테스트하는 단계**다. 화면은 세로(9:16)다.
 - `게임컨셉시안.jpg`는 분위기를 잡는 참고용이다. 시안에 있는 Shield/Heal 카드, 하트, 코인/물 재화는 PRD에 없으므로 PRD를 따른다.
 
@@ -60,6 +60,7 @@ CF_GEN_TIER=3 "$T/dotnet/dotnet.exe" test tests/Core.Tests --filter "FullyQualif
 - 개발 빌드는 압축 없이 32MB다.
 - 배포용(`BuildWebGLRelease`)은 Gzip 압축에 `decompressionFallback`을 켠다. GitHub Pages처럼 Content-Encoding 헤더를 안 붙이는 정적 호스팅에서도 로더가 브라우저에서 직접 풀기 때문이다. 배포용은 개발 빌드가 아니라서 `?unlock`/`?reset`/U 키가 꺼진다.
 - 배포:
+  - 배포용 빌드는 템플릿의 `net.js`(온라인)도 내용 해시 이름 `Build/net.<해시>.js` 로 옮기고 index.html 을 고친다(`BuildScript.HashNetScript`). 다른 빌드 파일과 같은 이유다.
   - 저장소는 https://github.com/mhsssshin/ChromaFrontier 다.
   - 소스는 `main`, 빌드 결과물은 `gh-pages` 브랜치에 둔다. `scripts/deploy-pages.sh`가 매번 단일 커밋으로 덮어쓴다.
   - 배포용 빌드는 파일 이름을 내용 해시로 짓는다(`nameFilesAsHashes`). 이름이 같으면 이전 버전을 받아 둔 브라우저가 옛 파일과 새 파일을 섞어 실행해 `RangeError: Maximum call stack size exceeded`로 시작하지 못한다(실제로 겪음).
@@ -80,7 +81,7 @@ CF_GEN_TIER=3 "$T/dotnet/dotnet.exe" test tests/Core.Tests --filter "FullyQualif
     - `tiles.mjs`: 타일 4종, 윗면 오버레이(glow/select/lock/shield), 장식, 바다, 거품. 보드 테마(`THEMES`, id는 Core `ThemeShop`과 맞춤)마다 풀밭 두 장(`tile_grass_a_<id>`/`_b_<id>`), 장식 4종(`Decor/<이름>_<id>`), 바다(`Bg/sea_<id>`, 빌드 크기 때문에 반 해상도 270x480)를 따로 굽는다
     - `units.mjs`: 원소 유닛 9종, 팀 링, 지뢰, 거점 깃발
     - `fx.mjs`: 프레임 이펙트 `<이름>_<n>`
-    - `ui.mjs`: 카드 틀, 아이콘(카드, 결정 `icon_gem`, 덱, 퀘스트, 첨탑 `icon_tower`), 바, 버튼, 패널, 밝은 말풍선(`bubble`, 튜토리얼), 스플래시 엠블럼
+    - `ui.mjs`: 카드 틀, 아이콘(카드, 결정 `icon_gem`, 덱, 퀘스트, 첨탑 `icon_tower`, 대전 `icon_pvp`), 바, 버튼, 패널, 밝은 말풍선(`bubble`, 튜토리얼), 스플래시 엠블럼
     - `logo.mjs`: 영문 로고 "CHROMA FRONTIER"(`UI/logo_title`). 스플래시와 대기실에 쓰고, 빌드할 때 WebGL 템플릿(`WebGLTemplates/Portrait/logo.png`, 웹 로딩 화면)에도 복사한다.
       - 글꼴은 `art/vendor/fonts/Jua-Regular.ttf`(SIL OFL, `Jua-OFL.txt`)다. base64로 SVG에 넣고, Chrome은 `--virtual-time-budget`으로 글꼴이 다 불러와진 뒤 찍는다.
       - 게임 제목은 한글 텍스트 대신 이 로고 이미지로 보여 준다.
@@ -175,6 +176,10 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 모은 별 수로 단계 보상 20개(`StarRoad.Steps`)를 받는다: 결정, 무르기, 덱 스킬 슬롯 +1(두 번), 보드 테마. 테마 해금(`ThemeUnlock`) 단계는 받기 없이 별만 모으면 열리고 그 테마를 결정으로 살 수 있게 된다(250~600). 마지막 단계(560)는 황금 성역 테마 선물.
   - 칭호(`StarRoad.Ranks`, 8단계: 새싹 크로마술사 → 크로마 마스터)는 별 수로 정해진다.
   - 보드 테마는 빈 칸 풀밭·장식·바다만 바꾼다. 내 땅·상대 땅 색은 그대로라 게임에는 영향이 없다. 결정이 쌓이기만 한다는 의견에 게임에 영향 없는 큰 사용처로 넣었다.
+- **PvP**(`Pvp.cs`): 방을 만들고 들어온 사람끼리 1:1 / 2:2. 서버 판정 없이 모든 기기가 같은 seed 와 같은 수 목록으로 같은 `Game` 을 재생한다(결정적 lockstep).
+  - `Game.CreateSeats`: 자리마다 덱 하나(2자리 또는 4자리). 짝수 자리는 Player 팀, 홀수 자리는 Ai 팀이고 차례는 자리 0 → 1 → 2 → 3 으로 돈다(팀이 번갈아, 팀 안에서는 두 사람이 번갈아). 같은 팀은 땅을 함께 쓰고 손패는 따로다. `CurrentSeat`, `DeckOfSeat`, `SideOfSeat`. `DeckOf(side)` 는 그 팀의 지금(또는 다음) 자리 덱이라 1:1 과 기존 코드는 그대로 돈다.
+  - `PvpCatalog`: 맵(1:1 3종 8x8~9x9 20턴, 2:2 3종 10x10 24턴, 같은 팀 시작 땅은 대각선 두 모서리), 차례 제한 `TurnSeconds`(40), 보상(승 20·무 10·패 5). 덱은 각자 편성한 스킬 덱(CardShop 코드 목록), 강화와 소모품·게임 중 목표는 없다(모두 Lv1).
+  - `PvpMove`: 수 하나를 문자열 `자리,종류(P/C/M),손패,x,y,a,b` 로. `TryApply` 는 차례가 아닌 자리이거나 규칙에 어긋난 수면 판을 안 건드리고 false — 모든 기기에서 똑같이 건너뛴다. 테스트 `Replay_FromEncodedMoves_ReachesTheSameBoard` 가 PvP 맵 6개를 AI 끼리 두고 문자열만으로 재생해 같은 판이 되는지 본다.
 - **게임 중 목표**(`Objectives.cs`): 판마다 플레이어에게 목표 3개(`ObjectiveCatalog.Pick`, seed로 결정적)를 준다. 덱으로 못 이루는 목표(지뢰가 없는데 지뢰 폭발 등)는 뽑지 않는다. `StageDef.CreateGame`이 뽑는다. AI에게는 없다.
   - 수가 끝날 때마다(`Game.AfterResolve`) 한 판 기록(`Game.StatsOf`, `MatchStats`)을 쌓고 목표를 확인한다. 달성하면 **그 자리에서 효과가 발동**한다: 땅 N칸 흡수(내 땅과 맞닿은 칸, 상대 땅 우선), 전선 2턴 보호, 거점 세우기, 한 번 더 두기(다음에 유닛을 놓은 뒤, `Game.BonusTurnTaken`).
   - 상대 차례에 일어난 일(상대가 내 지뢰를 밟음)로도 이뤄진다. 달성한 목표와 효과로 바뀐 칸은 `Game.ObjectiveEvents`에 남아 뷰가 연출한다.
@@ -195,6 +200,18 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 실제 난이도는 스테이지 기본값과 모드로 정한다(`LevelForMode`).
   - 테스트 `AiLevels_EasierLevelsLoseMoreOften`이 Perfect AI를 플레이어 자리에 두고 승률을 잰다. 측정값은 대 입문 100%, 대 쉬움 100%, 대 보통 92%, 대 어려움 74%, 대 Perfect 53%다(각 60판, 스킬 보조 행동 도입 후). 난이도 숫자를 바꾸면 상세 출력(`--logger "console;verbosity=detailed"`)으로 승률을 다시 확인한다.
 
+**온라인**(웹만: Firebase Auth + Realtime Database)
+- 실제 일은 WebGL 템플릿의 `net.js`(`window.CFNet`)가 한다. Firebase compat SDK(10.14.1)를 gstatic 에서 불러오고, C# 은 `Plugins/WebGL/Net.jslib` → `Client/Online.cs` 로 부르고 응답 메시지(JSON)를 매 프레임 `Online.Poll()` 로 가져온다. 에디터·Android 는 `Online.Available` 이 false 라 오프라인으로만 논다. Firebase 설정값은 `Online.FirebaseConfig`.
+- DB: `users/{uid}/name`, `users/{uid}/save {at, data}`(localStorage 의 `cf.*` 전부, `cf.sync.*`·`cf.local.*` 제외), `rooms/{id}`(제목, 팀 인원, 방장, status wait|play|done, 맵, seed, seats/0..3 {uid,name,ready,left,deck}), `moves/{id}/{n}`(n 번째 수 문자열, 한 번 쓰면 못 바꿈). 보안 규칙은 `firebase/database.rules.json` — Firebase 콘솔 Realtime Database 규칙에 붙여 넣는다.
+- 로그인: Google(팝업) / 게스트(익명 계정) / 로그인 없이 하기(`cf.local.offline`). 스플래시를 누르면 로그인 화면(`AppScreen.Login`)이 뜬다. 브라우저는 사용자 입력 이벤트 안에서만 팝업을 열어 주는데 Unity 는 한 프레임 늦게 클릭을 받으므로, 버튼을 누르는 순간 `Online.Arm` 으로 걸어 두어 net.js 가 `pointerup` 안에서 연다(`Hud.PopupButton`).
+- 클라우드 저장: 로그인하면 계정 기록(`users/{uid}/save`)과 이 기기 기록을 맞춘다. 같은 계정 기록이면 새 쪽, 계정에 기록이 없으면 이 기기 것을 올리고, 로그인 전에 하던 기록과 계정 기록이 둘 다 있으면 고르게 한다(충돌 화면). 그 뒤로 `LocalStorage.jslib` 가 `cf.*` 를 쓸 때마다 `window.CFNetDirty` 를 불러 2.5초 뒤 올린다(탭을 숨기거나 닫을 때도). 기록을 받으면 "reload" → `LocalStore.DropLegacy`(옛 PlayerPrefs 가 되살아나지 않게) + `Progress.Reload()`. 로그아웃은 올린 뒤 이 기기의 `cf.*` 를 지운다.
+- PvP 흐름: 대기실 대전 → `AppScreen.PvpLobby`(열린 방 목록, 1:1/2:2 방 만들기) → `AppScreen.PvpRoom`(맵 미리보기, 자리 카드, 빈 자리 누르면 이동, 준비, 방장은 맵 바꾸기·시작) → 방장이 시작하면 status=play, seed 가 정해지고 모두 전투로(`GameBootstrap.Online.cs`).
+  - 판(`PvpSession`): 내 수는 바로 두고 `moves/{id}/{번호}` 로 보낸다. 받은 수는 번호 순으로 0.8초씩 띄워 둔다. 이미 둔 번호의 수가 다르게 오면 처음부터 다시 재생한다(`ResyncPvp`). 차례 40초가 넘으면 그 자리 기기가 패 버리기를 보낸다. 나간 사람(또는 60초 넘게 응답 없는 사람)의 차례는 남은 사람 중 가장 앞 자리가 그 번호가 비어 있을 때만(트랜잭션) 패 버리기를 대신 쓴다. 한 팀이 모두 나가면 남은 팀이 이긴다. 판 중에 나가면(기권, 두 번 눌러야 함) 기록·보상 없음.
+  - 화면의 '나'는 `GameBootstrap.Me`(2팀이면 Side.Ai), 손패는 `MyDeck`. 2팀이 보면 `Palette.Viewer` 로 두 팀의 타일·링·깃발·색을 맞바꿔 내 팀이 늘 파랑이다. 지뢰는 내 팀 것만 보인다.
+  - 방에서 기다리다 끊기면 방장은 방을 지우고 나머지는 자리를 비운다(onDisconnect). 판이 시작되면 끊길 때 `left` 로 표시한다. 3시간 넘은 방은 목록을 볼 때 지운다.
+- 시험: 주소에 `?mock` 을 붙이면 Firebase 대신 브라우저 안의 가짜 DB(localStorage `cfmock.db`, 탭끼리 공유)와 탭마다 따로인 가짜 로그인을 쓴다. 탭 두 개로 방 만들기·입장·대전을 시험할 수 있다(단, `cf.*` 진행은 같은 브라우저라 공유된다). `?tab` 은 실제 Firebase 로그인을 탭마다 따로 유지한다.
+- Firebase 콘솔에서 할 일: Authentication 에서 Google·익명 로그인을 켜고, 승인된 도메인에 `mhsssshin.github.io` 를 넣고, Realtime Database 규칙에 `firebase/database.rules.json` 을 넣는다.
+
 **Client**
 - `GameBootstrap`이 유일한 진입점이다. 씬에는 카메라와 이것뿐이고 오브젝트는 모두 코드로 만든다. partial 클래스로 세 파일에 나뉜다.
   - `GameBootstrap.cs`: 화면 전환(`AppScreen`: 대기실 ↔ 전투), AI 진행(0.8초 뒤), 결과 기록, 카메라.
@@ -202,10 +219,10 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - `GameBootstrap.Effects.cs`: 메시지, 이펙트, 라운드 기믹 연출.
   - `GameBootstrap.Tutorial.cs`: 튜토리얼 진행과 상황 팁.
 - **대기실**: 고른 스테이지의 맵을 실제 `BoardView`로 미리 보여 준다(`_previewBoard`). 챕터 탭, 스테이지 노드(별·잠금·보스 왕관), 상대 정보, 모드, 출격 버튼이 있다.
-  - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`(쉬움 모드, 보통·어려움은 뒤에 `.1`/`.2`), `cf.mode`(지금 모드), `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`, `cf.gems`(결정), `cf.cards`(소장·덱, `Collection.Serialize`), `cf.stat.<stat>`(퀘스트 누적 기록), `cf.quest.<id>`(받은 단계 수), `cf.items.undo`(모아 둔 무르기), `cf.tower`(첨탑에서 깬 층 수), `cf.tower.stars`(층별 별 비트), `cf.road`(받은 별의 길 단계 번호 목록), `cf.themes`(가진 테마), `cf.theme`(쓰는 테마)다. 이기면 다음 스테이지가 해금된다.
+  - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`(쉬움 모드, 보통·어려움은 뒤에 `.1`/`.2`), `cf.mode`(지금 모드), `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`, `cf.gems`(결정), `cf.cards`(소장·덱, `Collection.Serialize`), `cf.stat.<stat>`(퀘스트 누적 기록), `cf.quest.<id>`(받은 단계 수), `cf.items.undo`(모아 둔 무르기), `cf.tower`(첨탑에서 깬 층 수), `cf.tower.stars`(층별 별 비트), `cf.road`(받은 별의 길 단계 번호 목록), `cf.themes`(가진 테마), `cf.theme`(쓰는 테마), `cf.pvp.win|draw|lose`(대전 전적)다. 온라인용으로 `cf.sync.uid|at`(이 기기 기록의 계정·바뀐 시각), `cf.local.offline`(로그인 없이 하기)이 있고 이 둘은 클라우드에 올리지 않는다. 이기면 다음 스테이지가 해금된다.
   - 판이 끝나면 `Progress.RecordBattle`이 별·해금 기록, 누적 기록 더하기, 결정 지급을 한 번에 한다. 결과 창에 받은 결정과 목표 달성 수를 보여 준다.
-  - 위쪽 줄에 로고, 보유 결정, 별(별의 길 전체 별, 받을 보상 수 배지, 누르면 별의 길 창 `LobbyPanel.Road`), 배우기가 있다. 챕터 줄 아래 안내에 칭호가 붙는다.
-  - 별의 길 창: 칭호·별·다음 칭호 바·별 출처, 탭 두 개(보상: 한 쪽에 7단계씩 넘기기 + 모두 받기 / 보드 테마: 8종 2x4, 사기·사용하기). 테마를 바꾸면 `GameBootstrap.UseTheme`이 미리보기를 다시 그리고, `BoardView`는 만들어질 때 `Progress.Theme`의 그림 이름을 쓴다. 아래 줄은 모드(열린 모드끼리 돌아가며 바꿈, 하나뿐이면 여는 방법을 잠깐 보여 줌), 덱, 퀘스트(받을 보상 수 배지), 첨탑, 출격이다.
+  - 위쪽 줄에 로고, 보유 결정, 별(별의 길 전체 별, 받을 보상 수 배지, 누르면 별의 길 창 `LobbyPanel.Road`), 계정(`LobbyPanel.Account`: 이름 바꾸기, 게스트면 Google 연결, 로그아웃, 전적), 배우기가 있다. 챕터 줄 아래 안내에 칭호가 붙는다.
+  - 별의 길 창: 칭호·별·다음 칭호 바·별 출처, 탭 두 개(보상: 한 쪽에 7단계씩 넘기기 + 모두 받기 / 보드 테마: 8종 2x4, 사기·사용하기). 테마를 바꾸면 `GameBootstrap.UseTheme`이 미리보기를 다시 그리고, `BoardView`는 만들어질 때 `Progress.Theme`의 그림 이름을 쓴다. 아래 줄은 모드(열린 모드끼리 돌아가며 바꿈, 하나뿐이면 여는 방법을 잠깐 보여 줌), 덱, 퀘스트(받을 보상 수 배지), 첨탑, 대전, 출격이다.
   - 출격을 누르면 출격 준비 창(`LobbyPanel.Prep`)이 뜬다. 소모품을 켜고 끄고(`GameBootstrap.Boosts`), 무르기를 사고, 출격(`Sortie`)하면 값을 낸다. 다시·다음 스테이지는 소모품 없이 시작한다.
   - 덱·퀘스트 창(`LobbyPanel`)은 대기실 위에 뜬다. 창이 떠 있으면 대기실은 Repaint 때만 그려서 아래 버튼이 클릭을 받지 않는다. 덱 창은 9종 카드를 3x3으로 보여 주고, −/+로 넣고 빼고, 결정으로 사고 강화한다. 강화 버튼은 처음 누르면 다음 단계 효과를 보여 주고 4초 안에 한 번 더 눌러야 강화한다. 손패 카드에도 Lv2 이상이면 단계 배지가 붙는다.
   - 개발 빌드의 대기실에서 `G` 키를 누르면 결정 500개를 받는다.
@@ -264,6 +281,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
 - 공간 왜곡으로 옮긴 유닛이 그 자리에서 바로 융합하는 것. 지금은 옮기기만 하고, 융합은 다음에 놓는 유닛이 일으킨다.
 - 융합 결과가 다시 다른 반응을 일으키는 다단 연쇄. 2단계 유닛을 재료로 쓰는 3차 조합은 구현했다.
 - 유닛 카드 편성, 보드 스킨 같은 꾸미기 보상(PRD §6), 사운드. 스킬 카드 덱 편성·강화·소모품·결정·퀘스트·게임 중 목표는 구현했다.
+- 온라인(로그인·클라우드 저장·PvP)은 웹만 된다. Android 는 Firebase Unity SDK 나 REST 로 따로 붙여야 한다. PvP 는 판을 각 기기가 재생하므로 손패를 속일 수 있다(서버 판정 없음). 끊겼다 다시 들어와 이어 하기는 없다.
 - 크로마 첨탑은 30층까지만 있다. 더 만들려면 PuzzleGen 으로 후보를 뽑아 PuzzleCatalog 에 붙인다.
 - 날마다 바뀌는 일일 퀘스트는 없다. 퀘스트는 누적 단계형뿐이다.
 - 스킬을 덱 대신 융합·공명으로 차는 에너지 게이지로 쓰는 안(설계안 C)은 아직 검토만 했다.

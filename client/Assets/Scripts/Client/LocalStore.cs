@@ -71,6 +71,18 @@ namespace ChromaFrontier.Client
 
         public static void SetInt(string key, int value) => SetString(key, value.ToString());
 
+        /// <summary>
+        /// 저장값이 통째로 바뀌었을 때(클라우드 기록을 받음, 로그아웃) 예전 PlayerPrefs 값을 버린다.
+        /// 남겨 두면 지운 키를 처음 읽을 때 옛 값이 localStorage 로 되살아난다 (WebGL 만).
+        /// </summary>
+        public static void DropLegacy()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            PlayerPrefs.DeleteAll();
+            PlayerPrefs.Save();
+#endif
+        }
+
         /// <summary>이 게임의 저장값을 모두 지운다.</summary>
         public static void Clear()
         {

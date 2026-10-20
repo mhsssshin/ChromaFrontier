@@ -36,7 +36,7 @@ namespace ChromaFrontier.Client
 
         private void DescribeMove(Side actor, Cell at, Cell at2)
         {
-            var who = actor == Side.Player ? "나" : "AI";
+            var who = WhoName(actor);
             var r = Game.LastResult;
             _aiTimer = AiDelay;
             if (r == null)
@@ -68,8 +68,8 @@ namespace ChromaFrontier.Client
                         Message += $" — {Palette.Name(r.Bleached)} 유닛 무력화";
                         break;
                     case Skill.Mine:
-                        if (actor == Side.Player) _view.Flash(new[] { at });
-                        Message = actor == Side.Player ? "나: 잠복 지뢰를 묻었다" : "AI가 어딘가에 무언가를 숨겼다...";
+                        if (actor == Me) _view.Flash(new[] { at });
+                        Message = actor == Me ? $"{who}: 잠복 지뢰를 묻었다" : Pvp != null ? $"{who}: 어딘가에 무언가를 숨겼다..." : "AI가 어딘가에 무언가를 숨겼다...";
                         break;
                     case Skill.Transmute:
                         _view.Flash(new[] { at });
@@ -90,9 +90,14 @@ namespace ChromaFrontier.Client
             _view.Flash(r.Captured);
             if (r.MineTriggered)
             {
-                Message = actor == Side.Player
-                    ? $"쾅! AI의 잠복 지뢰를 밟았다 — {r.Captured.Count}칸을 빼앗김"
-                    : $"쾅! AI가 내 지뢰를 밟았다 — +{r.Captured.Count}칸";
+                if (Pvp != null)
+                    Message = actor == Me
+                        ? $"쾅! {who}: 상대의 잠복 지뢰를 밟았다 — {r.Captured.Count}칸을 빼앗김"
+                        : $"쾅! {who}: 우리 팀 지뢰를 밟았다 — 우리 +{r.Captured.Count}칸";
+                else
+                    Message = actor == Side.Player
+                        ? $"쾅! AI의 잠복 지뢰를 밟았다 — {r.Captured.Count}칸을 빼앗김"
+                        : $"쾅! AI가 내 지뢰를 밟았다 — +{r.Captured.Count}칸";
                 return;
             }
             Message = $"{who}: {Palette.Name(r.Placed)} 배치 → +{r.Captured.Count}칸";
@@ -138,10 +143,10 @@ namespace ChromaFrontier.Client
         private void StartCine(Side actor, PlayResult r, Cell at)
         {
             CineStrong = r.Fused.Tier() == 3;
-            CineLength = (CineStrong ? 2.2f : 1.6f) * (actor == Side.Ai ? 0.75f : 1f);
+            CineLength = (CineStrong ? 2.2f : 1.6f) * (actor != Me ? 0.75f : 1f);
             CineTime = 0f;
             CineElement = r.Fused;
-            CineTitle = (actor == Side.Ai ? "AI " : "") + (r.Boosted ? $"3차 조합! {Palette.Name(r.Fused)}" : $"{Palette.Name(r.Fused)} 융합!");
+            CineTitle = (actor != Me ? (Pvp != null ? WhoName(actor) + " " : "AI ") : "") + (r.Boosted ? $"3차 조합! {Palette.Name(r.Fused)}" : $"{Palette.Name(r.Fused)} 융합!");
             CineSub = r.Fused switch
             {
                 Element.Purple => "주변을 차지하고 2턴 동안 지켜요",
@@ -212,7 +217,7 @@ namespace ChromaFrontier.Client
                         _fx.Spawn(FxView.Sparkle, pos + lift * 1.5f, white, 1.2f, 0.15f);
                         break;
                     case Skill.Mine:
-                        if (actor == Side.Player) _fx.Spawn(FxView.Smoke, pos, new Color(0.7f, 0.6f, 0.5f), 0.7f);
+                        if (actor == Me) _fx.Spawn(FxView.Smoke, pos, new Color(0.7f, 0.6f, 0.5f), 0.7f);
                         break;
                     case Skill.Transmute:
                         _fx.Spawn(FxView.Smoke, pos + lift, Palette.Of(r.Bleached), 1f);

@@ -244,6 +244,17 @@ export function ui() {
     p.path('M64 14 V2', 'none', 'stroke="#2a2a50" stroke-width="4" stroke-linecap="round"');
     p.path('M64 3 L84 8 L64 13 Z', '#ff5a3a', stroke(2.5, '#2a2a50'));
   }));
+  out.push(icon('icon_pvp', (p) => {
+    // 대전: 엇갈린 두 칼 (손잡이는 파랑 팀·빨강 팀) + 가운데 불꽃
+    const blade = p.lin([[0, '#ffffff'], [1, '#aab8d8']]);
+    p.path('M22 14 L34 10 L96 84 L86 94 Z', blade, stroke(4, '#2a2a50'));
+    p.path('M106 14 L94 10 L32 84 L42 94 Z', blade, stroke(4, '#2a2a50'));
+    p.path('M88 92 L106 112', 'none', 'stroke="#2a5aa8" stroke-width="10" stroke-linecap="round"');
+    p.path('M40 92 L22 112', 'none', 'stroke="#b8302a" stroke-width="10" stroke-linecap="round"');
+    p.path('M78 80 L98 100', 'none', 'stroke="#3a9aff" stroke-width="9" stroke-linecap="round"');
+    p.path('M50 80 L30 100', 'none', 'stroke="#ff5a3a" stroke-width="9" stroke-linecap="round"');
+    p.path('M64 30 C74 42 72 52 64 58 C56 52 54 42 64 30 Z', p.lin([[0, '#fff3a0'], [1, '#ff9a1f']]), stroke(3, '#2a2a50'));
+  }));
 
   return out;
 }

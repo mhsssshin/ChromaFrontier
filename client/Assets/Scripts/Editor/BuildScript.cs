@@ -37,7 +37,27 @@ namespace ChromaFrontier.Editor
             // 빌드 파일 이름을 내용 해시로: 이름이 매번 같으면 이전 버전을 받아 둔 브라우저가 옛 파일과 새 파일을 섞어
             // 실행해 터진다 (실제로 겪음: RangeError Maximum call stack size exceeded).
             PlayerSettings.WebGL.nameFilesAsHashes = true;
-            Build(BuildTarget.WebGL, Path.Combine(BuildRoot, "webgl-release"), BuildOptions.None);
+            var output = Path.Combine(BuildRoot, "webgl-release");
+            Build(BuildTarget.WebGL, output, BuildOptions.None);
+            HashNetScript(output);
+        }
+
+        /// <summary>
+        /// 템플릿의 net.js(온라인 기능)도 내용 해시 이름으로 Build/ 에 옮긴다. index.html 과 빌드 파일이 함께 바뀌도록
+        /// (배포 스크립트는 직전 index.html 이 가리키던 Build/ 파일을 남겨 두므로 옛 index.html 도 제 짝을 찾는다).
+        /// </summary>
+        private static void HashNetScript(string output)
+        {
+            var src = Path.Combine(output, "net.js");
+            var index = Path.Combine(output, "index.html");
+            if (!File.Exists(src) || !File.Exists(index)) return;
+            using var md5 = System.Security.Cryptography.MD5.Create();
+            var hash = BitConverter.ToString(md5.ComputeHash(File.ReadAllBytes(src))).Replace("-", "").Substring(0, 12).ToLowerInvariant();
+            var name = $"Build/net.{hash}.js";
+            File.Copy(src, Path.Combine(output, name), true);
+            File.Delete(src);
+            File.WriteAllText(index, File.ReadAllText(index).Replace("src=\"net.js\"", $"src=\"{name}\""));
+            Debug.Log($"[ChromaFrontier] net.js -> {name}");
         }
 
         [MenuItem("Chroma Frontier/Build/Android APK (dev)")]

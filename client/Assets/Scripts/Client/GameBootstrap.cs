@@ -4,10 +4,10 @@ using UnityEngine;
 
 namespace ChromaFrontier.Client
 {
-    public enum AppScreen { Splash, Lobby, Battle, Tower }
+    public enum AppScreen { Splash, Lobby, Battle, Tower, Login, PvpLobby, PvpRoom }
 
     /// <summary>대기실 위에 뜨는 창.</summary>
-    public enum LobbyPanel { None, Deck, Quest, Prep, Road }
+    public enum LobbyPanel { None, Deck, Quest, Prep, Road, Account }
 
     /// <summary>
     /// 씬의 유일한 진입점 (씬에는 카메라 + 이것뿐). 대기실(스테이지 선택) ↔ 전투를 오가며,
@@ -67,6 +67,10 @@ namespace ChromaFrontier.Client
             // 개발 빌드: 주소에 ?unlock 을 붙이면 전체 스테이지 해금 (대기실에서 U 키도 같음), ?reset 은 진행 초기화
             if (Debug.isDebugBuild && Application.absoluteURL.Contains("reset")) Progress.ResetAll();
             if (Debug.isDebugBuild && Application.absoluteURL.Contains("unlock")) Progress.UnlockAll();
+            // 아주 옛 버전이 PlayerPrefs 에만 남긴 값을 클라우드에 올리기 전에 localStorage 로 옮겨 둔다 (읽으면 옮겨진다)
+            _ = Progress.AllStars() + Progress.Gems + (Progress.TutorialDone ? 1 : 0);
+            Online.Reloaded += OnReloaded;
+            Online.Start();
             ShowSplash();
         }
 
@@ -83,6 +87,12 @@ namespace ChromaFrontier.Client
         {
             Mode = AppScreen.Splash;
             SplashTime = 0f;
+            BuildSplashBoard();
+        }
+
+        /// <summary>스플래시·로그인 화면 뒤의 장식 보드.</summary>
+        private void BuildSplashBoard()
+        {
             _previewBoard = Board.Parse(
                 "....AA",
                 "...AAA",
@@ -114,16 +124,17 @@ namespace ChromaFrontier.Client
         public void FinishSplash()
         {
             if (Mode != AppScreen.Splash || SplashTime < 0.8f) return;
-            if (!Progress.TutorialDone) StartTutorial(Progress.TutorialLesson);
-            else ShowLobby(Mathf.Min(Progress.Unlocked - 1, StageCatalog.Count - 1));
+            if (NeedLogin) ShowLogin();
+            else EnterGame();
         }
 
         private void UpdateSplash()
         {
             SplashTime += Time.deltaTime;
             // IMGUI 이벤트가 빠지는 경우(웹에서 아주 빠른 탭 등)에도 넘어가도록 입력도 직접 확인
-            if (Input.GetMouseButtonDown(0) || Input.touchCount > 0 || Input.anyKeyDown) FinishSplash();
-            if (Mode != AppScreen.Splash) return;
+            if (Mode == AppScreen.Splash && (Input.GetMouseButtonDown(0) || Input.touchCount > 0 || Input.anyKeyDown)) FinishSplash();
+            if (Mode == AppScreen.Login) UpdateLogin();
+            if (Mode != AppScreen.Splash && Mode != AppScreen.Login) return;
             _hl.Clear();
             _view.Sync(_previewBoard, _hl, Time.time, Time.deltaTime);
             // 0.7초마다 유닛 하나가 반짝인다
@@ -147,6 +158,8 @@ namespace ChromaFrontier.Client
             switch (Mode)
             {
                 case AppScreen.Splash: top = 0.5f; bottom = 0.88f; break;
+                case AppScreen.Login: top = 0.75f; bottom = 0.98f; break;
+                case AppScreen.PvpRoom: top = 0.08f; bottom = 0.34f; break;
                 case AppScreen.Lobby: top = 0.17f; bottom = 0.485f; break;
                 case AppScreen.Tower: top = 0.13f; bottom = 0.43f; break;
                 default: top = 0.27f; bottom = 0.75f; break; // 위쪽 HUD 아래에 게임 중 목표 줄이 있다
@@ -158,6 +171,9 @@ namespace ChromaFrontier.Client
             Mode = AppScreen.Lobby;
             Panel = LobbyPanel.None;
             Tutorial = false;
+            Pvp = null;
+            Palette.Viewer = Side.Player;
+            Online.WatchRooms(false);
             EndCine();
             _tips.Clear();
             Game = null;
@@ -291,7 +307,7 @@ namespace ChromaFrontier.Client
         }
 
         /// <summary>무르기를 쓸 수 있는가. 첨탑에서는 공짜이고, 판이 끝난 뒤(실패)에도 마지막 수를 무를 수 있다.</summary>
-        public bool CanUndo => !Tutorial && UndoTarget >= 0 && (Puzzle != null
+        public bool CanUndo => !Tutorial && Pvp == null && UndoTarget >= 0 && (Puzzle != null
             ? Mode == AppScreen.Battle && ActiveTip == null && !CineActive
             : PlayerTurn && Progress.Undos > 0);
 
@@ -315,6 +331,8 @@ namespace ChromaFrontier.Client
         {
             Mode = AppScreen.Battle;
             Puzzle = null;
+            Pvp = null;
+            Palette.Viewer = Side.Player;
             Stage = stage;
             Game = game;
             _aiRng = new Rng(1);
@@ -357,6 +375,11 @@ namespace ChromaFrontier.Client
 
         public void ExitToLobby()
         {
+            if (Pvp != null)
+            {
+                LeavePvp();
+                return;
+            }
             if (Puzzle != null)
             {
                 ShowTower(TowerFloor);
@@ -366,32 +389,49 @@ namespace ChromaFrontier.Client
             ShowLobby(index >= 0 && Progress.IsUnlocked(index) ? index : Progress.Unlocked - 1);
         }
 
-        public bool PlayerTurn => Mode == AppScreen.Battle && !Game.IsOver && Game.Current == Side.Player
+        public bool PlayerTurn => Mode == AppScreen.Battle && !BattleOver
+            && (Pvp == null ? Game.Current == Side.Player : Game.CurrentSeat == Pvp.MySeat && !Pvp.Log.ContainsKey(Pvp.Applied))
             && !(Tutorial && LessonDone) && ActiveTip == null && Concept == null;
 
         /// <summary>지금 낼 수 있는 카드인가: 스킬은 한 턴에 한 장.</summary>
         public bool CanUse(Card c) => c.IsUnit || !Game.SkillUsed;
 
-        private Card? SelectedCard => Game != null && Selected >= 0 && Selected < Game.DeckOf(Side.Player).Hand.Count
-            ? Game.DeckOf(Side.Player).Hand[Selected]
+        private Card? SelectedCard => Game != null && Selected >= 0 && Selected < MyDeck.Hand.Count
+            ? MyDeck.Hand[Selected]
             : (Card?)null;
 
         public void Mulligan()
         {
             if (!PlayerTurn) return;
-            Game.Mulligan();
+            if (Pvp != null)
+            {
+                if (!SendPvp(PvpMove.Pass(Pvp.MySeat))) return;
+            }
+            else Game.Mulligan();
             Deselect();
-            AfterMove(Side.Player, default, default);
+            AfterMove(Me, default, default);
         }
 
         // ---------------------------------------------------------------- 프레임
 
         private void Update()
         {
-            if (Mode == AppScreen.Splash)
+            Online.Poll();
+            if (Mode == AppScreen.Splash || Mode == AppScreen.Login)
             {
                 UpdateSplash();
                 return;
+            }
+            if (Mode == AppScreen.PvpLobby || Mode == AppScreen.PvpRoom)
+            {
+                UpdatePvpScreens();
+                if (Mode == AppScreen.PvpRoom && _view != null)
+                {
+                    _hl.Clear();
+                    _view.Sync(_previewBoard, _hl, Time.time, Time.deltaTime);
+                    FitCamera();
+                }
+                if (Mode != AppScreen.Battle) return;
             }
             if (Mode == AppScreen.Lobby || Mode == AppScreen.Tower)
             {
@@ -402,7 +442,8 @@ namespace ChromaFrontier.Client
             }
 
             UpdateCine();
-            if (!Tutorial && !Game.IsOver && Game.Current == Side.Ai)
+            if (Pvp != null) UpdatePvp();
+            else if (!Tutorial && !Game.IsOver && Game.Current == Side.Ai)
             {
                 _aiTimer -= Time.deltaTime;
                 if (_aiTimer <= 0f)
@@ -417,7 +458,7 @@ namespace ChromaFrontier.Client
             PlayRoundEffects();
 
             // 무르기용: 내 차례가 새로 시작되면 판을 복제해 둔다
-            if (!Tutorial && !Game.IsOver && Game.Current == Side.Player && Game.TurnsTaken != _snapKey)
+            if (!Tutorial && Pvp == null && !Game.IsOver && Game.Current == Side.Player && Game.TurnsTaken != _snapKey)
             {
                 _snapKey = Game.TurnsTaken;
                 _history.Add(Game.Clone());
@@ -432,7 +473,7 @@ namespace ChromaFrontier.Client
                 LastFloorStars = newStars;
                 Deselect();
             }
-            if (!Tutorial && Game.IsOver && !_recorded)
+            if (!Tutorial && Pvp == null && Game.IsOver && !_recorded)
             {
                 _recorded = true;
                 LastStars = StageCatalog.Stars(Game);
@@ -448,7 +489,7 @@ namespace ChromaFrontier.Client
             _view.Sync(Game.Board, _hl, Time.time, Time.deltaTime);
             _fx.Update(Time.deltaTime);
             // 튜토리얼 레슨을 마치면 손패를 비워 둔다 (쓴 카드가 무덤에서 다시 들어와 헷갈리지 않게)
-            var hand = Tutorial && LessonDone ? (IReadOnlyList<Card>)System.Array.Empty<Card>() : Game.DeckOf(Side.Player).Hand;
+            var hand = Tutorial && LessonDone ? (IReadOnlyList<Card>)System.Array.Empty<Card>() : MyDeck.Hand;
             Hand.Update(hand, Selected, Time.deltaTime, DraggingCard, Hud.ToRef(_pointerGui));
             FitCamera();
         }

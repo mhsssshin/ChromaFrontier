@@ -48,7 +48,10 @@ namespace ChromaFrontier.Core
         public readonly List<Cell> PioneerCells = new();     // 소모품 개척으로 시작할 때 받은 칸
 
         private Rng _rng;
-        private Deck _player, _ai;
+        // 자리마다 덱 하나: 짝수 자리는 Player 팀, 홀수 자리는 Ai 팀. 1:1 은 2자리, 2:2(PvP)는 4자리이고
+        // 차례는 0 → 1 → 2 → 3 → 0 으로 돈다 (팀이 번갈아 두고, 팀 안에서는 두 사람이 번갈아 둔다).
+        private Deck[] _decks;
+        private int _seat;
         private MatchStats _playerStats = new(), _aiStats = new();
         private bool _bonusTurn; // 목표 보상·선공: 플레이어가 다음에 유닛을 놓은 뒤 한 번 더
         private Dictionary<Card, int> _levels; // 플레이어 카드 강화 단계 (판 중에 안 바뀌어 복제본과 공유). AI 는 늘 Lv1
@@ -80,9 +83,26 @@ namespace ChromaFrontier.Core
                 Rules = rules,
                 _rng = rng,
                 // 첫 손패: 플레이어는 0턴, AI 는 1턴에 쓴다
-                _player = new Deck(playerDeck, rng, shuffle, holdLock: 0 < rules.LockFromTurn, recycle: !rules.Solo),
-                _ai = new Deck(aiDeck, rng, shuffle, holdLock: 1 < rules.LockFromTurn),
+                _decks = new[]
+                {
+                    new Deck(playerDeck, rng, shuffle, holdLock: 0 < rules.LockFromTurn, recycle: !rules.Solo),
+                    new Deck(aiDeck, rng, shuffle, holdLock: 1 < rules.LockFromTurn),
+                },
             };
+        }
+
+        /// <summary>
+        /// 자리마다 덱을 받아 판을 만든다 (PvP). 자리 수는 2(1:1) 또는 4(2:2). 짝수 자리는 Player 팀, 홀수 자리는 Ai 팀이고
+        /// 자리 0 부터 차례대로 둔다. 덱은 자리 순서대로 섞으므로 같은 seed 면 어느 기기에서나 같은 판이 된다.
+        /// </summary>
+        public static Game CreateSeats(Board board, IList<List<Card>> seatDecks, int seed, StageRules rules = null)
+        {
+            if (seatDecks.Count != 2 && seatDecks.Count != 4) throw new ArgumentException("seats must be 2 or 4");
+            var rng = new Rng(seed);
+            rules ??= new StageRules();
+            var decks = new Deck[seatDecks.Count];
+            for (var i = 0; i < decks.Length; i++) decks[i] = new Deck(seatDecks[i], rng, holdLock: i < rules.LockFromTurn);
+            return new Game { Board = board, Current = Side.Player, Rules = rules, _rng = rng, _decks = decks };
         }
 
         /// <summary>기본 덱 21장: 유닛 12 (원소별 4) + 스킬 9 (왜곡·잠금·탈색·지뢰·재점화·거점 1장씩, 원소 변환 3색).</summary>
@@ -109,8 +129,8 @@ namespace ChromaFrontier.Core
                 Stuck = Stuck,
                 SkillUsed = SkillUsed,
                 _rng = _rng.Clone(),
-                _player = _player.Clone(),
-                _ai = _ai.Clone(),
+                _decks = CloneDecks(),
+                _seat = _seat,
                 _playerStats = _playerStats.Clone(),
                 _aiStats = _aiStats.Clone(),
                 _bonusTurn = _bonusTurn,
@@ -119,6 +139,13 @@ namespace ChromaFrontier.Core
             };
             foreach (var o in Objectives) g.Objectives.Add(o.Clone());
             return g;
+        }
+
+        private Deck[] CloneDecks()
+        {
+            var d = new Deck[_decks.Length];
+            for (var i = 0; i < d.Length; i++) d[i] = _decks[i].Clone();
+            return d;
         }
 
         /// <summary>플레이어의 게임 중 목표를 정한다 (판 시작 때).</summary>
@@ -161,9 +188,20 @@ namespace ChromaFrontier.Core
         public bool Solved => Rules.Solo && Board.Count(Side.Player) == Board.Playable;
 
         /// <summary>첨탑 퍼즐: 더 둘 수 있는 카드가 없다 (유닛이 없고, 스킬도 이번 턴에 이미 썼거나 없음).</summary>
-        public bool OutOfCards => Rules.Solo && !_player.HandHasUnit && (SkillUsed || _player.Hand.Count == 0);
+        public bool OutOfCards => Rules.Solo && !DeckOf(Side.Player).HandHasUnit && (SkillUsed || DeckOf(Side.Player).Hand.Count == 0);
 
-        public Deck DeckOf(Side s) => s == Side.Player ? _player : _ai;
+        /// <summary>자리 수 (1:1 은 2, 2:2 는 4).</summary>
+        public int Seats => _decks.Length;
+
+        /// <summary>지금 차례인 자리.</summary>
+        public int CurrentSeat => _seat;
+
+        public static Side SideOfSeat(int seat) => seat % 2 == 0 ? Side.Player : Side.Ai;
+
+        public Deck DeckOfSeat(int seat) => _decks[seat];
+
+        /// <summary>그 팀의 덱: 차례인 팀이면 지금 두는 자리, 아니면 그 팀에서 다음에 둘 자리.</summary>
+        public Deck DeckOf(Side s) => SideOfSeat(_seat) == s ? _decks[_seat] : _decks[(_seat + 1) % _decks.Length];
 
         public Side Winner
         {
@@ -470,6 +508,7 @@ namespace ChromaFrontier.Core
                 Turn++;
                 if (!Rules.Solo)
                 {
+                    _seat = (_seat + 1) % _decks.Length;
                     Current = Current.Opponent();
                     if (Current == Side.Player) EndRound();
                 }

@@ -12,7 +12,9 @@ mergeInto(LibraryManager.library, {
   },
 
   CF_StorageSet: function (key, value) {
-    try { window.localStorage.setItem(UTF8ToString(key), UTF8ToString(value)); } catch (e) { console.warn("[LocalStore]", e); }
+    var k = UTF8ToString(key);
+    try { window.localStorage.setItem(k, UTF8ToString(value)); } catch (e) { console.warn("[LocalStore]", e); }
+    if (window.CFNetDirty) window.CFNetDirty(k); // 로그인했으면 클라우드에 올린다 (net.js)
   },
 
   /// prefix 로 시작하는 키를 모두 지운다.
@@ -24,6 +26,7 @@ mergeInto(LibraryManager.library, {
         if (k && k.indexOf(p) === 0) keys.push(k);
       }
       keys.forEach(function (k) { window.localStorage.removeItem(k); });
+      if (window.CFNetDirty && keys.length) window.CFNetDirty(keys[0]);
     } catch (e) { console.warn("[LocalStore]", e); }
   },
 });

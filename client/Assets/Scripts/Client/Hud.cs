@@ -10,7 +10,7 @@ namespace ChromaFrontier.Client
     /// 스킨은 Resources/Art/UI (art/ui.mjs, 기준 좌표의 2배 해상도). 패널·버튼·카드 틀은 Nine(...) 으로 9-slice.
     /// 화면: 대기실(DrawLobby) / 전투(DrawTop + DrawHand + DrawResult).
     /// </summary>
-    public static class Hud
+    public static partial class Hud
     {
         private const float RefW = 540f, RefH = 960f;
         private const float TexScale = 0.5f; // UI 텍스처는 기준 좌표의 2배로 그려져 있다
@@ -38,6 +38,21 @@ namespace ChromaFrontier.Client
                 DrawTower(gb);
                 return;
             }
+            if (gb.Mode == AppScreen.Login)
+            {
+                DrawLogin(gb);
+                return;
+            }
+            if (gb.Mode == AppScreen.PvpLobby)
+            {
+                DrawPvpLobby(gb);
+                return;
+            }
+            if (gb.Mode == AppScreen.PvpRoom)
+            {
+                DrawPvpRoom(gb);
+                return;
+            }
             if (gb.Mode == AppScreen.Lobby)
             {
                 if (gb.Panel == LobbyPanel.None || Event.current.type == EventType.Repaint) DrawLobby(gb);
@@ -45,6 +60,7 @@ namespace ChromaFrontier.Client
                 else if (gb.Panel == LobbyPanel.Quest) DrawQuestPanel(gb);
                 else if (gb.Panel == LobbyPanel.Prep) DrawPrepPanel(gb);
                 else if (gb.Panel == LobbyPanel.Road) DrawRoadPanel(gb);
+                else if (gb.Panel == LobbyPanel.Account) DrawAccountPanel(gb);
                 return;
             }
 
@@ -54,6 +70,7 @@ namespace ChromaFrontier.Client
 
             if (gb.Tutorial) DrawCoach(gb);
             else if (gb.Puzzle != null) DrawPuzzleTop(gb, g);
+            else if (gb.Pvp != null) DrawPvpTop(gb, g);
             else DrawTop(gb, g);
             DrawHand(gb, g);
             DrawCine(gb);
@@ -71,6 +88,11 @@ namespace ChromaFrontier.Client
             if (g.IsOver && !gb.Tutorial && gb.Puzzle != null)
             {
                 DrawPuzzleResult(gb, g);
+                return;
+            }
+            if (gb.Pvp != null && gb.BattleOver)
+            {
+                DrawPvpResult(gb, g);
                 return;
             }
             if (g.IsOver && !gb.Tutorial)
@@ -287,19 +309,21 @@ namespace ChromaFrontier.Client
 
             // 제목 + 결정 + 별 합계
             Image(R(4, 10, 172, 74), "UI/logo_title", Color.white);
-            GemPill(R(182, 22, 116, 44));
-            var starPill = R(304, 22, 124, 44);
+            GemPill(R(178, 22, 104, 44));
+            var starPill = R(286, 22, 104, 44);
             if (Button(starPill, new Color(0.85f, 0.6f, 0.2f))) gb.OpenPanel(LobbyPanel.Road);
             Image(new Rect(starPill.x + 8 * _s, starPill.y + 6 * _s, 32 * _s, 32 * _s), "UI/star_on", Color.white);
             Text(new Rect(starPill.x + 40 * _s, starPill.y, starPill.width - 44 * _s, starPill.height), Progress.AllStars().ToString(), 19, Color.white);
             var roadReady = Progress.RoadReadyCount();
             if (roadReady > 0)
             {
-                var badge = R(410, 12, 26, 26);
+                var badge = R(372, 12, 26, 26);
                 Nine(badge, "UI/button", 22, new Color(0.95f, 0.25f, 0.3f));
                 Text(badge, roadReady.ToString(), 14, Color.white, TextAnchor.MiddleCenter, 0f);
             }
-            if (Button(R(434, 22, 92, 44), new Color(0.3f, 0.7f, 0.55f), "배우기", 18)) gb.StartTutorial(0);
+            if (Button(R(394, 22, 64, 44), Online.SignedIn ? new Color(0.35f, 0.5f, 0.9f) : new Color(0.45f, 0.47f, 0.6f), Online.SignedIn ? "계정" : "로그인", 15))
+                gb.OpenPanel(LobbyPanel.Account);
+            if (Button(R(462, 22, 66, 44), new Color(0.3f, 0.7f, 0.55f), "배우기", 15)) gb.StartTutorial(0);
 
             // 챕터 탭
             for (var c = 0; c < StageCatalog.Chapters.Length; c++)
@@ -350,23 +374,25 @@ namespace ChromaFrontier.Client
 
             // 모드 + 덱 + 퀘스트 + 출격
             var mode = Progress.Mode;
-            if (Button(R(14, 854, 100, 76), ModeColor(mode))) gb.CycleMode();
-            Text(R(14, 862, 100, 26), "모드", 14, Color.white);
-            Text(R(14, 888, 100, 34), StageCatalog.ModeNames[mode], 21, Color.white);
+            if (Button(R(10, 854, 86, 76), ModeColor(mode))) gb.CycleMode();
+            Text(R(10, 862, 86, 26), "모드", 14, Color.white);
+            Text(R(10, 888, 86, 34), StageCatalog.ModeNames[mode], 20, Color.white);
             if (Time.time < gb.ModeHintUntil && mode + 1 < StageCatalog.Modes)
                 Text(R(0, 832, RefW, 22), $"{ModeName(mode)} 5-10 을 깨면 {ModeName(mode + 1)}가 열려요", 14, Gold, TextAnchor.MiddleCenter, 0.7f);
-            if (IconButton(R(120, 854, 82, 76), new Color(0.35f, 0.5f, 0.9f), "UI/icon_deck", "덱")) gb.OpenPanel(LobbyPanel.Deck);
-            if (IconButton(R(208, 854, 82, 76), new Color(0.6f, 0.45f, 0.85f), "UI/icon_quest", "퀘스트")) gb.OpenPanel(LobbyPanel.Quest);
-            if (IconButton(R(296, 854, 82, 76), new Color(0.25f, 0.62f, 0.7f), "UI/icon_tower", "첨탑")) gb.ShowTower(Mathf.Min(Progress.TowerCleared, PuzzleCatalog.Count - 1));
+            if (IconButton(R(102, 854, 72, 76), new Color(0.35f, 0.5f, 0.9f), "UI/icon_deck", "덱")) gb.OpenPanel(LobbyPanel.Deck);
+            if (IconButton(R(180, 854, 72, 76), new Color(0.6f, 0.45f, 0.85f), "UI/icon_quest", "퀘스트")) gb.OpenPanel(LobbyPanel.Quest);
+            if (IconButton(R(258, 854, 72, 76), new Color(0.25f, 0.62f, 0.7f), "UI/icon_tower", "첨탑")) gb.ShowTower(Mathf.Min(Progress.TowerCleared, PuzzleCatalog.Count - 1));
+            if (IconButton(R(336, 854, 72, 76), new Color(0.85f, 0.4f, 0.5f), "UI/icon_pvp", "대전")) gb.ShowPvpLobby();
+            if (Time.time < gb.ToastUntil) Text(R(0, 808, RefW, 22), gb.Toast, 14, Gold, TextAnchor.MiddleCenter, 0.7f);
             var ready = Progress.QuestsReady();
             if (ready > 0)
             {
-                var badge = R(272, 846, 30, 30);
+                var badge = R(234, 846, 30, 30);
                 Nine(badge, "UI/button", 22, new Color(0.95f, 0.25f, 0.3f));
                 Text(badge, ready.ToString(), 15, Color.white, TextAnchor.MiddleCenter, 0f);
             }
             GUI.enabled = Progress.IsUnlocked(gb.LobbyStage);
-            if (Button(R(384, 854, 142, 76), new Color(1f, 0.55f, 0.2f), "출격!", 28)) gb.OpenPanel(LobbyPanel.Prep);
+            if (Button(R(414, 854, 116, 76), new Color(1f, 0.55f, 0.2f), "출격!", 26)) gb.OpenPanel(LobbyPanel.Prep);
             GUI.enabled = true;
         }
 
@@ -1039,7 +1065,7 @@ namespace ChromaFrontier.Client
         /// </summary>
         private static void DrawHand(GameBootstrap gb, Game g)
         {
-            var deck = g.DeckOf(Side.Player);
+            var deck = gb.MyDeck;
             var hv = gb.Hand;
             var e = Event.current;
 
@@ -1071,7 +1097,7 @@ namespace ChromaFrontier.Client
                     if (Button(R(RefW - 214, 712, 200, 48), new Color(0.55f, 0.5f, 0.95f), "패 버리기 (턴 소모)", 18))
                         gb.Mulligan();
                     GUI.enabled = gb.CanUndo;
-                    if (Button(R(RefW - 346, 712, 126, 48), new Color(0.3f, 0.65f, 0.8f), $"무르기 {Progress.Undos}", 18))
+                    if (gb.Pvp == null && Button(R(RefW - 346, 712, 126, 48), new Color(0.3f, 0.65f, 0.8f), $"무르기 {Progress.Undos}", 18))
                         gb.Undo();
                     GUI.enabled = true;
                 }
@@ -1090,8 +1116,8 @@ namespace ChromaFrontier.Client
                 }
             }
 
-            foreach (var v in hv.Leaving) DrawCard(v, false, true, g.LevelOf(Side.Player, v.Card));
-            foreach (var i in order) DrawCard(hv.Cards[i], i == gb.Selected, gb.PlayerTurn && gb.CanUse(hv.Cards[i].Card), g.LevelOf(Side.Player, hv.Cards[i].Card));
+            foreach (var v in hv.Leaving) DrawCard(v, false, true, g.LevelOf(gb.Me, v.Card));
+            foreach (var i in order) DrawCard(hv.Cards[i], i == gb.Selected, gb.PlayerTurn && gb.CanUse(hv.Cards[i].Card), g.LevelOf(gb.Me, hv.Cards[i].Card));
         }
 
         private static void DrawDeckPile(Deck deck)

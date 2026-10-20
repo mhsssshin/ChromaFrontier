@@ -237,11 +237,11 @@ namespace ChromaFrontier.Client
                     v.Ghost.color = new Color(1f, 1f, 1f, 0.4f + 0.15f * pulse);
                 }
 
-                v.Mine.enabled = t.Mine == Side.Player && !t.HasUnit;
+                v.Mine.enabled = t.Mine == Palette.Viewer && !t.HasUnit; // 지뢰는 내 팀 것만 보인다
                 v.Beacon.enabled = t.Beacon != Side.None && t.Beacon == t.Owner;
                 if (v.Beacon.enabled)
                 {
-                    v.Beacon.sprite = Art.Sprite(t.Beacon == Side.Ai ? "Units/beacon_ai" : "Units/beacon_player");
+                    v.Beacon.sprite = Art.Sprite(Palette.Look(t.Beacon) == Side.Ai ? "Units/beacon_ai" : "Units/beacon_player");
                     // 빈 칸이면 가운데에 크게, 유닛이 있으면 왼쪽 위 구석에 작게
                     v.Beacon.transform.localPosition = t.HasUnit ? new Vector3(-0.42f, 0.42f, 0f) : new Vector3(-0.08f, 0.12f, 0f);
                     v.Beacon.transform.localScale = Vector3.one * (t.HasUnit ? 1f : 1.35f);
@@ -250,7 +250,7 @@ namespace ChromaFrontier.Client
 
                 v.Unit.enabled = v.Ring.enabled = t.HasUnit;
                 if (!t.HasUnit) continue;
-                v.Ring.sprite = Art.Sprite(t.UnitOwner == Side.Ai ? "Units/ring_ai" : "Units/ring_player");
+                v.Ring.sprite = Art.Sprite(Palette.Look(t.UnitOwner) == Side.Ai ? "Units/ring_ai" : "Units/ring_player");
 
                 // 등장: 위에서 떨어지며 통통 튐. 평소: 둥실둥실, 불꽃은 일렁임.
                 var scale = 1f;
@@ -273,7 +273,7 @@ namespace ChromaFrontier.Client
         private static Sprite TileSprite(in Tile t, Cell c)
         {
             if (t.Terrain == Terrain.BlackHole) return Art.Sprite("Tiles/tile_blackhole");
-            return t.Owner switch
+            return Palette.Look(t.Owner) switch
             {
                 Side.Player => Art.Sprite("Tiles/tile_player"),
                 Side.Ai => Art.Sprite("Tiles/tile_ai"),
