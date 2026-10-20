@@ -15,6 +15,7 @@
   <ItemGroup>
     <Compile Include="../../client/Assets/Scripts/Core/**/*.cs" />
     <Compile Include="../../client/Assets/Tests/Core/**/*.cs" />
+    <Compile Include="Tools/**/*.cs" />
   </ItemGroup>
 
   <ItemGroup>

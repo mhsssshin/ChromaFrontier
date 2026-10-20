@@ -33,6 +33,11 @@ namespace ChromaFrontier.Client
                 DrawSplash(gb);
                 return;
             }
+            if (gb.Mode == AppScreen.Tower)
+            {
+                DrawTower(gb);
+                return;
+            }
             if (gb.Mode == AppScreen.Lobby)
             {
                 if (gb.Panel == LobbyPanel.None || Event.current.type == EventType.Repaint) DrawLobby(gb);
@@ -47,6 +52,7 @@ namespace ChromaFrontier.Client
             if (e.type == EventType.MouseMove || e.type == EventType.Repaint) gb.SetHover(e.mousePosition);
 
             if (gb.Tutorial) DrawCoach(gb);
+            else if (gb.Puzzle != null) DrawPuzzleTop(gb, g);
             else DrawTop(gb, g);
             DrawHand(gb, g);
             DrawCine(gb);
@@ -59,6 +65,11 @@ namespace ChromaFrontier.Client
             if (gb.ActiveTip != null)
             {
                 DrawTip(gb, gb.ActiveTip);
+                return;
+            }
+            if (g.IsOver && !gb.Tutorial && gb.Puzzle != null)
+            {
+                DrawPuzzleResult(gb, g);
                 return;
             }
             if (g.IsOver && !gb.Tutorial)
@@ -331,22 +342,23 @@ namespace ChromaFrontier.Client
 
             // 모드 + 덱 + 퀘스트 + 출격
             var mode = Progress.Mode;
-            if (Button(R(14, 854, 124, 76), ModeColor(mode))) gb.CycleMode();
-            Text(R(14, 862, 124, 26), "모드", 14, Color.white);
-            Text(R(14, 888, 124, 34), StageCatalog.ModeNames[mode], 21, Color.white);
+            if (Button(R(14, 854, 100, 76), ModeColor(mode))) gb.CycleMode();
+            Text(R(14, 862, 100, 26), "모드", 14, Color.white);
+            Text(R(14, 888, 100, 34), StageCatalog.ModeNames[mode], 21, Color.white);
             if (Time.time < gb.ModeHintUntil && mode + 1 < StageCatalog.Modes)
                 Text(R(0, 832, RefW, 22), $"{ModeName(mode)} 5-10 을 깨면 {ModeName(mode + 1)}가 열려요", 14, Gold, TextAnchor.MiddleCenter, 0.7f);
-            if (IconButton(R(144, 854, 96, 76), new Color(0.35f, 0.5f, 0.9f), "UI/icon_deck", "덱")) gb.OpenPanel(LobbyPanel.Deck);
-            if (IconButton(R(246, 854, 96, 76), new Color(0.6f, 0.45f, 0.85f), "UI/icon_quest", "퀘스트")) gb.OpenPanel(LobbyPanel.Quest);
+            if (IconButton(R(120, 854, 82, 76), new Color(0.35f, 0.5f, 0.9f), "UI/icon_deck", "덱")) gb.OpenPanel(LobbyPanel.Deck);
+            if (IconButton(R(208, 854, 82, 76), new Color(0.6f, 0.45f, 0.85f), "UI/icon_quest", "퀘스트")) gb.OpenPanel(LobbyPanel.Quest);
+            if (IconButton(R(296, 854, 82, 76), new Color(0.25f, 0.62f, 0.7f), "UI/icon_tower", "첨탑")) gb.ShowTower(Mathf.Min(Progress.TowerCleared, PuzzleCatalog.Count - 1));
             var ready = Progress.QuestsReady();
             if (ready > 0)
             {
-                var badge = R(318, 846, 30, 30);
+                var badge = R(272, 846, 30, 30);
                 Nine(badge, "UI/button", 22, new Color(0.95f, 0.25f, 0.3f));
                 Text(badge, ready.ToString(), 15, Color.white, TextAnchor.MiddleCenter, 0f);
             }
             GUI.enabled = Progress.IsUnlocked(gb.LobbyStage);
-            if (Button(R(348, 854, 178, 76), new Color(1f, 0.55f, 0.2f), "출격!", 30)) gb.OpenPanel(LobbyPanel.Prep);
+            if (Button(R(384, 854, 142, 76), new Color(1f, 0.55f, 0.2f), "출격!", 28)) gb.OpenPanel(LobbyPanel.Prep);
             GUI.enabled = true;
         }
 
@@ -634,6 +646,134 @@ namespace ChromaFrontier.Client
             SwallowInput();
         }
 
+        // ---------------------------------------------------------------- 크로마 첨탑
+
+        /// <summary>
+        /// 첨탑 화면: 고른 층의 판 미리보기, 층 정보(수·카드·힌트), 층 버튼(아래에서 위로 쌓이는 6x5), 도전 버튼.
+        /// </summary>
+        private static void DrawTower(GameBootstrap gb)
+        {
+            var floor = gb.TowerFloor;
+            var p = PuzzleCatalog.Floors[floor];
+            if (Button(R(14, 14, 90, 44), new Color(0.4f, 0.42f, 0.58f), "← 대기실", 15)) gb.ShowLobby(gb.LobbyStage);
+            Text(R(110, 10, 300, 52), "크로마 첨탑", 30, Gold, TextAnchor.MiddleCenter, 0.7f);
+            GemPill(R(RefW - 136, 14, 122, 44));
+            Text(R(16, 66, RefW - 32, 26), $"정해진 카드로 몇 수 안에 모든 칸을 내 색으로!   {Progress.TowerCleared} / {PuzzleCatalog.Count}층", 14, Soft);
+
+            // (판 미리보기는 카메라가 13%~43% 띠에 그린다)
+
+            var info = R(16, 418, RefW - 32, 150);
+            Nine(info, "UI/panel", 28, Color.white);
+            var cleared = Progress.FloorCleared(floor);
+            Text(new Rect(info.x + 14 * _s, info.y + 8 * _s, info.width - 28 * _s, 32 * _s), $"{p.Floor}층  {p.Name}" + (cleared ? "  ★" : ""), 22, cleared ? Gold : Color.white, TextAnchor.MiddleLeft);
+            Text(new Rect(info.x + 14 * _s, info.y + 40 * _s, info.width - 28 * _s, 24 * _s), $"{p.Moves}수 안에 모든 칸 차지  ·  처음 깨면 결정 {Rewards.ForFloor(floor)}개", 15, new Color(1f, 0.8f, 0.75f), TextAnchor.MiddleLeft, 0f);
+            // 손패 미리보기
+            var cards = p.Cards();
+            for (var i = 0; i < cards.Count; i++)
+            {
+                var c = new Rect(info.x + 14 * _s + i * 52 * _s, info.y + 70 * _s, 46 * _s, 46 * _s);
+                Image(c, "UI/card_art", Color.Lerp(Palette.Of(cards[i]), Color.white, 0.25f));
+                Image(Inset(c, 4), IconFor(cards[i]), Color.white);
+            }
+            var hintBtn = new Rect(info.xMax - 104 * _s, info.y + 74 * _s, 92 * _s, 38 * _s);
+            if (Button(hintBtn, new Color(0.45f, 0.48f, 0.65f), gb.HintShown ? "힌트 닫기" : "힌트", 15)) gb.ToggleHint();
+            Text(new Rect(info.x + 14 * _s, info.y + 120 * _s, info.width - 28 * _s, 26 * _s), gb.HintShown ? "힌트: " + p.Hint : "카드: " + HandNames(cards), 13, gb.HintShown ? Gold : Soft, TextAnchor.MiddleLeft, 0f);
+
+            // 층 버튼: 1층이 왼쪽 아래, 위로 쌓인다
+            const int cols = 6;
+            var rows = (PuzzleCatalog.Count + cols - 1) / cols;
+            for (var i = 0; i < PuzzleCatalog.Count; i++)
+            {
+                var row = i / cols;
+                var col = i % cols;
+                var r = R(18 + col * 85, 582 + (rows - 1 - row) * 52, 79, 46);
+                var open = Progress.FloorOpen(i);
+                var done = Progress.FloorCleared(i);
+                if (i == floor) Nine(Inset(r, -3), "UI/button", 22, Gold);
+                var tint = !open ? new Color(0.3f, 0.32f, 0.42f) : done ? new Color(0.25f, 0.62f, 0.7f) : new Color(1f, 0.55f, 0.2f);
+                if (Button(r, tint) && open) gb.SelectFloor(i);
+                if (open) Text(r, done ? $"{i + 1}층 ★" : $"{i + 1}층", 17, Color.white);
+                else Image(Inset(r, 10), "UI/icon_lock", new Color(1f, 1f, 1f, 0.7f));
+            }
+
+            GUI.enabled = Progress.FloorOpen(floor);
+            if (Button(R(110, 856, 320, 76), new Color(1f, 0.55f, 0.2f), cleared ? "다시 도전" : "도전!", 30)) gb.StartFloor(floor);
+            GUI.enabled = true;
+        }
+
+        private static string HandNames(List<Card> cards)
+        {
+            var names = new List<string>();
+            foreach (var c in cards) names.Add(Palette.Name(c));
+            return string.Join(", ", names);
+        }
+
+        /// <summary>첨탑 전투 상단: 나가기·다시(바로), 남은 수, 층, 힌트, 칸 수 바, 안내.</summary>
+        private static void DrawPuzzleTop(GameBootstrap gb, Game g)
+        {
+            var b = g.Board;
+            var total = Mathf.Max(1, b.Playable);
+            var mine = b.Count(Side.Player);
+            if (Button(R(14, 14, 66, 44), new Color(0.4f, 0.42f, 0.58f), "나가기", 16)) gb.ExitToLobby();
+            if (Button(R(86, 14, 66, 44), new Color(0.4f, 0.42f, 0.58f), "다시", 16)) gb.Retry();
+
+            var left = gb.MovesLeft;
+            var movePill = R(160, 14, 132, 44);
+            Nine(movePill, "UI/button", 22, left <= 1 ? new Color(0.95f, 0.45f, 0.3f) : new Color(0.3f, 0.55f, 0.95f));
+            Text(movePill, $"남은 수 {left}", 19, Color.white);
+            var floorPill = R(298, 14, 104, 44);
+            Nine(floorPill, "UI/panel", 28, Color.white);
+            Text(floorPill, $"{gb.Puzzle.Floor}층", 18, Gold);
+            if (Button(R(RefW - 130, 14, 116, 44), new Color(0.45f, 0.48f, 0.65f), gb.HintShown ? "힌트 닫기" : "힌트", 17)) gb.ToggleHint();
+
+            Text(R(0, 66, RefW, 30), "모든 칸을 내 색으로", 22, Color.white, TextAnchor.MiddleCenter, 0.6f);
+            var bar = R(36, 98, RefW - 72, 46);
+            Nine(bar, "UI/bar_frame", 30, Color.white);
+            var inner = Inset(bar, 7);
+            var pw = inner.width * mine / total;
+            if (pw > 1f) Nine(new Rect(inner.x, inner.y, Mathf.Max(pw, inner.height), inner.height), "UI/bar_fill", 22, Palette.Player);
+            Text(inner, $"{mine} / {total}칸", 19, Color.white, TextAnchor.MiddleCenter, 0.7f);
+
+            var msg = R(24, 152, RefW - 48, 64);
+            Nine(msg, "UI/panel", 28, new Color(1f, 1f, 1f, 0.85f));
+            Text(Inset(msg, 5), gb.Message, 16, gb.HintShown ? Gold : Soft, TextAnchor.MiddleCenter, 0f);
+        }
+
+        /// <summary>첨탑 결과: 성공이면 결정과 다음 층, 실패면 남은 칸과 힌트.</summary>
+        private static void DrawPuzzleResult(GameBootstrap gb, Game g)
+        {
+            if (gb.CineActive) return; // 마지막 수의 합성 연출을 다 보고 나서
+            Dim(0.45f);
+            var solved = g.Solved;
+            var p = gb.Puzzle;
+            var hasNext = solved && p.Floor < PuzzleCatalog.Count;
+            var canUndo = !solved && gb.CanUndo;
+            Nine(R(50, 250, 440, hasNext || canUndo ? 366 : 296), "UI/panel", 28, Color.white);
+            Text(R(50, 264, 440, 70), solved ? "성공!" : "실패", 54, solved ? Gold : new Color(1f, 0.6f, 0.55f), TextAnchor.MiddleCenter, 0.7f);
+            Text(R(50, 330, 440, 28), $"{p.Floor}층 {p.Name}", 18, Soft);
+            var total = g.Board.Playable;
+            var mine = g.Board.Count(Side.Player);
+            if (solved)
+            {
+                var played = p.Cards().Count - g.DeckOf(Side.Player).Hand.Count; // 흑색의 추가 턴은 수를 안 써서 Turn 대신 쓴 카드 수
+                Text(R(50, 366, 440, 34), $"카드 {played}장으로 모든 칸을 물들였어요!", 20, Color.white);
+                var gemRow = R(110, 410, 320, 44);
+                Nine(gemRow, "UI/panel", 28, new Color(1f, 0.95f, 0.75f));
+                Image(new Rect(gemRow.x + 10 * _s, gemRow.y + 5 * _s, 34 * _s, 34 * _s), "UI/icon_gem", Color.white);
+                Text(new Rect(gemRow.x + 48 * _s, gemRow.y, gemRow.width - 56 * _s, gemRow.height), gb.LastFirstClear ? $"+{gb.LastGems}  (처음 깬 보상)" : "이미 깬 층 (보상 없음)", 18, Gold, TextAnchor.MiddleLeft);
+            }
+            else
+            {
+                Text(R(50, 366, 440, 34), $"{total - mine}칸이 남았어요 ({mine}/{total})", 20, Color.white);
+                Text(R(66, 404, 408, 56), "힌트: " + p.Hint, 15, Gold, TextAnchor.MiddleCenter, 0f);
+            }
+            var y = hasNext || canUndo ? 546 : 476;
+            if (hasNext && Button(R(80, 478, 380, 58), new Color(1f, 0.55f, 0.2f), $"{p.Floor + 1}층으로", 24)) gb.NextStage();
+            if (canUndo && Button(R(80, 478, 380, 58), new Color(0.3f, 0.65f, 0.8f), "마지막 수 무르기", 22)) gb.Undo();
+            if (Button(R(80, y, 184, 58), Palette.Player, "다시 하기", 21)) gb.Retry();
+            if (Button(R(276, y, 184, 58), new Color(0.4f, 0.42f, 0.58f), "첨탑으로", 21)) gb.ExitToLobby();
+        }
+
         // ---------------------------------------------------------------- 전투 상단
 
         private static void DrawTop(GameBootstrap gb, Game g)
@@ -735,7 +875,7 @@ namespace ChromaFrontier.Client
             var e = Event.current;
 
             // 덱 더미: 남은 장수만큼 뒷면이 겹쳐 쌓여 보인다. (튜토리얼에서는 숨김)
-            if (!gb.Tutorial) DrawDeckPile(deck);
+            if (!gb.Tutorial && gb.Puzzle == null) DrawDeckPile(deck);
 
             if (gb.Tutorial)
             {
@@ -749,13 +889,23 @@ namespace ChromaFrontier.Client
             }
             else
             {
-                GUI.enabled = gb.PlayerTurn;
-                if (Button(R(RefW - 214, 712, 200, 48), new Color(0.55f, 0.5f, 0.95f), "패 버리기 (턴 소모)", 18))
-                    gb.Mulligan();
-                GUI.enabled = gb.CanUndo;
-                if (Button(R(RefW - 346, 712, 126, 48), new Color(0.3f, 0.65f, 0.8f), $"무르기 {Progress.Undos}", 18))
-                    gb.Undo();
-                GUI.enabled = true;
+                if (gb.Puzzle != null)
+                {
+                    // 첨탑: 패 버리기 없음, 무르기는 공짜
+                    GUI.enabled = gb.CanUndo;
+                    if (Button(R(RefW - 214, 712, 200, 48), new Color(0.3f, 0.65f, 0.8f), "한 수 무르기", 18)) gb.Undo();
+                    GUI.enabled = true;
+                }
+                else
+                {
+                    GUI.enabled = gb.PlayerTurn;
+                    if (Button(R(RefW - 214, 712, 200, 48), new Color(0.55f, 0.5f, 0.95f), "패 버리기 (턴 소모)", 18))
+                        gb.Mulligan();
+                    GUI.enabled = gb.CanUndo;
+                    if (Button(R(RefW - 346, 712, 126, 48), new Color(0.3f, 0.65f, 0.8f), $"무르기 {Progress.Undos}", 18))
+                        gb.Undo();
+                    GUI.enabled = true;
+                }
             }
 
             var order = DrawOrder(hv, gb.Selected, gb.DraggingCard);

@@ -12,7 +12,7 @@ namespace ChromaFrontier.Client
     public static class Progress
     {
         // 해금·별은 모드마다 따로: 쉬움은 예전 키 그대로(cf.unlocked), 보통·어려움은 뒤에 .1 / .2
-        private const string UnlockedKey = "cf.unlocked", StarsKey = "cf.stars", ModeKey = "cf.mode";
+        private const string UnlockedKey = "cf.unlocked", StarsKey = "cf.stars", ModeKey = "cf.mode", TowerKey = "cf.tower";
         private const string TutorialKey = "cf.tutorial", LessonKey = "cf.tutorialLesson", TipPrefix = "cf.tip.";
 
         private static readonly int[][] _stars = new int[StageCatalog.Modes][];
@@ -224,11 +224,37 @@ namespace ChromaFrontier.Client
             return gems;
         }
 
+        /// <summary>크로마 첨탑에서 깬 층 수 (다음에 열린 층 = 이 값, 0부터).</summary>
+        public static int TowerCleared
+        {
+            get => Mathf.Clamp(LocalStore.GetInt(TowerKey, 0), 0, PuzzleCatalog.Count);
+            private set => LocalStore.SetInt(TowerKey, value);
+        }
+
+        public static bool FloorOpen(int floor) => floor >= 0 && floor < PuzzleCatalog.Count && floor <= TowerCleared;
+
+        public static bool FloorCleared(int floor) => floor < TowerCleared;
+
+        /// <summary>첨탑 한 판 기록: 처음 깬 층이면 다음 층을 열고 결정을 준다. 받은 결정 수.</summary>
+        public static int RecordFloor(int floor, bool solved, out bool firstClear)
+        {
+            firstClear = solved && floor == TowerCleared;
+            if (!firstClear) return 0;
+            TowerCleared = floor + 1;
+            var gems = Rewards.ForFloor(floor);
+            Gems += gems;
+            return gems;
+        }
+
         /// <summary>개발 빌드 전용: 결정 지급.</summary>
         public static void AddGemsDebug(int n) => Gems += n;
 
         /// <summary>개발 빌드 전용: 모든 스테이지 해금.</summary>
-        public static void UnlockAll() => Unlocked = StageCatalog.Count;
+        public static void UnlockAll()
+        {
+            Unlocked = StageCatalog.Count;
+            TowerCleared = PuzzleCatalog.Count - 1;
+        }
 
         /// <summary>개발 빌드 전용: 진행 초기화 (해금·별·모드·튜토리얼·팁 전부).</summary>
         public static void ResetAll()

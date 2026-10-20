@@ -257,6 +257,9 @@ namespace ChromaFrontier.Core
         // 카드를 금방 다 사지 않도록 낮게 잡았다 (강화·소모품까지 쓸 곳이 많다)
         public const int Loss = 5, WinBase = 10, PerStar = 5, FirstClear = 15, BossFirstClear = 50, PerObjective = 3;
 
+        /// <summary>크로마 첨탑 층을 처음 깼을 때 (floor 0부터). 다시 깨면 없다.</summary>
+        public static int ForFloor(int floor) => 10 + floor * 2;
+
         /// <param name="mode">모드 (StageCatalog.Modes). 보통은 1.5배, 어려움은 2배.</param>
         public static int ForBattle(StageDef stage, int stars, bool firstClear, int objectives, int mode = 0) =>
             ((stars > 0 ? WinBase + PerStar * stars : Loss)

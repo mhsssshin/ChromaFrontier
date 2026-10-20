@@ -10,6 +10,9 @@ namespace ChromaFrontier.Core
         public int LavaEvery;                   // 화산: N 라운드마다 분출 (0 = 없음)
         public int LavaCount = 1;               //   분출 한 번에 양쪽에서 각각 터지는 유닛 수
         public int LockFromTurn = Balance.LockFromTurn; // 영역 잠금을 뽑고 쓸 수 있는 첫 턴 (양측 합산)
+        // 첨탑 퍼즐: 상대는 두지 않고 플레이어만 MaxTurns 번 둔다. 카드는 정해진 것만(무덤 재사용 없음),
+        // 모든 칸을 차지하면 그 자리에서 성공(Game.Solved). 라운드 기믹은 움직이지 않는다.
+        public bool Solo;
     }
 
     public enum RoundEventKind : byte { Lava, BlackHole, Conveyor, Beacon }
@@ -77,7 +80,7 @@ namespace ChromaFrontier.Core
                 Rules = rules,
                 _rng = rng,
                 // 첫 손패: 플레이어는 0턴, AI 는 1턴에 쓴다
-                _player = new Deck(playerDeck, rng, shuffle, holdLock: 0 < rules.LockFromTurn),
+                _player = new Deck(playerDeck, rng, shuffle, holdLock: 0 < rules.LockFromTurn, recycle: !rules.Solo),
                 _ai = new Deck(aiDeck, rng, shuffle, holdLock: 1 < rules.LockFromTurn),
             };
         }
@@ -152,7 +155,13 @@ namespace ChromaFrontier.Core
         public int MaxTurns => Rules.MaxTurns;
 
         /// <summary>양측 합산 MaxTurns 가 끝났거나, 차례인 쪽이 놓을 칸이 없으면 그 자리에서 끝 (점유 칸 수로 승패).</summary>
-        public bool IsOver => Turn >= MaxTurns || Stuck != Side.None;
+        public bool IsOver => Turn >= MaxTurns || Stuck != Side.None || Solved || OutOfCards;
+
+        /// <summary>첨탑 퍼즐: 모든 칸을 차지했다.</summary>
+        public bool Solved => Rules.Solo && Board.Count(Side.Player) == Board.Playable;
+
+        /// <summary>첨탑 퍼즐: 더 둘 수 있는 카드가 없다 (유닛이 없고, 스킬도 이번 턴에 이미 썼거나 없음).</summary>
+        public bool OutOfCards => Rules.Solo && !_player.HandHasUnit && (SkillUsed || _player.Hand.Count == 0);
 
         public Deck DeckOf(Side s) => s == Side.Player ? _player : _ai;
 
@@ -196,7 +205,8 @@ namespace ChromaFrontier.Core
                 // 빈 칸이면 어디든. 상대 지뢰가 있는지는 모르므로 막지 않는다 (덮어쓴다). 내 지뢰 위에는 못 묻는다.
                 Skill.Mine => !t.HasUnit && t.Mine != s,
                 Skill.Transmute => (t.Unit.IsBase() || t.Unit == Element.Grey) && t.Unit != card.Element && !t.IsProtectedFrom(s),
-                Skill.Echo => t.Unit.IsBase() && t.UnitOwner == s,
+                // 첨탑 퍼즐에서는 번개 재점화(무작위 낙뢰)를 막는다: 풀이가 운이 되면 안 된다
+                Skill.Echo => t.Unit.IsBase() && t.UnitOwner == s && !(Rules.Solo && t.Unit == Element.Yellow),
                 Skill.Beacon => t.Owner == s && t.Beacon == Side.None,
                 _ => false,
             };
@@ -458,8 +468,11 @@ namespace ChromaFrontier.Core
             if (!extraTurn)
             {
                 Turn++;
-                Current = Current.Opponent();
-                if (Current == Side.Player) EndRound();
+                if (!Rules.Solo)
+                {
+                    Current = Current.Opponent();
+                    if (Current == Side.Player) EndRound();
+                }
             }
             CheckStuck();
         }

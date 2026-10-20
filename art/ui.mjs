@@ -234,6 +234,16 @@ export function ui() {
     p.path(ell(42, 44, 5, 5), '#e0962a');
     p.path(ell(42, 84, 5, 5), '#e0962a');
   }));
+  out.push(icon('icon_tower', (p) => {
+    // 크로마 첨탑: 층층이 쌓인 탑 + 꼭대기 삼원색 깃발
+    p.path('M30 118 L40 70 L88 70 L98 118 Z', p.lin([[0, '#c8d4f0'], [1, '#7a88b8']]), stroke(4, '#2a2a50'));
+    p.path('M42 70 L50 40 L78 40 L86 70 Z', p.lin([[0, '#dfe6fa'], [1, '#909cc8']]), stroke(4, '#2a2a50'));
+    p.path('M52 40 L64 14 L76 40 Z', p.lin([[0, '#ffe07a'], [1, '#e0962a']]), stroke(4, '#2a2a50'));
+    for (const [x, y, c] of [[52, 96, '#ff5a3a'], [76, 96, '#3a9aff'], [64, 56, '#ffd21f']])
+      p.path(rect(x - 6, y - 8, 12, 16, 4), c, stroke(3, '#2a2a50'));
+    p.path('M64 14 V2', 'none', 'stroke="#2a2a50" stroke-width="4" stroke-linecap="round"');
+    p.path('M64 3 L84 8 L64 13 Z', '#ff5a3a', stroke(2.5, '#2a2a50'));
+  }));
 
   return out;
 }

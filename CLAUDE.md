@@ -47,6 +47,9 @@ T="/c/Project/Gate Defense/tools"
   -executeMethod ChromaFrontier.Editor.BuildScript.BuildWebGLRelease -logFile "<abs>\build\unity-webgl-release.log"
 bash scripts/deploy-pages.sh
 
+# 크로마 첨탑 퍼즐 후보 생성 (도구, [Explicit]) → build/puzzle-candidates.txt. 단계 1~6, 6단계는 수십 분 걸린다
+CF_GEN_TIER=3 "$T/dotnet/dotnet.exe" test tests/Core.Tests --filter "FullyQualifiedName~PuzzleGen"
+
 # 아트 재생성 → client/Assets/Resources/Art/**.png + build/art-preview.png (약 2초, 시스템 Chrome 필요)
 "$T/node/node.exe" art/build.mjs
 ```
@@ -77,7 +80,7 @@ bash scripts/deploy-pages.sh
     - `tiles.mjs`: 타일 4종, 윗면 오버레이(glow/select/lock/shield), 장식, 바다, 거품
     - `units.mjs`: 원소 유닛 9종, 팀 링, 지뢰, 거점 깃발
     - `fx.mjs`: 프레임 이펙트 `<이름>_<n>`
-    - `ui.mjs`: 카드 틀, 아이콘(카드, 결정 `icon_gem`, 덱, 퀘스트), 바, 버튼, 패널, 밝은 말풍선(`bubble`, 튜토리얼), 스플래시 엠블럼
+    - `ui.mjs`: 카드 틀, 아이콘(카드, 결정 `icon_gem`, 덱, 퀘스트, 첨탑 `icon_tower`), 바, 버튼, 패널, 밝은 말풍선(`bubble`, 튜토리얼), 스플래시 엠블럼
     - `logo.mjs`: 영문 로고 "CHROMA FRONTIER"(`UI/logo_title`). 스플래시와 대기실에 쓰고, 빌드할 때 WebGL 템플릿(`WebGLTemplates/Portrait/logo.png`, 웹 로딩 화면)에도 복사한다.
       - 글꼴은 `art/vendor/fonts/Jua-Regular.ttf`(SIL OFL, `Jua-OFL.txt`)다. base64로 SVG에 넣고, Chrome은 `--virtual-time-budget`으로 글꼴이 다 불러와진 뒤 찍는다.
       - 게임 제목은 한글 텍스트 대신 이 로고 이미지로 보여 준다.
@@ -160,6 +163,13 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - **소모품**(`BoostShop`): 판 시작 전 고르고 출격할 때 값을 낸다(이번 판에만). 개척(시작 땅 옆 3칸, 20), 목표 추가(게임 중 목표 4개, 15), 선공(첫 턴에 유닛 두 번, 25). `Loadout.Boosts` → `StageDef.CreateGame` / `Game.ApplyLoadout`. 무르기(15)는 사서 모아 두고 판 중에 쓴다(클라이언트가 처리).
   - 판 보상(`Rewards.ForBattle`): 패배 5, 승리 10 + 별당 5, 첫 클리어 +15(보스 +50), 게임 중 목표 하나당 +3. 카드를 금방 다 사서 쓸 곳이 없다는 의견에 퀘스트 보상과 함께 절반으로 낮췄다.
   - 퀘스트(`QuestCatalog.Lines`): 누적 기록(`Stat`: 판 수, 승리, 융합, 3단계, 공명, 상대 유닛 융합, 스킬, 차지한 칸, 게임 중 목표)으로 채우는 단계형 목표다. 보상을 받으면 같은 줄의 다음 단계(더 큰 목표)가 열린다. 퀘스트 창의 모두 받기(`Progress.ClaimAllQuests`)는 받을 수 있는 보상을 한 번에 받고, 기록이 여러 단계를 넘었으면 그 단계들까지 이어서 받는다.
+- **크로마 첨탑**(`Puzzles.cs`, `PuzzleCatalog.cs`): 층마다 정해진 판·카드로 정해진 수 안에 **모든 칸을 내 색으로** 물들이는 퍼즐 모드. 30층이고 1층씩 연다.
+  - 규칙은 `StageRules.Solo`: 상대는 두지 않고(`EndTurn`이 차례를 안 넘기고 라운드 기믹도 없음), 카드는 정해진 것만 한 번씩(`Deck(recycle: false)`), `MaxTurns` = 층의 `Moves`. 모든 칸을 차지하면 그 자리에서 `Game.Solved`, 둘 카드가 없으면 `OutOfCards`로 끝난다. 흑색의 추가 턴은 수를 쓰지 않는다.
+  - 운이 끼지 않게 손패에 번개(무작위 낙뢰)·지뢰·잠금·거점을 넣지 않고, 첨탑에서는 번개 유닛 재점화도 막는다(`CanTarget`). 판에 미리 놓인 번개는 융합 재료로만 쓴다.
+  - `PuzzleDef`: `Map`(Board.Parse 기호) + `Units`(r b y g v o w k x, 대문자=내 유닛) + `Hand`("R B Tb Bl Wp Ec") + `Moves`·`Name`·`Hint`.
+  - `PuzzleSolver`: 모든 수(유닛 칸·물 방향·스킬 대상·왜곡 쌍)를 깊이 우선으로 두고 같은 상태는 한 번만 본다. `CountWinningFirstActions`(묘수가 몇 개인지), `GreedySolves`(욕심쟁이로 풀리면 쉬운 문제).
+  - 층은 손으로 짜지 않고 `tests/Core.Tests/Tools/PuzzleGen.cs`가 무작위 판을 만들어 풀이기로 거른 후보에서 골랐다(Moves 수로 풀리고, 한 수 적게는 안 풀리고, 첫 묘수가 적고, 위층은 욕심쟁이로 안 풀리는 것). 각 층 위 주석이 해답 하나다. 테스트 `EveryFloor_IsSolvableInItsMoves_ButNotInFewer`가 30층을 모두 확인한다. 층을 고치면 이 테스트를 돌린다.
+  - 처음 깬 층은 결정 `Rewards.ForFloor`(10 + 층×2)를 준다. 다시 깨면 없다.
 - **게임 중 목표**(`Objectives.cs`): 판마다 플레이어에게 목표 3개(`ObjectiveCatalog.Pick`, seed로 결정적)를 준다. 덱으로 못 이루는 목표(지뢰가 없는데 지뢰 폭발 등)는 뽑지 않는다. `StageDef.CreateGame`이 뽑는다. AI에게는 없다.
   - 수가 끝날 때마다(`Game.AfterResolve`) 한 판 기록(`Game.StatsOf`, `MatchStats`)을 쌓고 목표를 확인한다. 달성하면 **그 자리에서 효과가 발동**한다: 땅 N칸 흡수(내 땅과 맞닿은 칸, 상대 땅 우선), 전선 2턴 보호, 거점 세우기, 한 번 더 두기(다음에 유닛을 놓은 뒤, `Game.BonusTurnTaken`).
   - 상대 차례에 일어난 일(상대가 내 지뢰를 밟음)로도 이뤄진다. 달성한 목표와 효과로 바뀐 칸은 `Game.ObjectiveEvents`에 남아 뷰가 연출한다.
@@ -187,15 +197,16 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - `GameBootstrap.Effects.cs`: 메시지, 이펙트, 라운드 기믹 연출.
   - `GameBootstrap.Tutorial.cs`: 튜토리얼 진행과 상황 팁.
 - **대기실**: 고른 스테이지의 맵을 실제 `BoardView`로 미리 보여 준다(`_previewBoard`). 챕터 탭, 스테이지 노드(별·잠금·보스 왕관), 상대 정보, 모드, 출격 버튼이 있다.
-  - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`(쉬움 모드, 보통·어려움은 뒤에 `.1`/`.2`), `cf.mode`(지금 모드), `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`, `cf.gems`(결정), `cf.cards`(소장·덱, `Collection.Serialize`), `cf.stat.<stat>`(퀘스트 누적 기록), `cf.quest.<id>`(받은 단계 수), `cf.items.undo`(모아 둔 무르기)다. 이기면 다음 스테이지가 해금된다.
+  - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`(쉬움 모드, 보통·어려움은 뒤에 `.1`/`.2`), `cf.mode`(지금 모드), `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`, `cf.gems`(결정), `cf.cards`(소장·덱, `Collection.Serialize`), `cf.stat.<stat>`(퀘스트 누적 기록), `cf.quest.<id>`(받은 단계 수), `cf.items.undo`(모아 둔 무르기), `cf.tower`(첨탑에서 깬 층 수)다. 이기면 다음 스테이지가 해금된다.
   - 판이 끝나면 `Progress.RecordBattle`이 별·해금 기록, 누적 기록 더하기, 결정 지급을 한 번에 한다. 결과 창에 받은 결정과 목표 달성 수를 보여 준다.
-  - 위쪽 줄에 로고, 보유 결정, 별 합계, 배우기가 있다. 아래 줄은 모드(열린 모드끼리 돌아가며 바꿈, 하나뿐이면 여는 방법을 잠깐 보여 줌), 덱, 퀘스트(받을 보상 수 배지), 출격이다.
+  - 위쪽 줄에 로고, 보유 결정, 별 합계, 배우기가 있다. 아래 줄은 모드(열린 모드끼리 돌아가며 바꿈, 하나뿐이면 여는 방법을 잠깐 보여 줌), 덱, 퀘스트(받을 보상 수 배지), 첨탑, 출격이다.
   - 출격을 누르면 출격 준비 창(`LobbyPanel.Prep`)이 뜬다. 소모품을 켜고 끄고(`GameBootstrap.Boosts`), 무르기를 사고, 출격(`Sortie`)하면 값을 낸다. 다시·다음 스테이지는 소모품 없이 시작한다.
   - 덱·퀘스트 창(`LobbyPanel`)은 대기실 위에 뜬다. 창이 떠 있으면 대기실은 Repaint 때만 그려서 아래 버튼이 클릭을 받지 않는다. 덱 창은 9종 카드를 3x3으로 보여 주고, −/+로 넣고 빼고, 결정으로 사고 강화한다. 강화 버튼은 처음 누르면 다음 단계 효과를 보여 주고 4초 안에 한 번 더 눌러야 강화한다. 손패 카드에도 Lv2 이상이면 단계 배지가 붙는다.
   - 개발 빌드의 대기실에서 `G` 키를 누르면 결정 500개를 받는다.
   - `LocalStore`는 WebGL에서 브라우저 **localStorage**에 직접 쓴다(`Plugins/WebGL/LocalStorage.jslib`). 동기 저장이라 탭을 바로 닫아도 남는다. 에디터와 Android에서는 PlayerPrefs를 쓴다.
   - 예전 PlayerPrefs(IndexedDB) 값은 처음 읽을 때 localStorage로 옮긴다. PlayerPrefs를 직접 쓰지 말고 `LocalStore`를 쓴다.
   - 개발 빌드 전용 단축: 주소에 `?unlock`(전체 해금), `?reset`(진행·튜토리얼·팁 전부 초기화), 대기실에서 `U` 키(전체 해금)를 쓸 수 있다.
+- **첨탑 화면**(`AppScreen.Tower`, `GameBootstrap.Tower.cs`, `Hud.DrawTower`): 고른 층의 판 미리보기(띠 13%~43%), 층 정보(수·카드·힌트 버튼), 1층이 왼쪽 아래인 6x5 층 버튼, 도전 버튼. 전투는 일반 판과 같은 화면이고 `GameBootstrap.Puzzle`이 있으면 상단(`DrawPuzzleTop`: 남은 수, 층, 힌트, n/전체 칸)과 결과(`DrawPuzzleResult`)가 바뀐다. 패 버리기 대신 공짜 무르기가 있고, 실패한 결과 창에서도 마지막 수를 무를 수 있다. 다시는 확인 없이 바로 시작한다. 처음 들어가면 규칙 팁(`TowerTip`)을 띄운다.
 - **튜토리얼**: 레슨 데이터는 Core의 `TutorialCatalog`에 있다(8단계: 화염 → 물 방향 → 번개 → 융합 → 가로채기 → 3차 조합(흑색) → 공명 → 탈색).
   - 레슨은 6x6 연습 보드에 카드 한 장(`Lesson.Card`, 섞지 않은 덱 `Game.Create(..., shuffle: false)`)을 목표 칸(`Target`, 물은 `WaterDir`까지)에 내는 것이다. 테스트 `EveryLesson_TargetIsPlayable_AndProducesTheLessonResult`가 목표 수가 `Check`를 만족하는지 검증한다. 레슨을 고치면 이 테스트로 확인한다.
   - 놓을 수 있는 칸은 목표로만 좁힌다(`RestrictToLesson`). AI는 두지 않는다. 카드는 미리 고르지 않는다. 실제 게임과 똑같이 카드를 끌어 놓거나, 카드를 누른 뒤 칸을 눌러야 놓인다. 목표 칸은 카드를 고르기 전부터 빛나고 그쪽으로 확대된다. 카드 없이 칸을 누르면 카드를 먼저 고르라는 안내가 뜬다.
@@ -247,6 +258,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
 - 공간 왜곡으로 옮긴 유닛이 그 자리에서 바로 융합하는 것. 지금은 옮기기만 하고, 융합은 다음에 놓는 유닛이 일으킨다.
 - 융합 결과가 다시 다른 반응을 일으키는 다단 연쇄. 2단계 유닛을 재료로 쓰는 3차 조합은 구현했다.
 - 유닛 카드 편성, 보드 스킨 같은 꾸미기 보상(PRD §6), 사운드. 스킬 카드 덱 편성·강화·소모품·결정·퀘스트·게임 중 목표는 구현했다.
+- 크로마 첨탑은 30층까지만 있다. 더 만들려면 PuzzleGen 으로 후보를 뽑아 PuzzleCatalog 에 붙인다.
 - 날마다 바뀌는 일일 퀘스트는 없다. 퀘스트는 누적 단계형뿐이다.
 - 스킬을 덱 대신 융합·공명으로 차는 에너지 게이지로 쓰는 안(설계안 C)은 아직 검토만 했다.
 - 스테이지 이름은 아직 "챕터명 + 번호"다(보스만 고유 이름).

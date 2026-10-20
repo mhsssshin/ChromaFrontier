@@ -10,12 +10,15 @@ namespace ChromaFrontier.Core
     {
         private readonly List<Card> _draw;
         private readonly List<Card> _discard;
+        private readonly bool _recycle;
         public readonly List<Card> Hand;
 
         /// <param name="shuffle">false 면 섞지 않고 목록 순서대로 뽑는다 (튜토리얼처럼 손패를 정해 둘 때)</param>
         /// <param name="holdLock">true 면 첫 손패에 영역 잠금을 넣지 않는다 (초반 잠금 금지, Balance.LockFromTurn)</param>
-        public Deck(IEnumerable<Card> cards, Rng rng, bool shuffle = true, bool holdLock = false)
+        /// <param name="recycle">false 면 무덤을 다시 쓰지 않는다 (첨탑 퍼즐: 정해진 카드만 한 번씩)</param>
+        public Deck(IEnumerable<Card> cards, Rng rng, bool shuffle = true, bool holdLock = false, bool recycle = true)
         {
+            _recycle = recycle;
             _draw = new List<Card>(cards);
             _discard = new List<Card>();
             Hand = new List<Card>();
@@ -28,6 +31,7 @@ namespace ChromaFrontier.Core
         {
             _draw = new List<Card>(src._draw);
             _discard = new List<Card>(src._discard);
+            _recycle = src._recycle;
             Hand = new List<Card>(src.Hand);
         }
 
@@ -104,7 +108,7 @@ namespace ChromaFrontier.Core
         /// <summary>무덤을 섞어 덱 밑에 넣는다. 무덤이 비었으면 false.</summary>
         private bool Recycle(Rng rng)
         {
-            if (_discard.Count == 0) return false;
+            if (_discard.Count == 0 || !_recycle) return false;
             Shuffle(_discard, rng);
             _draw.InsertRange(0, _discard);
             _discard.Clear();

@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace ChromaFrontier.Client
 {
-    public enum AppScreen { Splash, Lobby, Battle }
+    public enum AppScreen { Splash, Lobby, Battle, Tower }
 
     /// <summary>대기실 위에 뜨는 창.</summary>
     public enum LobbyPanel { None, Deck, Quest, Prep }
@@ -148,6 +148,7 @@ namespace ChromaFrontier.Client
             {
                 case AppScreen.Splash: top = 0.5f; bottom = 0.88f; break;
                 case AppScreen.Lobby: top = 0.17f; bottom = 0.485f; break;
+                case AppScreen.Tower: top = 0.13f; bottom = 0.43f; break;
                 default: top = 0.27f; bottom = 0.75f; break; // 위쪽 HUD 아래에 게임 중 목표 줄이 있다
             }
         }
@@ -256,27 +257,41 @@ namespace ChromaFrontier.Client
         }
 
         /// <summary>되돌아갈 판: 이번 차례에 스킬을 썼으면 이번 차례 처음, 아니면 내 지난 차례 처음. 없으면 -1.</summary>
-        private int UndoTarget => Game.SkillUsed ? _history.Count - 1 : _history.Count - 2;
+        private int UndoTarget
+        {
+            get
+            {
+                if (_history.Count == 0) return -1;
+                // 마지막 복제 뒤로 차례가 넘어갔으면(판이 끝난 마지막 수) 그 복제가, 아니면 스킬을 썼을 때만 이번 차례 처음이 대상
+                var moved = _history[_history.Count - 1].TurnsTaken != Game.TurnsTaken;
+                return moved || Game.SkillUsed ? _history.Count - 1 : _history.Count - 2;
+            }
+        }
 
-        public bool CanUndo => PlayerTurn && !Tutorial && Progress.Undos > 0 && UndoTarget >= 0;
+        /// <summary>무르기를 쓸 수 있는가. 첨탑에서는 공짜이고, 판이 끝난 뒤(실패)에도 마지막 수를 무를 수 있다.</summary>
+        public bool CanUndo => !Tutorial && UndoTarget >= 0 && (Puzzle != null
+            ? Mode == AppScreen.Battle && ActiveTip == null && !CineActive
+            : PlayerTurn && Progress.Undos > 0);
 
         /// <summary>무르기: 내 지난 수(와 그 뒤 AI 의 수)를 되돌린다. 무르기 1회를 쓴다.</summary>
         public void Undo()
         {
             if (!CanUndo) return;
             var i = UndoTarget;
-            if (!Progress.UseUndo()) return;
+            if (Puzzle == null && !Progress.UseUndo()) return; // 첨탑에서는 공짜
             _history.RemoveRange(i + 1, _history.Count - i - 1);
             Game = _history[i].Clone();
             _snapKey = Game.TurnsTaken;
+            _recorded = false; // 첨탑: 실패한 판을 물렀으면 다시 기록할 수 있게
             _lastRound = Game.Round;
             Deselect();
-            Message = $"무르기: 내 지난 수 전으로 돌아갔어요 (남은 무르기 {Progress.Undos})";
+            Message = Puzzle != null ? "한 수 물렀어요." : $"무르기: 내 지난 수 전으로 돌아갔어요 (남은 무르기 {Progress.Undos})";
         }
 
         private void BeginBattle(StageDef stage, Game game)
         {
             Mode = AppScreen.Battle;
+            Puzzle = null;
             Stage = stage;
             Game = game;
             _aiRng = new Rng(1);
@@ -301,15 +316,29 @@ namespace ChromaFrontier.Client
 
         public void Retry()
         {
+            if (Puzzle != null)
+            {
+                StartFloor(TowerFloor);
+                return;
+            }
             // 방금 다음 모드가 열려 모드가 바뀌었으면 그 스테이지는 아직 잠겨 있다
             if (Progress.IsUnlocked(Stage.Index)) StartStage(Stage.Index);
             else ExitToLobby();
         }
 
-        public void NextStage() => StartStage(Mathf.Min(Stage.Index + 1, StageCatalog.Count - 1));
+        public void NextStage()
+        {
+            if (Puzzle != null) StartFloor(Mathf.Min(TowerFloor + 1, PuzzleCatalog.Count - 1));
+            else StartStage(Mathf.Min(Stage.Index + 1, StageCatalog.Count - 1));
+        }
 
         public void ExitToLobby()
         {
+            if (Puzzle != null)
+            {
+                ShowTower(TowerFloor);
+                return;
+            }
             var index = Stage?.Index ?? LobbyStage;
             ShowLobby(index >= 0 && Progress.IsUnlocked(index) ? index : Progress.Unlocked - 1);
         }
@@ -341,7 +370,7 @@ namespace ChromaFrontier.Client
                 UpdateSplash();
                 return;
             }
-            if (Mode == AppScreen.Lobby)
+            if (Mode == AppScreen.Lobby || Mode == AppScreen.Tower)
             {
                 _hl.Clear();
                 _view.Sync(_previewBoard, _hl, Time.time, Time.deltaTime);
@@ -372,6 +401,13 @@ namespace ChromaFrontier.Client
                 if (_history.Count > 40) _history.RemoveAt(0);
             }
 
+            if (!Tutorial && Game.IsOver && !_recorded && Puzzle != null)
+            {
+                _recorded = true;
+                LastGems = Progress.RecordFloor(TowerFloor, Game.Solved, out var firstFloor);
+                LastFirstClear = firstFloor;
+                Deselect();
+            }
             if (!Tutorial && Game.IsOver && !_recorded)
             {
                 _recorded = true;
