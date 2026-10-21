@@ -301,6 +301,7 @@ namespace ChromaFrontier.Client
             var chapter = StageCatalog.Chapters[stage.Chapter];
 
             // 위 줄: 홈 · 제목 · 결정
+            Fill(R(0, 0, RefW, 130), "UI/fade_top", Color.white);
             if (Button(R(14, 22, 92, 44), new Color(0.4f, 0.42f, 0.58f), "← 홈", 17)) gb.ShowHome();
             Text(R(110, 22, RefW - 250, 44), "싱글 모드", 26, Gold, TextAnchor.MiddleCenter, 0.7f);
             var gems = R(RefW - 134, 22, 120, 44);
@@ -381,7 +382,7 @@ namespace ChromaFrontier.Client
         /// <summary>보유 결정 표시.</summary>
         private static void GemPill(Rect r)
         {
-            Nine(r, "UI/panel", 28, Color.white);
+            Nine(r, "UI/pill", 22, Color.white);
             Image(new Rect(r.x + 6 * _s, r.y + (r.height - 34 * _s) * 0.5f, 34 * _s, 34 * _s), "UI/icon_gem", Color.white);
             Text(new Rect(r.x + 38 * _s, r.y, r.width - 44 * _s, r.height), Progress.Gems.ToString(), 18, Color.white);
         }

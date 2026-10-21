@@ -137,6 +137,7 @@ namespace ChromaFrontier.Client
 
         private static void DrawPvpLobby(GameBootstrap gb)
         {
+            Fill(R(0, 0, RefW, 130), "UI/fade_top", Color.white);
             if (Button(R(14, 14, 100, 44), new Color(0.4f, 0.42f, 0.58f), "← 홈", 16)) gb.ShowHome();
             Text(R(0, 14, RefW, 44), "대전", 28, Gold, TextAnchor.MiddleCenter, 0.7f);
             GemPill(R(RefW - 132, 14, 118, 44));

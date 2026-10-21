@@ -81,7 +81,7 @@ CF_GEN_TIER=3 "$T/dotnet/dotnet.exe" test tests/Core.Tests --filter "FullyQualif
     - `tiles.mjs`: 타일 4종, 내 땅 스킨(`SKIN_MATERIALS` 7 × `SKIN_COLORS` 9, Core `TileSkins` 와 id·색을 맞춤 → `Tiles/skin_<재질>_<색>`, 기본 재질의 파랑·빨강은 `tile_player`·`tile_ai`), 윗면 오버레이(glow/select/lock/shield), 장식, 바다, 거품. 보드 테마(`THEMES`, id는 Core `ThemeShop`과 맞춤)마다 풀밭 두 장(`tile_grass_a_<id>`/`_b_<id>`), 장식 4종(`Decor/<이름>_<id>`), 바다(`Bg/sea_<id>`, 빌드 크기 때문에 반 해상도 270x480)를 따로 굽는다
     - `units.mjs`: 원소 유닛 9종, 팀 링, 지뢰, 거점 깃발
     - `fx.mjs`: 프레임 이펙트 `<이름>_<n>`
-    - `ui.mjs`: 카드 틀, 아이콘(카드, 결정 `icon_gem`, 덱, 퀘스트, 첨탑 `icon_tower`, 대전 `icon_pvp`), 바, 버튼, 패널, 밝은 말풍선(`bubble`, 튜토리얼), 스플래시 엠블럼
+    - `ui.mjs`: 카드 틀, 아이콘(카드, 결정 `icon_gem`, 덱, 퀘스트, 첨탑 `icon_tower`, 대전 `icon_pvp`, 상점 `icon_shop`, 계정 `icon_user`, 싱글 `icon_single`), 반투명 재료(짙은 유리 `panel` 28, 밝은 유리 `glass` 28, 캡슐 `pill` 22, 모드 카드 `mode_card` 28, 후광 `glow`, 위·아래 그늘 띠 `fade_top`/`fade_bottom` — `Hud.Fill` 로 늘려 그림), 바, 버튼, 패널, 밝은 말풍선(`bubble`, 튜토리얼), 스플래시 엠블럼
     - `logo.mjs`: 영문 로고 "CHROMA FRONTIER"(`UI/logo_title`). 스플래시와 대기실에 쓰고, 빌드할 때 WebGL 템플릿(`WebGLTemplates/Portrait/logo.png`, 웹 로딩 화면)에도 복사한다.
       - 글꼴은 `art/vendor/fonts/Jua-Regular.ttf`(SIL OFL, `Jua-OFL.txt`)다. base64로 SVG에 넣고, Chrome은 `--virtual-time-budget`으로 글꼴이 다 불러와진 뒤 찍는다.
       - 게임 제목은 한글 텍스트 대신 이 로고 이미지로 보여 준다.
@@ -222,7 +222,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - `GameBootstrap.Input.cs`: 드래그 앤 드롭 입력, 보드 강조, 미리보기.
   - `GameBootstrap.Effects.cs`: 메시지, 이펙트, 라운드 기믹 연출.
   - `GameBootstrap.Tutorial.cs`: 튜토리얼 진행과 상황 팁.
-- **홈(메인 화면)**(`AppScreen.Home`, `GameBootstrap.Home.cs`, `Hud.Home.cs`): 스플래시·로그인·튜토리얼 건너뛰기 다음 화면. 위 줄 로고·결정(누르면 상점)·별의 길(받을 보상 배지)·계정, 이름·칭호, 내 땅 스킨으로 채운 8x8 섬 미리보기(띠 12%~48%)와 "내 땅: 재질 · 색 꾸미기" 버튼(상점 스킨 탭), 큰 버튼 싱글 모드(스테이지 대기실, 받을 퀘스트 배지) | 멀티 모드(대전 로비), 아래 줄 덱·상점·첨탑. 덱·상점 같은 창(LobbyPanel)은 홈과 대기실 위에 똑같이 뜬다. 스킨·테마를 바꾸면 `RefreshPreview` 가 지금 화면의 미리보기를 다시 그린다. 첨탑·대전 로비의 뒤로 버튼은 홈으로 간다.
+- **홈(메인 화면)**(`AppScreen.Home`, `GameBootstrap.Home.cs`, `Hud.Home.cs`): 스플래시·로그인·튜토리얼 건너뛰기 다음 화면. 디자인: 바다가 비쳐 보이게 반투명 유리를 겹친다. 위 그늘 띠 위에 로고·캡슐(결정·별)·계정 아이콘, 이름표 캡슐, 아래 유리 독(덱·상점·첨탑, 마우스를 올리면 후광). 모드 카드(`Hud.ModeCard`)는 틴트한 `mode_card` 위에 후광과 실제 타일·유닛 그림을 얹어 그린다(싱글: 내 스킨 네 칸 + 불·물·번개, 멀티: 내 땅 vs 빨강 땅 + VS). 위 줄 로고·결정(누르면 상점)·별의 길(받을 보상 배지)·계정, 이름·칭호, 내 땅 스킨으로 채운 8x8 섬 미리보기(띠 12%~48%)와 "내 땅: 재질 · 색 꾸미기" 버튼(상점 스킨 탭), 큰 버튼 싱글 모드(스테이지 대기실, 받을 퀘스트 배지) | 멀티 모드(대전 로비), 아래 줄 덱·상점·첨탑. 덱·상점 같은 창(LobbyPanel)은 홈과 대기실 위에 똑같이 뜬다. 스킨·테마를 바꾸면 `RefreshPreview` 가 지금 화면의 미리보기를 다시 그린다. 첨탑·대전 로비의 뒤로 버튼은 홈으로 간다.
 - **대기실(싱글 모드)**: 고른 스테이지의 맵을 실제 `BoardView`로 미리 보여 준다(`_previewBoard`). 챕터 탭, 스테이지 노드(별·잠금·보스 왕관), 상대 정보, 모드, 출격 버튼이 있다.
   - 진행 저장은 `Progress`가 `LocalStore`를 통해 맡는다. 키는 `cf.unlocked`, `cf.stars`(쉬움 모드, 보통·어려움은 뒤에 `.1`/`.2`), `cf.mode`(지금 모드), `cf.tutorial`, `cf.tutorialLesson`, `cf.tip.<id>`, `cf.gems`(결정), `cf.cards`(소장·덱, `Collection.Serialize`), `cf.stat.<stat>`(퀘스트 누적 기록), `cf.quest.<id>`(받은 단계 수), `cf.items.undo`(모아 둔 무르기), `cf.tower`(첨탑에서 깬 층 수), `cf.tower.stars`(층별 별 비트), `cf.road`(받은 별의 길 단계 번호 목록), `cf.themes`(가진 테마), `cf.theme`(쓰는 테마), `cf.pvp.win|draw|lose`(대전 전적), `cf.skin`·`cf.skin.mats`·`cf.skin.colors`(땅 스킨), `cf.items.<pioneer|extraobjective|firststrike>`(소모품 이용권)다. 온라인용으로 `cf.sync.uid|at`(이 기기 기록의 계정·바뀐 시각), `cf.local.offline`(로그인 없이 하기)이 있고 이 둘은 클라우드에 올리지 않는다. 이기면 다음 스테이지가 해금된다.
   - 판이 끝나면 `Progress.RecordBattle`이 별·해금 기록, 누적 기록 더하기, 결정 지급을 한 번에 한다. 결과 창에 받은 결정과 목표 달성 수를 보여 준다.

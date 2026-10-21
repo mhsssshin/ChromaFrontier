@@ -57,18 +57,60 @@ export function ui() {
   p.path(rect(10, 5, 76, 12, 6), '#ffffff', 'opacity="0.6"');
   out.push(p.sprite('UI/bar_fill'));
 
-  // 버튼 (9-slice 22, 흰색 → 틴트)
+  // 버튼 (9-slice 22, 흰색 → 틴트): 부드러운 그림자, 위쪽 광택 띠, 아래쪽 안 그늘, 얇은 밝은 테
   p = new Pic(128, 72);
-  p.path(rect(2, 8, 124, 62, 20), '#000000', 'opacity="0.3"');
-  p.path(rect(2, 2, 124, 62, 20), p.lin([[0, '#ffffff'], [1, '#b8b8c8']]), stroke(3, '#2a2a40'));
-  p.path(rect(10, 8, 108, 18, 9), '#ffffff', 'opacity="0.55"');
+  p.path(rect(3, 9, 122, 61, 21), '#0a0f24', 'opacity="0.28"');
+  p.path(rect(2, 2, 124, 62, 20), p.lin([[0, '#ffffff'], [0.55, '#eef0f7'], [1, '#c4c8d8']]), 'stroke="#1c2036" stroke-width="2.5" stroke-opacity="0.8"');
+  p.path(rect(5, 5, 118, 56, 17), 'none', 'stroke="#ffffff" stroke-width="2" opacity="0.55"');
+  p.path(rect(10, 7, 108, 17, 8.5), p.lin([[0, '#ffffff', 0.75], [1, '#ffffff', 0.1]]));
+  p.path(rect(8, 50, 112, 10, 5), '#000000', 'opacity="0.07"');
   out.push(p.sprite('UI/button'));
 
-  // 반투명 패널 (9-slice 28)
+  // 반투명 패널 (9-slice 28): 깊은 남색 유리. 위는 살짝 밝고 아래는 짙게, 가는 흰 테와 위쪽 빛
   p = new Pic(128, 128);
-  p.path(rect(2, 2, 124, 124, 24), '#14203a', 'opacity="0.86"');
-  p.path(rect(2, 2, 124, 124, 24), 'none', 'stroke="#ffffff" stroke-width="3" opacity="0.35"');
+  p.path(rect(2, 4, 124, 123, 24), '#050a1c', 'opacity="0.22"');
+  p.path(rect(2, 2, 124, 122, 24), p.lin([[0, '#22345e', 0.8], [1, '#0d1630', 0.86]]));
+  p.path(rect(2, 2, 124, 122, 24), 'none', 'stroke="#ffffff" stroke-width="2" opacity="0.26"');
+  p.path('M26 4.5 H102', 'none', 'stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.32"');
   out.push(p.sprite('UI/panel'));
+
+  // 밝은 유리 패널 (9-slice 28): 바다 위에 얹는 서리 낀 흰 유리
+  p = new Pic(128, 128);
+  p.path(rect(2, 5, 124, 122, 24), '#0a1a40', 'opacity="0.16"');
+  p.path(rect(2, 2, 124, 122, 24), p.lin([[0, '#ffffff', 0.42], [1, '#ffffff', 0.16]]));
+  p.path(rect(2, 2, 124, 122, 24), 'none', 'stroke="#ffffff" stroke-width="2.5" opacity="0.7"');
+  p.path(rect(10, 8, 108, 22, 11), '#ffffff', 'opacity="0.22"');
+  out.push(p.sprite('UI/glass'));
+
+  // 캡슐 (9-slice 22): 재화·이름표. 짙은 반투명 + 밝은 테
+  p = new Pic(96, 48);
+  p.path(rect(2, 3, 92, 44, 22), '#000000', 'opacity="0.2"');
+  p.path(rect(2, 2, 92, 42, 21), p.lin([[0, '#1a2a50', 0.72], [1, '#0c1530', 0.8]]));
+  p.path(rect(2, 2, 92, 42, 21), 'none', 'stroke="#ffffff" stroke-width="2" opacity="0.45"');
+  p.path(rect(14, 5, 68, 8, 4), '#ffffff', 'opacity="0.16"');
+  out.push(p.sprite('UI/pill'));
+
+  // 모드 카드 (9-slice 28, 흰색 → 틴트): 아래로 짙어지는 큰 카드 + 위쪽 유리 반사
+  p = new Pic(160, 200);
+  p.path(rect(4, 10, 152, 188, 28), '#0a0f24', 'opacity="0.3"');
+  p.path(rect(2, 2, 156, 190, 28), p.lin([[0, '#ffffff'], [0.6, '#dfe3ee'], [1, '#a9aec4']]), 'stroke="#1c2036" stroke-width="2.5" stroke-opacity="0.75"');
+  p.path(rect(6, 6, 148, 182, 24), 'none', 'stroke="#ffffff" stroke-width="2.5" opacity="0.6"');
+  p.path(`M8 34 Q8 8 34 8 H126 Q152 8 152 34 V70 Q80 98 8 70 Z`, '#ffffff', 'opacity="0.22"');
+  out.push(p.sprite('UI/mode_card'));
+
+  // 빛 번짐 (원형, 가운데 흰색 → 투명): 그림 뒤 후광
+  p = new Pic(128, 128);
+  p.path(ell(64, 64, 62, 62), p.rad([[0, '#ffffff', 0.85], [0.45, '#fff6d0', 0.35], [1, '#ffffff', 0]]));
+  out.push(p.sprite('UI/glow'));
+
+  // 위쪽 그늘 띠 (세로 그라데이션, 위 짙음 → 아래 투명): 화면 위 줄 바탕
+  p = new Pic(16, 128);
+  p.path(rect(0, 0, 16, 128), p.lin([[0, '#0b1430', 0.7], [0.6, '#0b1430', 0.32], [1, '#0b1430', 0]]));
+  out.push(p.sprite('UI/fade_top'));
+  // 아래쪽 그늘 띠 (위 투명 → 아래 짙음)
+  p = new Pic(16, 128);
+  p.path(rect(0, 0, 16, 128), p.lin([[0, '#0b1430', 0], [0.4, '#0b1430', 0.35], [1, '#0b1430', 0.75]]));
+  out.push(p.sprite('UI/fade_bottom'));
 
   // 밝은 말풍선 (9-slice 28): 튜토리얼 안내. 진한 글자를 올려 잘 읽히게
   p = new Pic(128, 128);
@@ -243,6 +285,37 @@ export function ui() {
       p.path(rect(x - 6, y - 8, 12, 16, 4), c, stroke(3, '#2a2a50'));
     p.path('M64 14 V2', 'none', 'stroke="#2a2a50" stroke-width="4" stroke-linecap="round"');
     p.path('M64 3 L84 8 L64 13 Z', '#ff5a3a', stroke(2.5, '#2a2a50'));
+  }));
+  out.push(icon('icon_shop', (p) => {
+    // 상점: 결정이 쏟아지는 보물 상자
+    p.path(ell(64, 112, 46, 8), '#000000', 'opacity="0.25"');
+    p.path(rect(18, 60, 92, 50, 10), p.lin([[0, '#c9743a'], [1, '#8a4420']]), stroke(4, '#4a2010'));
+    for (const x of [30, 98]) p.path(rect(x - 4, 60, 8, 50, 2), p.lin([[0, '#ffe07a'], [1, '#d08a1a']]), stroke(2.5, '#5a3008'));
+    p.path('M18 62 Q18 30 64 28 Q110 30 110 62 Z', p.lin([[0, '#e08a4a'], [1, '#a8542a']]), stroke(4, '#4a2010'));
+    p.path('M26 52 Q30 38 64 36 Q98 38 102 52', 'none', 'stroke="#ffd9a0" stroke-width="3" opacity="0.6" stroke-linecap="round"');
+    p.path(rect(54, 54, 20, 22, 4), p.lin([[0, '#fff3a0'], [1, '#e0961f']]), stroke(3, '#5a3008'));
+    p.path(ell(64, 64, 3, 3), '#5a3008');
+    for (const [x, y, c] of [[44, 24, '#b49aff'], [64, 14, '#7fe2f5'], [84, 24, '#ffb6d2']]) {
+      p.path(poly([[x, y - 12], [x + 9, y - 2], [x, y + 12], [x - 9, y - 2]]), c, stroke(2.5, '#2a1838'));
+      p.path(poly([[x, y - 12], [x + 9, y - 2], [x, y - 2]]), '#ffffff', 'opacity="0.55"');
+    }
+    p.path(star(104, 34, 8, 2.5), '#ffffff');
+  }));
+  out.push(icon('icon_user', (p) => {
+    // 계정: 동그란 얼굴 + 어깨
+    p.path(ell(64, 64, 56, 56), p.lin([[0, '#9ec8ff'], [1, '#3a6ad8']]), stroke(4, '#1a2a5a'));
+    p.path(ell(64, 50, 20, 20), '#ffffff', stroke(3, '#1a2a5a'));
+    p.path('M28 102 Q30 74 64 74 Q98 74 100 102 Q82 116 64 116 Q46 116 28 102 Z', '#ffffff', stroke(3, '#1a2a5a'));
+    p.path(ell(48, 30, 14, 7), '#ffffff', 'opacity="0.45"');
+  }));
+  out.push(icon('icon_single', (p) => {
+    // 싱글 모드: 검과 방패
+    p.path(ell(64, 114, 40, 7), '#000000', 'opacity="0.25"');
+    p.path('M64 14 L74 24 L72 84 L56 84 L54 24 Z', p.lin([[0, '#ffffff'], [1, '#aab8d8']]), stroke(3.5, '#2a2a50'));
+    p.path(rect(36, 82, 56, 10, 5), '#ffd23a', stroke(3, '#5a3008'));
+    p.path(rect(59, 92, 10, 20, 3), '#8a4420', stroke(3, '#4a2010'));
+    p.path('M20 52 Q42 46 50 40 V78 Q50 100 30 110 Q12 100 12 78 V58 Z', p.lin([[0, '#6db4ff'], [1, '#2f6ad8']]), stroke(3.5, '#1a2a5a'));
+    p.path(star(31, 74, 11, 4.5, 5), '#ffd23a', stroke(2, '#5a3008'));
   }));
   out.push(icon('icon_pvp', (p) => {
     // 대전: 엇갈린 두 칼 (손잡이는 파랑 팀·빨강 팀) + 가운데 불꽃
