@@ -302,7 +302,7 @@ namespace ChromaFrontier.Client
 
             // 위 줄: 홈 · 제목 · 결정
             Fill(R(0, 0, RefW, 130), "UI/fade_top", Color.white);
-            if (Button(R(14, 22, 92, 44), new Color(0.4f, 0.42f, 0.58f), "← 홈", 17)) gb.ShowHome();
+            if (PillButton(R(14, 22, 92, 44), "← 홈", 17)) gb.ShowHome();
             Text(R(110, 22, RefW - 250, 44), "싱글 모드", 26, Gold, TextAnchor.MiddleCenter, 0.7f);
             var gems = R(RefW - 134, 22, 120, 44);
             GemPill(gems);
@@ -314,8 +314,8 @@ namespace ChromaFrontier.Client
                 var r = R(14 + c * 104, 92, 96, 44);
                 var open = Progress.IsUnlocked(c * StageCatalog.PerChapter);
                 GUI.enabled = open;
-                var tint = c == stage.Chapter ? new Color(0.3f, 0.6f, 1f) : new Color(0.35f, 0.38f, 0.55f);
-                if (Button(r, tint, open ? $"{c + 1}장" : $"{c + 1}장 잠김", 18)) gb.SelectLobbyChapter(c);
+                var label = open ? $"{c + 1}장" : $"{c + 1}장 잠김";
+                if (c == stage.Chapter ? CardButton(r, new Color(0.36f, 0.62f, 1f), label, 19) : PillButton(r, label, 17)) gb.SelectLobbyChapter(c);
                 GUI.enabled = true;
             }
             Text(R(16, 140, RefW - 32, 26), $"[{ModeName(Progress.Mode)}]  {stage.Chapter + 1}장 {chapter.Name} — {chapter.Theme}", 15, Soft);
@@ -343,9 +343,13 @@ namespace ChromaFrontier.Client
                 var s = StageCatalog.Get(index);
                 var r = R(34 + (k % 5) * 96, 640 + (k / 5) * 100, 88, 92);
                 var open = Progress.IsUnlocked(index);
-                if (index == gb.LobbyStage) Nine(Inset(r, -4), "UI/button", 22, Gold);
+                if (index == gb.LobbyStage)
+                {
+                    Image(Inset(r, -18), "UI/glow", new Color(1f, 0.85f, 0.4f, 0.6f));
+                    Nine(Inset(r, -4), "UI/button", 22, Gold);
+                }
                 var tint = !open ? new Color(0.3f, 0.32f, 0.42f) : s.IsBoss ? new Color(0.85f, 0.35f, 0.4f) : new Color(0.3f, 0.55f, 0.95f);
-                if (Button(r, tint) && open) gb.SelectLobbyStage(index);
+                if (CardButton(r, tint) && open) gb.SelectLobbyStage(index);
                 if (open)
                 {
                     Text(new Rect(r.x, r.y + 8 * _s, r.width, 36 * _s), s.Code, 22, Color.white);
@@ -356,8 +360,9 @@ namespace ChromaFrontier.Client
             }
 
             // 모드 + 퀘스트 + 출격
+            Fill(R(0, 760, RefW, 200), "UI/fade_bottom", Color.white);
             var mode = Progress.Mode;
-            if (Button(R(14, 854, 140, 76), ModeColor(mode))) gb.CycleMode();
+            if (CardButton(R(14, 854, 140, 76), ModeColor(mode))) gb.CycleMode();
             Text(R(14, 862, 140, 26), "모드", 14, Color.white);
             Text(R(14, 888, 140, 34), StageCatalog.ModeNames[mode], 22, Color.white);
             if (Time.time < gb.ModeHintUntil && mode + 1 < StageCatalog.Modes)
@@ -366,14 +371,14 @@ namespace ChromaFrontier.Client
             Badge(R(262, 846, 30, 30), Progress.QuestsReady());
             if (Time.time < gb.ToastUntil) Text(R(0, 808, RefW, 22), gb.Toast, 14, Gold, TextAnchor.MiddleCenter, 0.7f);
             GUI.enabled = Progress.IsUnlocked(gb.LobbyStage);
-            if (Button(R(290, 854, 236, 76), new Color(1f, 0.55f, 0.2f), "출격!", 30)) gb.OpenPanel(LobbyPanel.Prep);
+            if (CardButton(R(290, 854, 236, 76), new Color(1f, 0.55f, 0.2f), "출격!", 30, true)) gb.OpenPanel(LobbyPanel.Prep);
             GUI.enabled = true;
         }
 
         /// <summary>아이콘 + 글자 버튼 (대기실 아래 줄).</summary>
         private static bool IconButton(Rect r, Color tint, string icon, string label)
         {
-            var clicked = Button(r, tint);
+            var clicked = CardButton(r, tint);
             Image(new Rect(r.center.x - 20 * _s, r.y + 6 * _s, 40 * _s, 40 * _s), icon, Color.white);
             Text(new Rect(r.x, r.yMax - 30 * _s, r.width, 26 * _s), label, 16, Color.white);
             return clicked;
@@ -437,7 +442,7 @@ namespace ChromaFrontier.Client
             for (var i = 0; i < CardShop.All.Length; i++)
                 DrawShopCard(gb, CardShop.All[i], R(x0 + i % 3 * (cw + gap), 150 + i / 3 * (ch + gap), cw, ch));
 
-            if (Button(R(36, 814, 220, 56), new Color(0.4f, 0.42f, 0.58f), "가진 카드로 채우기", 17))
+            if (PillButton(R(36, 814, 220, 56), "가진 카드로 채우기", 17))
             {
                 cards.FillDefault();
                 Progress.SaveCards();
@@ -582,7 +587,7 @@ namespace ChromaFrontier.Client
             Text(R(36, 616, RefW - 72, 30), cost > 0 ? $"고른 소모품: 결정 {cost}개" : "소모품 없이 출격해도 돼요", 16, cost > 0 ? Gold : Soft, TextAnchor.MiddleCenter, 0f);
             Text(R(36, 648, RefW - 72, 44), gb.PanelMessage, 15, Gold, TextAnchor.MiddleCenter, 0f);
 
-            if (Button(R(46, 704, 200, 66), new Color(0.4f, 0.42f, 0.58f), "취소", 22)) gb.OpenPanel(LobbyPanel.None);
+            if (PillButton(R(46, 704, 200, 66), "취소", 22)) gb.OpenPanel(LobbyPanel.None);
             var go = R(262, 704, 232, 66);
             if (cost > 0 ? PriceButton(go, new Color(1f, 0.55f, 0.2f), "출격", cost, 24) : Button(go, new Color(1f, 0.55f, 0.2f), "출격!", 28))
                 gb.Sortie();
@@ -743,9 +748,9 @@ namespace ChromaFrontier.Client
             }
 
             GUI.enabled = gb.RoadPage > 0;
-            if (Button(R(22, 750, 64, 50), new Color(0.4f, 0.42f, 0.58f), "◀", 20)) gb.RoadPage--;
+            if (PillButton(R(22, 750, 64, 50), "◀", 20)) gb.RoadPage--;
             GUI.enabled = gb.RoadPage + 1 < pages;
-            if (Button(R(164, 750, 64, 50), new Color(0.4f, 0.42f, 0.58f), "▶", 20)) gb.RoadPage++;
+            if (PillButton(R(164, 750, 64, 50), "▶", 20)) gb.RoadPage++;
             GUI.enabled = true;
             Text(R(86, 750, 78, 50), $"{gb.RoadPage + 1} / {pages}", 17, Color.white);
             var ready2 = Progress.RoadReadyCount();
@@ -812,7 +817,7 @@ namespace ChromaFrontier.Client
         {
             var floor = gb.TowerFloor;
             var p = PuzzleCatalog.Floors[floor];
-            if (Button(R(14, 14, 90, 44), new Color(0.4f, 0.42f, 0.58f), "← 홈", 15)) gb.ShowHome();
+            if (PillButton(R(14, 14, 90, 44), "← 홈", 15)) gb.ShowHome();
             Text(R(110, 10, 300, 52), "크로마 첨탑", 30, Gold, TextAnchor.MiddleCenter, 0.7f);
             GemPill(R(RefW - 136, 14, 122, 44));
             Text(R(16, 66, RefW - 32, 26), $"정해진 카드로 몇 수 안에 모든 칸을 내 색으로!   {Progress.TowerCleared} / {PuzzleCatalog.Count}층", 14, Soft);
@@ -874,31 +879,32 @@ namespace ChromaFrontier.Client
         /// <summary>첨탑 전투 상단: 나가기·다시(바로), 남은 수, 층, 힌트, 칸 수 바, 안내.</summary>
         private static void DrawPuzzleTop(GameBootstrap gb, Game g)
         {
+            Fill(R(0, 0, RefW, 300), "UI/fade_top", Color.white);
             var b = g.Board;
             var total = Mathf.Max(1, b.Playable);
             var mine = b.Count(Side.Player);
-            if (Button(R(14, 14, 66, 44), new Color(0.4f, 0.42f, 0.58f), "나가기", 16)) gb.ExitToLobby();
-            if (Button(R(86, 14, 66, 44), new Color(0.4f, 0.42f, 0.58f), "다시", 16)) gb.Retry();
+            if (PillButton(R(14, 14, 66, 44), "나가기", 16)) gb.ExitToLobby();
+            if (PillButton(R(86, 14, 66, 44), "다시", 16)) gb.Retry();
 
             var left = gb.MovesLeft;
             var movePill = R(160, 14, 132, 44);
             Nine(movePill, "UI/button", 22, left <= 1 ? new Color(0.95f, 0.45f, 0.3f) : new Color(0.3f, 0.55f, 0.95f));
             Text(movePill, $"남은 수 {left}", 19, Color.white);
             var floorPill = R(298, 14, 104, 44);
-            Nine(floorPill, "UI/panel", 28, Color.white);
+            Nine(floorPill, "UI/pill", 22, Color.white);
             Text(floorPill, $"{gb.Puzzle.Floor}층", 18, Gold);
             if (Button(R(RefW - 130, 14, 116, 44), new Color(0.45f, 0.48f, 0.65f), gb.HintShown ? "힌트 닫기" : "힌트", 17)) gb.ToggleHint();
 
             Text(R(0, 66, RefW, 30), "모든 칸을 내 색으로", 22, Color.white, TextAnchor.MiddleCenter, 0.6f);
             var bar = R(36, 98, RefW - 72, 46);
-            Nine(bar, "UI/bar_frame", 30, Color.white);
+            Nine(bar, "UI/pill", 22, Color.white);
             var inner = Inset(bar, 7);
             var pw = inner.width * mine / total;
             if (pw > 1f) Nine(new Rect(inner.x, inner.y, Mathf.Max(pw, inner.height), inner.height), "UI/bar_fill", 22, Palette.Player);
             Text(inner, $"{mine} / {total}칸", 19, Color.white, TextAnchor.MiddleCenter, 0.7f);
 
             var msg = R(24, 152, RefW - 48, 64);
-            Nine(msg, "UI/panel", 28, new Color(1f, 1f, 1f, 0.85f));
+            Nine(msg, "UI/pill", 22, new Color(1f, 1f, 1f, 0.85f));
             Text(Inset(msg, 5), gb.Message, 16, gb.HintShown ? Gold : Soft, TextAnchor.MiddleCenter, 0f);
         }
 
@@ -947,7 +953,7 @@ namespace ChromaFrontier.Client
             if (hasNext && Button(R(80, 478, 380, 58), new Color(1f, 0.55f, 0.2f), $"{p.Floor + 1}층으로", 24)) gb.NextStage();
             if (canUndo && Button(R(80, 478, 380, 58), new Color(0.3f, 0.65f, 0.8f), "마지막 수 무르기", 22)) gb.Undo();
             if (Button(R(80, y, 184, 58), Palette.Player, "다시 하기", 21)) gb.Retry();
-            if (Button(R(276, y, 184, 58), new Color(0.4f, 0.42f, 0.58f), "첨탑으로", 21)) gb.ExitToLobby();
+            if (PillButton(R(276, y, 184, 58), "첨탑으로", 21)) gb.ExitToLobby();
         }
 
         // ---------------------------------------------------------------- 전투 상단
@@ -959,7 +965,8 @@ namespace ChromaFrontier.Client
             var p = b.Count(Side.Player);
             var a = b.Count(Side.Ai);
 
-            if (Button(R(14, 14, 66, 44), new Color(0.4f, 0.42f, 0.58f), "나가기", 16)) gb.ExitToLobby();
+            Fill(R(0, 0, RefW, 300), "UI/fade_top", Color.white);
+            if (PillButton(R(14, 14, 66, 44), "나가기", 16)) gb.ExitToLobby();
 
             // 다시하기: 같은 스테이지를 새 판으로. 실수로 눌러 판을 날리지 않게 3초 안에 한 번 더 눌러야 한다.
             // (튜토리얼에서는 숨김. 게임이 끝났으면 결과 창에 다시 하기가 있다.)
@@ -974,22 +981,23 @@ namespace ChromaFrontier.Client
             }
 
             var turnPill = R(160, 14, 112, 44);
-            Nine(turnPill, "UI/panel", 28, Color.white);
+            Nine(turnPill, "UI/pill", 22, Color.white);
             Text(turnPill, $"턴 {Mathf.Min(g.Turn + 1, g.MaxTurns)} / {g.MaxTurns}", 17, Color.white);
 
             var stagePill = R(278, 14, 112, 44);
-            Nine(stagePill, "UI/panel", 28, gb.Stage.IsBoss ? new Color(1f, 0.75f, 0.7f) : Color.white);
+            Nine(stagePill, "UI/pill", 22, gb.Stage.IsBoss ? new Color(1f, 0.75f, 0.7f) : Color.white);
             Text(stagePill, gb.Stage.IsBoss ? $"보스 {gb.Stage.Code}" : $"스테이지 {gb.Stage.Code}", 15, gb.Stage.IsBoss ? Gold : Color.white);
 
             var who = R(RefW - 144, 14, 130, 44);
             var mine = g.Current == Side.Player; // 팁 카드가 떠 있어도 실제 차례를 보여 준다
             var whoColor = g.IsOver ? new Color(0.6f, 0.6f, 0.7f) : mine ? Palette.Player : Palette.Ai;
+            if (mine && !g.IsOver) Image(Inset(who, -12), "UI/glow", new Color(whoColor.r, whoColor.g, whoColor.b, 0.35f + 0.2f * Mathf.Sin(Time.unscaledTime * 4f)));
             Nine(who, "UI/button", 22, whoColor);
             Text(who, g.IsOver ? "게임 종료" : mine ? "내 차례" : "AI 차례", 19, Color.white);
 
-            Text(R(0, 66, RefW, 30), "영토 점유율", 22, Color.white, TextAnchor.MiddleCenter, 0.6f);
+            Text(R(0, 66, RefW, 30), "영토 점유율", 17, Soft, TextAnchor.MiddleCenter, 0.6f);
             var bar = R(36, 98, RefW - 72, 46);
-            Nine(bar, "UI/bar_frame", 30, Color.white);
+            Nine(bar, "UI/pill", 22, Color.white);
             var inner = Inset(bar, 7);
             var pw = inner.width * p / total;
             var aw = inner.width * a / total;
@@ -999,7 +1007,7 @@ namespace ChromaFrontier.Client
             Text(Inset(inner, 4), $"{a * 100 / total}%", 19, Color.white, TextAnchor.MiddleRight, 0.7f);
 
             var msg = R(24, 152, RefW - 48, 54);
-            Nine(msg, "UI/panel", 28, new Color(1f, 1f, 1f, 0.85f));
+            Nine(msg, "UI/pill", 22, new Color(1f, 1f, 1f, 0.85f));
             Text(Inset(msg, 5), gb.Message, 15, Soft, TextAnchor.MiddleCenter, 0f);
 
             DrawObjectives(gb, g);
@@ -1019,7 +1027,7 @@ namespace ChromaFrontier.Client
                 var since = gb.ObjectiveFlash.TryGetValue(o.Def.Id, out var t) ? Time.time - t : 99f;
                 var tint = o.Done ? new Color(0.55f, 0.95f, 0.6f, 0.92f) : new Color(1f, 1f, 1f, 0.8f);
                 if (since < 1.5f) tint = Color.Lerp(tint, Gold, 0.5f + 0.5f * Mathf.Sin(since * 12f));
-                Nine(r, "UI/panel", 28, tint);
+                Nine(r, "UI/pill", 22, tint);
                 var head = o.Done ? "완료! " + o.Def.Text : $"{o.Def.Text} {ObjectiveProgress(g, o.Def)}";
                 var small = n > ObjectiveCatalog.PerGame; // 소모품 목표 추가로 4칸이면 글자를 줄인다
                 Text(new Rect(r.x + 4 * _s, r.y + 3 * _s, r.width - 8 * _s, 22 * _s), head, small ? 11 : 13, Color.white, TextAnchor.MiddleCenter, 0.6f);
@@ -1046,6 +1054,7 @@ namespace ChromaFrontier.Client
         /// </summary>
         private static void DrawHand(GameBootstrap gb, Game g)
         {
+            Fill(R(0, 660, RefW, 300), "UI/fade_bottom", Color.white);
             var deck = gb.MyDeck;
             var hv = gb.Hand;
             var e = Event.current;
@@ -1197,7 +1206,7 @@ namespace ChromaFrontier.Client
         /// <summary>튜토리얼 상단: 건너뛰기, 진행도, 가이드 '방울이'의 말풍선.</summary>
         private static void DrawCoach(GameBootstrap gb)
         {
-            if (Button(R(14, 14, 104, 44), new Color(0.4f, 0.42f, 0.58f), "건너뛰기", 17)) gb.SkipTutorial();
+            if (PillButton(R(14, 14, 104, 44), "건너뛰기", 17)) gb.SkipTutorial();
             var pill = R(130, 14, RefW - 144, 44);
             Nine(pill, "UI/panel", 28, Color.white);
             Text(pill, $"튜토리얼 {gb.LessonIndex + 1} / {TutorialCatalog.Count}  ·  {gb.Lesson.Title}", 18, Color.white);
@@ -1359,6 +1368,7 @@ namespace ChromaFrontier.Client
             var w = g.Winner;
             var hasNext = w == Side.Player && (gb.Stage.Index + 1 < StageCatalog.Count || gb.LastNewMode);
             Nine(R(50, 250, 440, hasNext ? 462 : 400), "UI/panel", 28, Color.white);
+            if (w == Side.Player) Image(R(110, 200, 320, 200), "UI/glow", new Color(1f, 0.85f, 0.4f, 0.7f));
             var title = w == Side.Player ? "승리!" : w == Side.Ai ? "패배" : "무승부";
             Text(R(50, 264, 440, 70), title, 54, w == Side.Player ? Gold : w == Side.Ai ? new Color(1f, 0.6f, 0.55f) : Color.white, TextAnchor.MiddleCenter, 0.7f);
             Text(R(50, 330, 440, 28), $"{gb.Stage.Code} {gb.Stage.Name}", 17, Soft);
@@ -1373,7 +1383,7 @@ namespace ChromaFrontier.Client
 
             // 받은 결정 (+ 첫 클리어·목표 보너스)
             var gemRow = R(110, 492, 320, 44);
-            Nine(gemRow, "UI/panel", 28, new Color(1f, 0.95f, 0.75f));
+            Nine(gemRow, "UI/pill", 22, Color.white);
             Image(new Rect(gemRow.x + 10 * _s, gemRow.y + 5 * _s, 34 * _s, 34 * _s), "UI/icon_gem", Color.white);
             Text(new Rect(gemRow.x + 48 * _s, gemRow.y, gemRow.width - 56 * _s, gemRow.height), $"+{gb.LastGems}  (보유 {Progress.Gems})", 20, Gold, TextAnchor.MiddleLeft);
             var extras = new List<string>();
@@ -1383,13 +1393,13 @@ namespace ChromaFrontier.Client
             if (Progress.RoadReadyCount() > 0) extras.Add("별의 길 보상이 있어요");
             Text(R(50, 538, 440, 24), string.Join("  ·  ", extras), 13, Soft, TextAnchor.MiddleCenter, 0f);
 
-            if (hasNext && Button(R(80, 568, 380, 62), new Color(1f, 0.55f, 0.2f), gb.LastNewMode ? $"{ModeName(Progress.Mode)} 1-1" : "다음 스테이지", 24))
+            if (hasNext && CardButton(R(80, 568, 380, 62), new Color(1f, 0.55f, 0.2f), gb.LastNewMode ? $"{ModeName(Progress.Mode)} 1-1" : "다음 스테이지", 24))
             {
                 if (gb.LastNewMode) gb.StartNewMode(); else gb.NextStage();
             }
             var y = hasNext ? 640 : 576;
-            if (Button(R(80, y, 184, 58), Palette.Player, "다시 하기", 21)) gb.Retry();
-            if (Button(R(276, y, 184, 58), new Color(0.4f, 0.42f, 0.58f), "대기실", 21)) gb.ExitToLobby();
+            if (CardButton(R(80, y, 184, 58), Palette.Player, "다시 하기", 21)) gb.Retry();
+            if (PillButton(R(276, y, 184, 58), "대기실", 21)) gb.ExitToLobby();
         }
     }
 }

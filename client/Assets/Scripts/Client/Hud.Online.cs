@@ -95,7 +95,7 @@ namespace ChromaFrontier.Client
             var panel = R(30, 200, RefW - 60, 520);
             Nine(panel, "UI/panel", 28, Color.white);
             Text(R(46, 212, 300, 44), "계정 · 설정", 30, Gold, TextAnchor.MiddleLeft, 0.7f);
-            if (Button(R(RefW - 130, 214, 84, 42), new Color(0.4f, 0.42f, 0.58f), "닫기", 17)) gb.OpenPanel(LobbyPanel.None);
+            if (PillButton(R(RefW - 130, 214, 84, 42), "닫기", 17)) gb.OpenPanel(LobbyPanel.None);
 
             var y = 270f;
             void Row(string label, string value)
@@ -138,7 +138,7 @@ namespace ChromaFrontier.Client
         private static void DrawPvpLobby(GameBootstrap gb)
         {
             Fill(R(0, 0, RefW, 130), "UI/fade_top", Color.white);
-            if (Button(R(14, 14, 100, 44), new Color(0.4f, 0.42f, 0.58f), "← 홈", 16)) gb.ShowHome();
+            if (PillButton(R(14, 14, 100, 44), "← 홈", 16)) gb.ShowHome();
             Text(R(0, 14, RefW, 44), "대전", 28, Gold, TextAnchor.MiddleCenter, 0.7f);
             GemPill(R(RefW - 132, 14, 118, 44));
 
@@ -153,10 +153,10 @@ namespace ChromaFrontier.Client
 
             Text(R(20, 64, RefW - 40, 26), $"{Online.Name}  ·  전적 {Progress.PvpWins}승 {Progress.PvpDraws}무 {Progress.PvpLosses}패", 16, Color.white);
             Text(R(20, 88, RefW - 40, 22), $"이기면 결정 {PvpCatalog.WinGems}, 비기면 {PvpCatalog.DrawGems}, 지면 {PvpCatalog.LoseGems}  ·  덱은 편성 그대로, 강화는 적용 안 돼요", 13, Soft, TextAnchor.MiddleCenter, 0f);
-            if (Button(R(14, 116, 250, 70), new Color(0.3f, 0.6f, 1f), "1:1 방 만들기", 22)) gb.CreateRoom(1);
-            if (Button(R(276, 116, 250, 70), new Color(0.85f, 0.45f, 0.3f), "2:2 방 만들기", 22)) gb.CreateRoom(2);
+            if (CardButton(R(14, 116, 250, 72), new Color(0.36f, 0.62f, 1f), "1:1 방 만들기", 22)) gb.CreateRoom(1);
+            if (CardButton(R(276, 116, 250, 72), new Color(0.95f, 0.5f, 0.35f), "2:2 방 만들기", 22)) gb.CreateRoom(2);
 
-            var list = R(14, 196, RefW - 28, 700);
+            var list = R(14, 200, RefW - 28, 700);
             Nine(list, "UI/panel", 28, Color.white);
             Text(R(30, 204, 300, 36), "열린 방", 20, Gold, TextAnchor.MiddleLeft, 0.6f);
             if (Online.Rooms.Count == 0)
@@ -166,7 +166,8 @@ namespace ChromaFrontier.Client
                 var room = Online.Rooms[i];
                 var r = R(26, 246 + i * 80, RefW - 52, 72);
                 var full = room.Filled >= room.seats.Length;
-                Nine(r, "UI/panel", 28, full ? new Color(0.7f, 0.72f, 0.8f) : new Color(1f, 1f, 1f, 0.95f));
+                if (!full && HotGlow(r)) Image(Inset(r, -10), "UI/glow", new Color(1f, 1f, 1f, 0.3f));
+                Nine(r, "UI/glass", 28, full ? new Color(0.7f, 0.72f, 0.8f, 0.6f) : Color.white);
                 var chip = new Rect(r.x + 10 * _s, r.y + 16 * _s, 56 * _s, 40 * _s);
                 Nine(chip, "UI/button", 22, room.size == 2 ? new Color(0.85f, 0.45f, 0.3f) : new Color(0.3f, 0.6f, 1f));
                 Text(chip, room.size == 2 ? "2:2" : "1:1", 17, Color.white, TextAnchor.MiddleCenter, 0f);
@@ -188,8 +189,10 @@ namespace ChromaFrontier.Client
         {
             var room = Online.Room;
             if (room == null) return;
+            Fill(R(0, 0, RefW, 130), "UI/fade_top", Color.white);
+            Fill(R(0, 760, RefW, 200), "UI/fade_bottom", Color.white);
             var me = Game.SideOfSeat(Mathf.Max(0, Online.MySeat));
-            if (Button(R(14, 14, 90, 44), new Color(0.4f, 0.42f, 0.58f), "나가기", 16)) gb.LeaveRoom();
+            if (PillButton(R(14, 14, 90, 44), "나가기", 16)) gb.LeaveRoom();
             Text(R(110, 14, RefW - 220, 44), room.title, 20, Color.white, TextAnchor.MiddleCenter, 0.7f);
             var mode = R(RefW - 104, 14, 90, 44);
             Nine(mode, "UI/button", 22, room.size == 2 ? new Color(0.85f, 0.45f, 0.3f) : new Color(0.3f, 0.6f, 1f));
@@ -215,13 +218,19 @@ namespace ChromaFrontier.Client
                     var r = R(14 + col * 262, 458 + k * 118, 250, 108);
                     if (s.Empty)
                     {
-                        if (Button(r, new Color(0.45f, 0.47f, 0.6f))) Online.MoveSeat(seat);
+                        if (HotGlow(r)) Image(Inset(r, -10), "UI/glow", new Color(1f, 1f, 1f, 0.35f));
+                        Nine(r, "UI/glass", 28, Color.white);
+                        if (GUI.Button(r, GUIContent.none, GUIStyle.none)) Online.MoveSeat(seat);
                         Text(new Rect(r.x, r.y + 20 * _s, r.width, 30 * _s), "빈 자리", 20, Color.white);
                         Text(new Rect(r.x, r.y + 56 * _s, r.width, 26 * _s), "눌러서 이 자리로", 14, Soft, TextAnchor.MiddleCenter, 0f);
                         continue;
                     }
-                    if (seat == Online.MySeat) Nine(Inset(r, -4), "UI/button", 22, Gold);
-                    Nine(r, "UI/button", 22, TeamColor(seat, me));
+                    if (seat == Online.MySeat)
+                    {
+                        Image(Inset(r, -16), "UI/glow", new Color(1f, 0.85f, 0.4f, 0.5f));
+                        Nine(Inset(r, -4), "UI/button", 22, Gold);
+                    }
+                    Nine(r, "UI/mode_card", 28, TeamColor(seat, me));
                     var host = s.uid == room.host;
                     if (host) Image(new Rect(r.x + 8 * _s, r.y + 8 * _s, 30 * _s, 30 * _s), "UI/crown", Color.white);
                     Text(new Rect(r.x + 8 * _s, r.y + 14 * _s, r.width - 16 * _s, 36 * _s), s.name + (seat == Online.MySeat ? " (나)" : ""), 20, Color.white);
@@ -236,13 +245,13 @@ namespace ChromaFrontier.Client
             if (gb.IsHost)
             {
                 GUI.enabled = gb.CanStartRoom;
-                if (Button(R(110, 844, RefW - 220, 80), new Color(1f, 0.55f, 0.2f), "시작!", 30)) Online.StartGame();
+                if (CardButton(R(110, 844, RefW - 220, 80), new Color(1f, 0.55f, 0.2f), "시작!", 30, true)) Online.StartGame();
                 GUI.enabled = true;
             }
             else if (Online.MySeat >= 0)
             {
                 var ready = room.seats[Online.MySeat].ready;
-                if (Button(R(110, 844, RefW - 220, 80), ready ? new Color(0.45f, 0.47f, 0.6f) : new Color(0.3f, 0.75f, 0.45f), ready ? "준비 취소" : "준비!", 28))
+                if (CardButton(R(110, 844, RefW - 220, 80), ready ? new Color(0.45f, 0.47f, 0.6f) : new Color(0.3f, 0.75f, 0.45f), ready ? "준비 취소" : "준비!", 28, !ready))
                     Online.SetReady(!ready);
             }
             OnlineError(764);
@@ -265,6 +274,7 @@ namespace ChromaFrontier.Client
             var mine = b.Count(gb.Me);
             var theirs = b.Count(gb.Me.Opponent());
 
+            Fill(R(0, 0, RefW, 300), "UI/fade_top", Color.white);
             var armed = Time.unscaledTime < _leaveArmedUntil;
             if (Button(R(14, 14, 76, 44), armed ? new Color(0.95f, 0.45f, 0.3f) : new Color(0.4f, 0.42f, 0.58f), armed ? "기권?" : "나가기", armed ? 15 : 16))
             {
@@ -273,12 +283,12 @@ namespace ChromaFrontier.Client
             }
 
             var turnPill = R(96, 14, 108, 44);
-            Nine(turnPill, "UI/panel", 28, Color.white);
+            Nine(turnPill, "UI/pill", 22, Color.white);
             Text(turnPill, $"턴 {Mathf.Min(g.Turn + 1, g.MaxTurns)} / {g.MaxTurns}", 16, Color.white);
 
             var left = gb.PvpTimeLeft;
             var timer = R(210, 14, 84, 44);
-            Nine(timer, "UI/panel", 28, left < 10f ? new Color(1f, 0.6f, 0.55f) : Color.white);
+            Nine(timer, "UI/pill", 22, left < 10f ? new Color(1f, 0.6f, 0.55f) : Color.white);
             Text(timer, $"{Mathf.CeilToInt(left)}초", 18, left < 10f ? new Color(1f, 0.85f, 0.4f) : Color.white);
 
             var who = R(300, 14, RefW - 314, 44);
@@ -289,9 +299,9 @@ namespace ChromaFrontier.Client
             if (!g.IsOver && p.Left(seat)) label += " (나감)";
             Text(who, label, 17, Color.white);
 
-            Text(R(0, 66, RefW, 30), "영토 점유율", 22, Color.white, TextAnchor.MiddleCenter, 0.6f);
+            Text(R(0, 66, RefW, 30), "영토 점유율", 17, Soft, TextAnchor.MiddleCenter, 0.6f);
             var bar = R(36, 98, RefW - 72, 46);
-            Nine(bar, "UI/bar_frame", 30, Color.white);
+            Nine(bar, "UI/pill", 22, Color.white);
             var inner = Inset(bar, 7);
             var pw = inner.width * mine / total;
             var aw = inner.width * theirs / total;
@@ -301,7 +311,7 @@ namespace ChromaFrontier.Client
             Text(Inset(inner, 4), $"{theirs * 100 / total}% 상대", 18, Color.white, TextAnchor.MiddleRight, 0.7f);
 
             var msg = R(24, 152, RefW - 48, 54);
-            Nine(msg, "UI/panel", 28, new Color(1f, 1f, 1f, 0.85f));
+            Nine(msg, "UI/pill", 22, new Color(1f, 1f, 1f, 0.85f));
             Text(Inset(msg, 5), gb.Message, 15, Soft, TextAnchor.MiddleCenter, 0f);
 
             // 자리 줄: 차례 순서대로, 지금 차례는 금빛
@@ -347,6 +357,7 @@ namespace ChromaFrontier.Client
             var winner = p.ForfeitWinner != Side.None ? p.ForfeitWinner : g.Winner;
             var won = winner == gb.Me;
             Nine(R(50, 250, 440, 420), "UI/panel", 28, Color.white);
+            if (won) Image(R(110, 200, 320, 200), "UI/glow", new Color(1f, 0.85f, 0.4f, 0.7f));
             var title = won ? "승리!" : winner == Side.None ? "무승부" : "패배";
             Text(R(50, 264, 440, 70), title, 54, won ? Gold : winner == Side.None ? Color.white : new Color(1f, 0.6f, 0.55f), TextAnchor.MiddleCenter, 0.7f);
             Text(R(50, 332, 440, 28), $"{(p.Room.size == 2 ? "2:2" : "1:1")} 대전  ·  {p.Map.Name}", 17, Soft);
@@ -358,11 +369,11 @@ namespace ChromaFrontier.Client
             Text(R(50, 408, 440, 26), note, 14, new Color(1f, 0.9f, 0.7f));
 
             var gemRow = R(110, 446, 320, 44);
-            Nine(gemRow, "UI/panel", 28, new Color(1f, 0.95f, 0.75f));
+            Nine(gemRow, "UI/pill", 22, Color.white);
             Image(new Rect(gemRow.x + 10 * _s, gemRow.y + 5 * _s, 34 * _s, 34 * _s), "UI/icon_gem", Color.white);
             Text(new Rect(gemRow.x + 48 * _s, gemRow.y, gemRow.width - 56 * _s, gemRow.height), $"+{gb.LastGems}  (보유 {Progress.Gems})", 20, Gold, TextAnchor.MiddleLeft);
             Text(R(50, 498, 440, 26), $"전적 {Progress.PvpWins}승 {Progress.PvpDraws}무 {Progress.PvpLosses}패", 16, Soft);
-            if (Button(R(110, 560, 320, 70), new Color(1f, 0.55f, 0.2f), "대전 로비로", 24)) gb.LeavePvp();
+            if (CardButton(R(110, 560, 320, 70), new Color(1f, 0.55f, 0.2f), "대전 로비로", 24)) gb.LeavePvp();
         }
     }
 }

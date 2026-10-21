@@ -149,6 +149,28 @@ namespace ChromaFrontier.Client
             Image(new Rect(cx - 48 * k * _s, cy - 100 * k * _s + 4 * k * _s + bob, 96 * k * _s, 112 * k * _s), sprite, Color.white);
         }
 
+        /// <summary>반투명 캡슐 버튼 (나가기·닫기·취소 같은 보조 버튼). 마우스를 올리면 후광.</summary>
+        private static bool PillButton(Rect r, string label, int size)
+        {
+            var a = GUI.enabled ? 1f : 0.45f;
+            if (HotGlow(r)) Image(Inset(r, -10), "UI/glow", new Color(1f, 1f, 1f, 0.45f));
+            Nine(r, "UI/pill", 22, new Color(1f, 1f, 1f, a));
+            Text(r, label, size, new Color(1f, 1f, 1f, a), TextAnchor.MiddleCenter, 0.5f);
+            return GUI.Button(r, GUIContent.none, GUIStyle.none);
+        }
+
+        /// <summary>카드 재질(mode_card)의 큰 버튼. pulse 면 후광이 숨 쉬듯 깜빡인다 (출격·시작).</summary>
+        private static bool CardButton(Rect r, Color tint, string label = null, int size = 26, bool pulse = false)
+        {
+            var hot = HotGlow(r);
+            var glow = hot ? 0.55f : pulse ? 0.22f + 0.18f * Mathf.Sin(Time.unscaledTime * 4f) : 0f;
+            if (GUI.enabled && glow > 0f) Image(Inset(r, -16), "UI/glow", new Color(tint.r, tint.g, tint.b, glow));
+            var t = !GUI.enabled ? Color.Lerp(tint, Color.gray, 0.65f) : hot ? Color.Lerp(tint, Color.white, 0.15f) : tint;
+            Nine(r, "UI/mode_card", 28, t);
+            if (label != null) Text(r, label, size, GUI.enabled ? Color.white : new Color(0.88f, 0.88f, 0.92f), TextAnchor.MiddleCenter, 0.8f);
+            return GUI.Button(r, GUIContent.none, GUIStyle.none);
+        }
+
         /// <summary>마우스가 올라가 있는가 (창이 떠 있으면 아니다).</summary>
         private static bool HotGlow(Rect r) => GUI.enabled && r.Contains(Event.current.mousePosition);
 

@@ -14,7 +14,7 @@ namespace ChromaFrontier.Client
             Nine(R(10, 36, RefW - 20, 904), "UI/panel", 28, Color.white);
             Text(R(24, 48, 300, 44), "상점", 30, Gold, TextAnchor.MiddleLeft, 0.7f);
             GemPill(R(RefW - 260, 50, 124, 40));
-            if (Button(R(RefW - 128, 48, 104, 44), new Color(0.4f, 0.42f, 0.58f), "닫기", 18)) gb.OpenPanel(LobbyPanel.None);
+            if (PillButton(R(RefW - 128, 48, 104, 44), "닫기", 18)) gb.OpenPanel(LobbyPanel.None);
 
             for (var i = 0; i < ShopTabs.Length; i++)
             {

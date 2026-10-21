@@ -239,6 +239,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - 레슨은 6x6 연습 보드에 카드 한 장(`Lesson.Card`, 섞지 않은 덱 `Game.Create(..., shuffle: false)`)을 목표 칸(`Target`, 물은 `WaterDir`까지)에 내는 것이다. 테스트 `EveryLesson_TargetIsPlayable_AndProducesTheLessonResult`가 목표 수가 `Check`를 만족하는지 검증한다. 레슨을 고치면 이 테스트로 확인한다.
   - 놓을 수 있는 칸은 목표로만 좁힌다(`RestrictToLesson`). AI는 두지 않는다. 카드는 미리 고르지 않는다. 실제 게임과 똑같이 카드를 끌어 놓거나, 카드를 누른 뒤 칸을 눌러야 놓인다. 목표 칸은 카드를 고르기 전부터 빛나고 그쪽으로 확대된다. 카드 없이 칸을 누르면 카드를 먼저 고르라는 안내가 뜬다.
   - **개념 카드**(`ConceptPage`, `GameBootstrap.Concepts`): 레슨마다 시작 전에 그림(유닛·타일 그림과 `+`·`=`·`→`·`vs`)과 짧은 설명을 먼저 보여 준다. 첫 레슨은 "게임 목표", "카드 놓는 곳" 두 장이다. 떠 있는 동안은 입력을 막는다(`PlayerTurn`이 거짓).
+  - (HUD 공통 디자인) 보조 버튼(나가기·닫기·취소)은 반투명 캡슐 `Hud.PillButton`, 큰 버튼(출격·시작·모드·스테이지 노드·방 만들기·자리 카드)은 카드 재질 `Hud.CardButton`(마우스를 올리면 후광, 출격·시작은 후광이 숨 쉬듯 깜빡임). 전투·대기실·대전 화면은 위·아래에 그늘 띠를 깔고, 위쪽 정보(턴·스테이지·점유율 막대·메시지·게임 중 목표)는 캡슐(`pill`)로 그린다. 승리 결과 창 제목 뒤에는 금빛 후광.
   - 안내 글은 밝은 말풍선(`UI/bubble`)에 진한 큰 글자(19~20pt)로 쓰고, 핵심 말은 리치 텍스트 `<color>`로 강조한다(`Hud.Rich`). 예전의 어두운 패널 위 15pt 글자는 잘 안 보였다. 목표 칸 위에는 통통 튀는 "여기!"(물 방향은 "이쪽으로!") 표시가 뜬다(`TutorialTarget`).
   - 가이드 방울이 말풍선(`Hud.DrawCoach`)과, 카드에서 목표 칸까지 끄는(물은 쓸어 넘기는) 손가락 시범(`HintGesture`, `Hud.DrawFinger`, `UI/finger`)이 있다.
   - 처음 실행(`Progress.TutorialDone` false)이면 자동으로 시작한다. 마지막 레슨을 마치는 순간 완료로 기록되어 다시 나오지 않는다. 중간에 나가면 `cf.tutorialLesson`의 레슨부터 이어진다. 대기실 배우기로 다시 볼 수 있다. 마치면 1-1로 바로 이어진다.
