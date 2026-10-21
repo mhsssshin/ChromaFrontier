@@ -16,10 +16,15 @@ namespace ChromaFrontier.Client
         /// <summary>그림·색을 고를 때 쓰는 쪽: 내 팀은 Player, 상대 팀은 Ai.</summary>
         public static Side Look(Side s) => Viewer == Side.Ai ? s.Opponent() : s;
 
+        /// <summary>내 팀·상대 팀 땅 색 (타일 스킨 색). 점유율 막대 등에 쓴다.</summary>
+        public static Color Mine = Player, Foe = Ai;
+
+        public static Color Hex(string hex) => ColorUtility.TryParseHtmlString(hex, out var c) ? c : Color.gray;
+
         public static Color Of(Side s) => Look(s) switch
         {
-            Side.Player => Player,
-            Side.Ai => Ai,
+            Side.Player => Mine,
+            Side.Ai => Foe,
             _ => Neutral,
         };
 

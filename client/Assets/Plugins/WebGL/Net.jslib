@@ -3,11 +3,11 @@
 mergeInto(LibraryManager.library, {
   CF_NetAvailable: function () { return window.CFNet ? 1 : 0; },
 
-  CF_NetCall: function (name, a, b, c, d) {
+  CF_NetCall: function (name, a, b, c, d, e) {
     if (!window.CFNet) return;
     var f = window.CFNet[UTF8ToString(name)];
     if (typeof f !== 'function') return;
-    try { f(UTF8ToString(a), UTF8ToString(b), UTF8ToString(c), UTF8ToString(d)); } catch (e) { console.warn('[CFNet]', e); }
+    try { f(UTF8ToString(a), UTF8ToString(b), UTF8ToString(c), UTF8ToString(d), UTF8ToString(e)); } catch (err) { console.warn('[CFNet]', err); }
   },
 
   CF_NetPoll: function () {

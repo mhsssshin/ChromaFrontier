@@ -12,7 +12,7 @@ const top = (inset = 0, r = 10) => {
 };
 
 /** 윗면 색, 옆면 띠 색으로 타일 한 장. */
-function tile(name, { topA, topB, band, seed, grass = true, sprinkle = null }) {
+function tile(name, { topA, topB, band, seed, grass = true, sprinkle = null, pattern = null }) {
   const p = new Pic(T.w, T.h);
   const L = [T.cx - T.hw, T.cy], B = [T.cx, T.cy + T.hh], R = [T.cx + T.hw, T.cy];
   const d = T.depth;
@@ -47,6 +47,7 @@ function tile(name, { topA, topB, band, seed, grass = true, sprinkle = null }) {
       p.path(`M${f(x - 3)} ${f(y + 1)} Q${f(x - 1)} ${f(y - 4)} ${f(x)} ${f(y + 1)} Q${f(x + 1)} ${f(y - 5)} ${f(x + 3)} ${f(y + 1)} Z`, dark(topA, 0.12), 'opacity="0.7"');
     }
   }
+  if (pattern) skinPattern(p, pattern, topA, topB, seed);
   // 테마 흩뿌림: 꽃잎·낙엽·조약돌·반짝임
   if (sprinkle) {
     const r2 = rng(seed * 7 + 3);
@@ -111,6 +112,7 @@ export function tiles() {
       p.path(top(4, 10), 'none', 'stroke="#e6fdff" stroke-width="2.5" stroke-dasharray="10 6" opacity="0.9"');
     }),
 
+    ...skins(),
     ...terrain(),
     ...decor(THEMES[0]),
     background(THEMES[0]),
@@ -294,4 +296,112 @@ export function boardFoam() {
   p.path(dia(540, 290, 30), '#1f5f9a', `opacity="0.35" filter="${p.blur(14)}"`);
   p.path(dia(530, 280, 8), '#e9fbff', `opacity="0.75" filter="${p.blur(6)}"`);
   return p.sprite('Bg/foam');
+}
+
+// ---------------------------------------------------------------- 내 땅 타일 스킨 (Core TileSkins 와 id·색을 맞춘다)
+// 재질 × 색 조합마다 한 장: Tiles/skin_<재질>_<색>. 기본 재질의 파랑·빨강은 tile_player·tile_ai 를 그대로 쓴다.
+export const SKIN_MATERIALS = ['plain', 'grass', 'wood', 'stone', 'water', 'marble', 'crystal'];
+export const SKIN_COLORS = {
+  blue: ['#2f7fe8', '#6db4ff'], sky: ['#1fa8d0', '#7fe2f5'], navy: ['#3442b0', '#7f8cf0'], purple: ['#8048d8', '#c09cff'],
+  pink: ['#d84f9c', '#ff9fd0'], orange: ['#e8801f', '#ffc070'], white: ['#aab2c6', '#ffffff'], black: ['#2e2e3e', '#6a6a86'],
+  red: ['#e2463f', '#ff8a78'],
+};
+
+function skins() {
+  const out = [];
+  for (const m of SKIN_MATERIALS)
+    for (const [id, [a, b]] of Object.entries(SKIN_COLORS)) {
+      if (m === 'plain' && (id === 'blue' || id === 'red')) continue;
+      out.push(tile(`Tiles/skin_${m}_${id}`, { topA: a, topB: b, band: dark(a, 0.08), seed: 3 + (id.length * 7) % 5, grass: false, pattern: m }));
+    }
+  return out;
+}
+
+/** 윗면 재질 무늬 (윗면 마름모 안으로 잘라 그린다). */
+function skinPattern(p, kind, topA, topB, seed) {
+  if (kind === 'plain') return;
+  const clip = `clip-path="${p.clip(top(0, 12))}"`;
+  const g = (u, v) => [T.cx + (u - v) * T.hw, T.cy + (u + v) * T.hh]; // 격자 (u, v) ∈ [-0.5, 0.5] → 윗면
+  const P = ([x, y]) => `${f(x)} ${f(y)}`;
+  const r = rng(seed * 13 + kind.length);
+  const ink = dark(topA, 0.35), hi = light(topB, 0.55);
+  switch (kind) {
+    case 'grass': {
+      // 풀잎 다발과 진한 얼룩
+      for (let i = 0; i < 4; i++) {
+        const [x, y] = g(r() - 0.5, r() - 0.5);
+        p.path(ell(x, y, 11, 5), dark(topA, 0.12), `opacity="0.45" ${clip}`);
+      }
+      for (let i = 0; i < 14; i++) {
+        const [x, y] = g((r() - 0.5) * 0.9, (r() - 0.5) * 0.9);
+        p.path(`M${f(x - 4)} ${f(y + 2)} Q${f(x - 2)} ${f(y - 6)} ${f(x)} ${f(y + 2)} Q${f(x + 1)} ${f(y - 7)} ${f(x + 4)} ${f(y + 2)} Z`, i % 3 ? dark(topA, 0.2) : hi, 'opacity="0.8"');
+      }
+      break;
+    }
+    case 'wood': {
+      // 판자: v 방향으로 4장, 이음매와 나뭇결, 못
+      for (let k = 1; k < 4; k++) {
+        const v = -0.5 + k / 4;
+        p.add(`<path d="M${P(g(-0.6, v))} L${P(g(0.6, v))}" stroke="${ink}" stroke-width="2.4" opacity="0.7" ${clip}/>`);
+      }
+      for (let k = 0; k < 4; k++) {
+        const v0 = -0.5 + (k + 0.5) / 4;
+        for (let j = 0; j < 2; j++) {
+          const v = v0 + (j - 0.5) * 0.09, u0 = -0.5 + r() * 0.3;
+          p.add(`<path d="M${P(g(u0, v))} Q${P(g(u0 + 0.25, v + 0.03))} ${P(g(u0 + 0.5, v))}" fill="none" stroke="${dark(topA, 0.2)}" stroke-width="1.3" opacity="0.6" ${clip}/>`);
+        }
+        const cut = -0.2 + r() * 0.4;
+        p.add(`<path d="M${P(g(cut, v0 - 0.125))} L${P(g(cut, v0 + 0.125))}" stroke="${ink}" stroke-width="2" opacity="0.6" ${clip}/>`);
+        for (const u of [-0.42, 0.42]) { const [x, y] = g(u, v0); p.path(ell(x, y, 1.8, 1.2), ink, 'opacity="0.8"'); }
+      }
+      break;
+    }
+    case 'stone': {
+      // 돌길: 둥근 돌 여러 개 (밝은 윗변 + 진한 틈)
+      const cells = [[-0.3, -0.3], [0.05, -0.33], [0.33, -0.22], [-0.33, 0.02], [0, 0], [0.32, 0.1], [-0.25, 0.3], [0.1, 0.32], [0.38, 0.38], [-0.42, -0.42 + 0.84]];
+      for (const [u, v] of cells) {
+        const [x, y] = g(u + (r() - 0.5) * 0.05, v + (r() - 0.5) * 0.05);
+        const w = 13 + r() * 5, h = 7 + r() * 2.5;
+        p.path(ell(x, y + 1.5, w, h), ink, `opacity="0.55" ${clip}`);
+        p.path(ell(x, y, w - 1.5, h - 1.5), r() < 0.5 ? light(topA, 0.12) : topA, clip);
+        p.path(ell(x - w * 0.25, y - h * 0.3, w * 0.45, h * 0.35), hi, `opacity="0.55" ${clip}`);
+      }
+      break;
+    }
+    case 'water': {
+      // 물결: 밝은 물결선 + 반짝임
+      for (let k = 0; k < 5; k++) {
+        const v = -0.42 + k * 0.21;
+        let d = `M${P(g(-0.6, v))}`;
+        for (let u = -0.6; u < 0.6; u += 0.2) d += ` Q${P(g(u + 0.05, v - 0.06))} ${P(g(u + 0.1, v))} T${P(g(u + 0.2, v))}`;
+        p.add(`<path d="${d}" fill="none" stroke="${hi}" stroke-width="2.4" stroke-linecap="round" opacity="${k % 2 ? 0.55 : 0.85}" ${clip}/>`);
+      }
+      for (let i = 0; i < 3; i++) { const [x, y] = g((r() - 0.5) * 0.7, (r() - 0.5) * 0.7); p.path(star(x, y, 4, 1.2), '#ffffff', 'opacity="0.9"'); }
+      break;
+    }
+    case 'marble': {
+      // 대리석: 밝게 덮고 가는 결
+      p.path(top(0, 12), light(topB, 0.35), 'opacity="0.45"');
+      for (let k = 0; k < 4; k++) {
+        const a = g(-0.6, (r() - 0.5) * 0.9), b = g(0.6, (r() - 0.5) * 0.9);
+        const c1 = g(-0.2, (r() - 0.5)), c2 = g(0.2, (r() - 0.5));
+        p.add(`<path d="M${P(a)} C${P(c1)} ${P(c2)} ${P(b)}" fill="none" stroke="${k % 2 ? ink : '#ffffff'}" stroke-width="${k % 2 ? 1.3 : 2}" opacity="0.55" ${clip}/>`);
+      }
+      p.path(ell(T.cx - 22, T.cy - 8, 18, 6), '#ffffff', `opacity="0.35" ${clip}`);
+      break;
+    }
+    case 'crystal': {
+      // 크리스탈: 가운데에서 꼭짓점·변 중점으로 면을 나누고 번갈아 밝게
+      const c = [T.cx, T.cy];
+      const rim = [g(-0.5, -0.5), g(0, -0.5), g(0.5, -0.5), g(0.5, 0), g(0.5, 0.5), g(0, 0.5), g(-0.5, 0.5), g(-0.5, 0)];
+      for (let i = 0; i < rim.length; i++) {
+        const a = rim[i], b = rim[(i + 1) % rim.length];
+        p.add(`<path d="M${P(c)} L${P(a)} L${P(b)} Z" fill="${i % 2 ? '#ffffff' : dark(topA, 0.15)}" opacity="${i % 2 ? 0.3 : 0.25}" ${clip}/>`);
+        p.add(`<path d="M${P(c)} L${P(a)}" stroke="#ffffff" stroke-width="1.4" opacity="0.7" ${clip}/>`);
+      }
+      p.path(star(T.cx - 14, T.cy - 6, 6, 1.6), '#ffffff', 'opacity="0.95"');
+      p.path(star(T.cx + 20, T.cy + 6, 4, 1.2), '#ffffff', 'opacity="0.8"');
+      break;
+    }
+  }
 }

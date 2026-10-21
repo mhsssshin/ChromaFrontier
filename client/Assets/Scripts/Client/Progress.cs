@@ -169,6 +169,33 @@ namespace ChromaFrontier.Client
             return true;
         }
 
+        /// <summary>상점: 무르기 묶음.</summary>
+        public static bool BuyUndoPack()
+        {
+            if (!SpendGems(BoostShop.UndoPackPrice)) return false;
+            Undos += BoostShop.UndoPack;
+            return true;
+        }
+
+        // 소모품 이용권: 상점에서 미리 사 두면 출격 준비에서 결정 대신 쓴다
+        private static string TicketKey(Boost b) => "cf.items." + b.ToString().ToLowerInvariant();
+
+        public static int Tickets(Boost b) => Mathf.Max(0, LocalStore.GetInt(TicketKey(b), 0));
+
+        public static bool BuyTicket(BoostShop.Entry e)
+        {
+            if (!SpendGems(e.Price)) return false;
+            LocalStore.SetInt(TicketKey(e.Boost), Tickets(e.Boost) + 1);
+            return true;
+        }
+
+        public static bool UseTicket(Boost b)
+        {
+            if (Tickets(b) <= 0) return false;
+            LocalStore.SetInt(TicketKey(b), Tickets(b) - 1);
+            return true;
+        }
+
         public static bool UseUndo()
         {
             if (Undos <= 0) return false;
@@ -392,6 +419,35 @@ namespace ChromaFrontier.Client
             {
                 if (ThemeOwned(value)) LocalStore.SetString(ThemeKey, value);
             }
+        }
+
+        // ---------------------------------------------------------------- 타일 스킨 (재질 × 색)
+
+        private const string SkinMatsKey = "cf.skin.mats", SkinColorsKey = "cf.skin.colors", SkinKey = "cf.skin";
+
+        public static bool SkinOwned(SkinPart part, bool material) =>
+            part.Price == 0 || ("," + LocalStore.GetString(material ? SkinMatsKey : SkinColorsKey, "") + ",").Contains("," + part.Id + ",");
+
+        public static bool BuySkin(SkinPart part, bool material)
+        {
+            if (SkinOwned(part, material) || !SpendGems(part.Price)) return false;
+            var key = material ? SkinMatsKey : SkinColorsKey;
+            var list = LocalStore.GetString(key, "");
+            LocalStore.SetString(key, list.Length == 0 ? part.Id : list + "," + part.Id);
+            return true;
+        }
+
+        /// <summary>지금 쓰는 내 땅 스킨 "재질:색" (가진 것만, 아니면 기본).</summary>
+        public static string TileSkin
+        {
+            get
+            {
+                TileSkins.Split(LocalStore.GetString(SkinKey, TileSkins.Default), out var m, out var c);
+                if (!SkinOwned(TileSkins.Material(m), true)) m = TileSkins.Materials[0].Id;
+                if (!SkinOwned(TileSkins.Color(c), false)) c = TileSkins.Colors[0].Id;
+                return TileSkins.Join(m, c);
+            }
+            set => LocalStore.SetString(SkinKey, value);
         }
 
         /// <summary>개발 빌드 전용: 결정 지급.</summary>

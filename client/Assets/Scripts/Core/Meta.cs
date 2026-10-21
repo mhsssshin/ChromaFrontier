@@ -287,6 +287,7 @@ namespace ChromaFrontier.Core
 
         public const int PioneerCells = 3; // 개척: 시작 땅 옆으로 더 갖는 칸 수
         public const int UndoPrice = 15;   // 무르기 1회 값 (모아 두고 판 중에 쓴다)
+        public const int UndoPack = 5, UndoPackPrice = 60; // 상점 무르기 묶음 (5개를 4개 값에)
 
         public static readonly Entry[] All =
         {
@@ -441,6 +442,100 @@ namespace ChromaFrontier.Core
             foreach (var s in StarRoad.Steps)
                 if (s.Theme == id) return s;
             return null;
+        }
+    }
+
+    /// <summary>타일 스킨의 한 갈래: 재질(풀·나무·대리석…) 또는 색. 내 땅 타일 그림 = 재질 × 색.</summary>
+    public sealed class SkinPart
+    {
+        public string Id, Name;
+        public int Price;        // 결정 (0 = 처음부터 가짐)
+        public string HexA, HexB; // 색: 윗면 진한 쪽·밝은 쪽 (art/tiles.mjs 의 SKIN_COLORS 와 같게)
+    }
+
+    /// <summary>
+    /// 내 땅 타일 스킨: 재질 7종 × 색 8종을 따로 사서 맞춘다. 빨강은 상대 팀 색이라 팔지 않는다(PvP 에서 색이 겹치면 상대를 빨강으로).
+    /// 그림은 art/tiles.mjs 가 조합마다 굽는다 (Tiles/skin_재질_색, 기본 재질의 파랑·빨강은 예전 tile_player·tile_ai).
+    /// 2:2 대전에서는 팀 색을 파랑(우리)·빨강(상대)으로 고정하고 재질만 각자 스킨을 쓴다.
+    /// </summary>
+    public static class TileSkins
+    {
+        public const string Default = "plain:blue";
+        public const string EnemyColor = "red";
+
+        public static readonly SkinPart[] Materials =
+        {
+            new() { Id = "plain", Name = "기본" },
+            new() { Id = "grass", Name = "풀밭", Price = 150 },
+            new() { Id = "wood", Name = "나무", Price = 200 },
+            new() { Id = "stone", Name = "돌길", Price = 250 },
+            new() { Id = "water", Name = "물결", Price = 300 },
+            new() { Id = "marble", Name = "대리석", Price = 350 },
+            new() { Id = "crystal", Name = "크리스탈", Price = 450 },
+        };
+
+        public static readonly SkinPart[] Colors =
+        {
+            new() { Id = "blue", Name = "파랑", HexA = "#2f7fe8", HexB = "#6db4ff" },
+            new() { Id = "sky", Name = "하늘", Price = 100, HexA = "#1fa8d0", HexB = "#7fe2f5" },
+            new() { Id = "navy", Name = "남색", Price = 100, HexA = "#3442b0", HexB = "#7f8cf0" },
+            new() { Id = "purple", Name = "보라", Price = 150, HexA = "#8048d8", HexB = "#c09cff" },
+            new() { Id = "pink", Name = "분홍", Price = 150, HexA = "#d84f9c", HexB = "#ff9fd0" },
+            new() { Id = "orange", Name = "주황", Price = 150, HexA = "#e8801f", HexB = "#ffc070" },
+            new() { Id = "white", Name = "백색", Price = 200, HexA = "#aab2c6", HexB = "#ffffff" },
+            new() { Id = "black", Name = "흑색", Price = 250, HexA = "#2e2e3e", HexB = "#6a6a86" },
+        };
+
+        /// <summary>상대 팀 색 (상점에서는 안 판다).</summary>
+        public static readonly SkinPart Red = new() { Id = EnemyColor, Name = "빨강", HexA = "#e2463f", HexB = "#ff8a78" };
+
+        public static SkinPart Material(string id) => Find(Materials, id) ?? Materials[0];
+        public static SkinPart Color(string id) => id == EnemyColor ? Red : Find(Colors, id) ?? Colors[0];
+
+        private static SkinPart Find(SkinPart[] list, string id)
+        {
+            foreach (var p in list)
+                if (p.Id == id) return p;
+            return null;
+        }
+
+        /// <summary>"재질:색" 을 나눈다. 모르는 값은 기본으로.</summary>
+        public static void Split(string skin, out string material, out string color)
+        {
+            var parts = (skin ?? "").Split(':');
+            material = Material(parts.Length > 0 ? parts[0] : "").Id;
+            color = Color(parts.Length > 1 ? parts[1] : "").Id;
+        }
+
+        public static string Join(string material, string color) => material + ":" + color;
+
+        /// <summary>그 조합의 타일 그림 이름.</summary>
+        public static string Sprite(string material, string color)
+        {
+            if (material == "plain" && color == "blue") return "Tiles/tile_player";
+            if (material == "plain" && color == EnemyColor) return "Tiles/tile_ai";
+            return $"Tiles/skin_{material}_{color}";
+        }
+
+        public static string Sprite(string skin)
+        {
+            Split(skin, out var m, out var c);
+            return Sprite(m, c);
+        }
+
+        /// <summary>같은 색이면(대전 1:1) 상대 쪽 색을 빨강으로 바꾼 스킨.</summary>
+        public static string AgainstMine(string theirs, string mine)
+        {
+            Split(theirs, out var tm, out var tc);
+            Split(mine, out _, out var mc);
+            return Join(tm, tc == mc ? EnemyColor : tc);
+        }
+
+        /// <summary>재질은 그대로, 색만 바꾼 스킨 (2:2 팀 색 고정).</summary>
+        public static string WithColor(string skin, string color)
+        {
+            Split(skin, out var m, out _);
+            return Join(m, color);
         }
     }
 }

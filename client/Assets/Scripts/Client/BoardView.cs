@@ -72,9 +72,28 @@ namespace ChromaFrontier.Client
             _decorNames = new[] { "Decor/tree_round" + tail, "Decor/tree_pine" + tail, "Decor/rock" + tail, "Decor/bush" + tail };
         }
 
+        // 땅 타일 스킨 (Progress.TileSkin): 내 팀·상대 팀 그림. 2:2 대전은 칸마다(차지한 사람의 재질) CellTile 로 정한다.
+        private static string _mineTile = "Tiles/tile_player", _foeTile = "Tiles/tile_ai";
+
+        /// <summary>칸마다 땅 그림을 정한다 (null 을 돌려주면 팀 그림). 2:2 대전에서만 쓴다.</summary>
+        public static System.Func<Cell, string> CellTile;
+
+        /// <summary>내 팀·상대 팀 땅 그림 (보드를 만든 뒤 대전에서 바꾼다).</summary>
+        public static void UseSkins(string mine, string foe)
+        {
+            _mineTile = TileSkins.Sprite(mine);
+            _foeTile = TileSkins.Sprite(foe);
+            TileSkins.Split(mine, out _, out var mc);
+            TileSkins.Split(foe, out _, out var fc);
+            Palette.Mine = Palette.Hex(TileSkins.Color(mc).HexA);
+            Palette.Foe = Palette.Hex(TileSkins.Color(fc).HexA);
+        }
+
         public BoardView(Transform parent, int width, int height)
         {
             UseTheme(Progress.Theme);
+            UseSkins(Progress.TileSkin, TileSkins.Join("plain", TileSkins.EnemyColor));
+            CellTile = null;
             _w = width;
             _h = height;
             _offset = new Vector3(-(width - height) * 0.5f * HalfW, (width + height - 2) * 0.5f * HalfH, 0f);
@@ -273,10 +292,12 @@ namespace ChromaFrontier.Client
         private static Sprite TileSprite(in Tile t, Cell c)
         {
             if (t.Terrain == Terrain.BlackHole) return Art.Sprite("Tiles/tile_blackhole");
-            return Palette.Look(t.Owner) switch
+            var look = Palette.Look(t.Owner);
+            if (look != Side.None && CellTile?.Invoke(c) is { } own) return Art.Sprite(own);
+            return look switch
             {
-                Side.Player => Art.Sprite("Tiles/tile_player"),
-                Side.Ai => Art.Sprite("Tiles/tile_ai"),
+                Side.Player => Art.Sprite(_mineTile),
+                Side.Ai => Art.Sprite(_foeTile),
                 _ => Art.Sprite((c.X + c.Y) % 2 == 0 ? _grassA : _grassB),
             };
         }

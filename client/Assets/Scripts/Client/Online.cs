@@ -8,7 +8,7 @@ namespace ChromaFrontier.Client
     [Serializable]
     public sealed class SeatInfo
     {
-        public string uid = "", name = "", deck = "";
+        public string uid = "", name = "", deck = "", skin = "";
         public bool ready, left;
         public bool Empty => string.IsNullOrEmpty(uid);
     }
@@ -61,14 +61,14 @@ namespace ChromaFrontier.Client
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         [DllImport("__Internal")] private static extern int CF_NetAvailable();
-        [DllImport("__Internal")] private static extern void CF_NetCall(string name, string a, string b, string c, string d);
+        [DllImport("__Internal")] private static extern void CF_NetCall(string name, string a, string b, string c, string d, string e);
         [DllImport("__Internal")] private static extern string CF_NetPoll();
         public static bool Available => CF_NetAvailable() == 1;
-        private static void Call(string name, string a = "", string b = "", string c = "", string d = "") => CF_NetCall(name, a, b, c, d);
+        private static void Call(string name, string a = "", string b = "", string c = "", string d = "", string e = "") => CF_NetCall(name, a, b, c, d, e);
         private static string PollRaw() => CF_NetPoll();
 #else
         public static bool Available => false;
-        private static void Call(string name, string a = "", string b = "", string c = "", string d = "") { }
+        private static void Call(string name, string a = "", string b = "", string c = "", string d = "", string e = "") { }
         private static string PollRaw() => null;
 #endif
 
@@ -233,8 +233,8 @@ namespace ChromaFrontier.Client
         public static void SaveNow() => Call("saveNow");
 
         public static void WatchRooms(bool on) => Call("watchRooms", on ? "1" : "");
-        public static void CreateRoom(string title, int size, string map, string deck) => CallInt("createRoom", title, size, map, deck);
-        public static void JoinRoom(string id, string deck) => Call("joinRoom", id, deck);
+        public static void CreateRoom(string title, int size, string map, string deck, string skin) => Call("createRoom", title, size.ToString(), map, deck, skin);
+        public static void JoinRoom(string id, string deck, string skin) => Call("joinRoom", id, deck, skin);
         public static void MoveSeat(int seat) => CallInt("moveSeat", seat);
         public static void SetReady(bool on) => CallBool("setReady", on);
         public static void SetMap(string map) => Call("setMap", map);
@@ -254,7 +254,6 @@ namespace ChromaFrontier.Client
 
         // net.js 쪽은 문자열을 받으므로 숫자·참거짓은 그쪽에서 바꾼다
         private static void CallInt(string name, int a) => Call(name, a.ToString());
-        private static void CallInt(string name, string a, int b, string c, string d) => Call(name, a, b.ToString(), c, d);
         private static void CallBool(string name, bool on) => Call(name, on ? "1" : "");
     }
 }

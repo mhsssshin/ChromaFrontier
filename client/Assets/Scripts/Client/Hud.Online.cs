@@ -92,9 +92,9 @@ namespace ChromaFrontier.Client
         private static void DrawAccountPanel(GameBootstrap gb)
         {
             Dim(0.6f);
-            var panel = R(30, 200, RefW - 60, 450);
+            var panel = R(30, 200, RefW - 60, 520);
             Nine(panel, "UI/panel", 28, Color.white);
-            Text(R(46, 212, 300, 44), "계정", 30, Gold, TextAnchor.MiddleLeft, 0.7f);
+            Text(R(46, 212, 300, 44), "계정 · 설정", 30, Gold, TextAnchor.MiddleLeft, 0.7f);
             if (Button(R(RefW - 130, 214, 84, 42), new Color(0.4f, 0.42f, 0.58f), "닫기", 17)) gb.OpenPanel(LobbyPanel.None);
 
             var y = 270f;
@@ -128,6 +128,7 @@ namespace ChromaFrontier.Client
                 if (Online.IsGuest) Text(R(50, y + 72, RefW - 100, 40), "Google 을 연결하면 다른 기기에서도 이 기록으로 이어서 할 수 있어요.", 13, Soft);
                 if (Button(R(170, y + 120, 200, 52), new Color(0.75f, 0.35f, 0.35f), "로그아웃", 18)) gb.SignOut();
             }
+            if (Button(R(46, 664, 200, 44), new Color(0.3f, 0.7f, 0.55f), "튜토리얼 다시 보기", 15)) gb.StartTutorial(0);
             OnlineError(600);
             SwallowInput();
         }
@@ -179,7 +180,7 @@ namespace ChromaFrontier.Client
 
         // ---------------------------------------------------------------- PvP 방
 
-        private static Color TeamColor(int seat, Side me) => Game.SideOfSeat(seat) == me ? Palette.Player : Palette.Ai;
+        private static Color TeamColor(int seat, Side me) => Game.SideOfSeat(seat) == me ? Palette.Mine : Palette.Foe;
 
         private static void DrawPvpRoom(GameBootstrap gb)
         {
@@ -281,7 +282,7 @@ namespace ChromaFrontier.Client
             var who = R(300, 14, RefW - 314, 44);
             var seat = g.CurrentSeat;
             var friendly = Game.SideOfSeat(seat) == gb.Me;
-            Nine(who, "UI/button", 22, g.IsOver ? new Color(0.6f, 0.6f, 0.7f) : friendly ? Palette.Player : Palette.Ai);
+            Nine(who, "UI/button", 22, g.IsOver ? new Color(0.6f, 0.6f, 0.7f) : friendly ? Palette.Mine : Palette.Foe);
             var label = g.IsOver ? "게임 종료" : seat == p.MySeat ? "내 차례!" : friendly ? $"짝 {p.NameOf(seat)} 차례" : $"{p.NameOf(seat)} 차례";
             if (!g.IsOver && p.Left(seat)) label += " (나감)";
             Text(who, label, 17, Color.white);
@@ -292,8 +293,8 @@ namespace ChromaFrontier.Client
             var inner = Inset(bar, 7);
             var pw = inner.width * mine / total;
             var aw = inner.width * theirs / total;
-            if (pw > 1f) Nine(new Rect(inner.x, inner.y, Mathf.Max(pw, inner.height), inner.height), "UI/bar_fill", 22, Palette.Player);
-            if (aw > 1f) Nine(new Rect(inner.xMax - Mathf.Max(aw, inner.height), inner.y, Mathf.Max(aw, inner.height), inner.height), "UI/bar_fill", 22, Palette.Ai);
+            if (pw > 1f) Nine(new Rect(inner.x, inner.y, Mathf.Max(pw, inner.height), inner.height), "UI/bar_fill", 22, Palette.Mine);
+            if (aw > 1f) Nine(new Rect(inner.xMax - Mathf.Max(aw, inner.height), inner.y, Mathf.Max(aw, inner.height), inner.height), "UI/bar_fill", 22, Palette.Foe);
             Text(Inset(inner, 4), $"우리 {mine * 100 / total}%", 18, Color.white, TextAnchor.MiddleLeft, 0.7f);
             Text(Inset(inner, 4), $"{theirs * 100 / total}% 상대", 18, Color.white, TextAnchor.MiddleRight, 0.7f);
 
@@ -313,6 +314,28 @@ namespace ChromaFrontier.Client
                 Nine(r, "UI/button", 22, tint);
                 Text(r, SeatLabel(gb, i) + (p.Left(i) ? " · 나감" : ""), n > 2 ? 14 : 17, Color.white, TextAnchor.MiddleCenter, 0.5f);
             }
+        }
+
+        /// <summary>내 차례가 되면 화면 가운데에 크게 "내 차례!" (1.8초, 통통 튀며 나타났다 사라짐).</summary>
+        private static void DrawMyTurnBanner(GameBootstrap gb)
+        {
+            var t = Time.unscaledTime - gb.Pvp.MyTurnAt;
+            if (t < 0f || t > 1.8f || gb.BattleOver) return;
+            var k = EaseOutBack(Mathf.Clamp01(t / 0.35f));
+            var a = Mathf.Clamp01((1.8f - t) / 0.4f);
+            var w = 360f * k;
+            var h = 120f * k;
+            var prev = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, a);
+            var r = R(RefW * 0.5f - w * 0.5f, 380f - h * 0.5f, w, h);
+            Nine(Inset(r, -5), "UI/button", 22, new Color(Gold.r, Gold.g, Gold.b, a));
+            Nine(r, "UI/button", 22, new Color(Palette.Mine.r, Palette.Mine.g, Palette.Mine.b, a));
+            if (k > 0.6f)
+            {
+                Text(new Rect(r.x, r.y + 8 * _s, r.width, 64 * _s), "내 차례!", 46, new Color(Gold.r, Gold.g, Gold.b, a), TextAnchor.MiddleCenter, 0.8f);
+                Text(new Rect(r.x, r.y + 72 * _s, r.width, 32 * _s), $"카드를 끌어 놓으세요 · {PvpCatalog.TurnSeconds}초", 16, new Color(1f, 1f, 1f, a), TextAnchor.MiddleCenter, 0.5f);
+            }
+            GUI.color = prev;
         }
 
         private static void DrawPvpResult(GameBootstrap gb, Game g)

@@ -335,5 +335,20 @@ namespace ChromaFrontier.Core.Tests
             Assert.AreEqual(1, g.LevelOf(Side.Ai, Card.Of(Skill.Beacon)));
             Assert.AreEqual(2, g.Clone().LevelOf(Side.Player, Card.Of(Skill.Beacon)), "복제본도 같은 단계");
         }
+    
+        [Test]
+        public void TileSkins_DefaultIsFree_RedIsNotForSale_AndSpritesMatchOldTiles()
+        {
+            Assert.AreEqual(0, TileSkins.Materials[0].Price);
+            Assert.AreEqual(0, TileSkins.Colors[0].Price);
+            Assert.IsFalse(System.Array.Exists(TileSkins.Colors, c => c.Id == TileSkins.EnemyColor));
+            Assert.AreEqual("Tiles/tile_player", TileSkins.Sprite(TileSkins.Default));
+            Assert.AreEqual("Tiles/tile_ai", TileSkins.Sprite("plain", TileSkins.EnemyColor));
+            Assert.AreEqual("Tiles/skin_wood_pink", TileSkins.Sprite("wood:pink"));
+            Assert.AreEqual("plain:blue", TileSkins.Sprite("??:??") == "Tiles/tile_player" ? "plain:blue" : "x");
+            Assert.AreEqual("wood:red", TileSkins.AgainstMine("wood:pink", "stone:pink"));
+            Assert.AreEqual("wood:pink", TileSkins.AgainstMine("wood:pink", "stone:blue"));
+            Assert.AreEqual("crystal:blue", TileSkins.WithColor("crystal:black", "blue"));
+        }
     }
 }

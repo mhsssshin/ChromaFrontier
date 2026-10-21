@@ -61,6 +61,7 @@ namespace ChromaFrontier.Client
                 else if (gb.Panel == LobbyPanel.Prep) DrawPrepPanel(gb);
                 else if (gb.Panel == LobbyPanel.Road) DrawRoadPanel(gb);
                 else if (gb.Panel == LobbyPanel.Account) DrawAccountPanel(gb);
+                else if (gb.Panel == LobbyPanel.Shop) DrawShopPanel(gb);
                 return;
             }
 
@@ -74,6 +75,7 @@ namespace ChromaFrontier.Client
             else DrawTop(gb, g);
             DrawHand(gb, g);
             DrawCine(gb);
+            if (gb.Pvp != null) DrawMyTurnBanner(gb);
             if (gb.Tutorial) DrawFinger(gb);
             if (gb.Concept != null)
             {
@@ -309,7 +311,10 @@ namespace ChromaFrontier.Client
 
             // 제목 + 결정 + 별 합계
             Image(R(4, 10, 172, 74), "UI/logo_title", Color.white);
-            GemPill(R(178, 22, 104, 44));
+            // 결정을 누르면 상점
+            var gems = R(178, 22, 104, 44);
+            GemPill(gems);
+            if (GUI.Button(gems, GUIContent.none, GUIStyle.none)) gb.OpenPanel(LobbyPanel.Shop);
             var starPill = R(286, 22, 104, 44);
             if (Button(starPill, new Color(0.85f, 0.6f, 0.2f))) gb.OpenPanel(LobbyPanel.Road);
             Image(new Rect(starPill.x + 8 * _s, starPill.y + 6 * _s, 32 * _s, 32 * _s), "UI/star_on", Color.white);
@@ -323,7 +328,7 @@ namespace ChromaFrontier.Client
             }
             if (Button(R(394, 22, 64, 44), Online.SignedIn ? new Color(0.35f, 0.5f, 0.9f) : new Color(0.45f, 0.47f, 0.6f), Online.SignedIn ? "계정" : "로그인", 15))
                 gb.OpenPanel(LobbyPanel.Account);
-            if (Button(R(462, 22, 66, 44), new Color(0.3f, 0.7f, 0.55f), "배우기", 15)) gb.StartTutorial(0);
+            if (Button(R(462, 22, 66, 44), new Color(1f, 0.6f, 0.25f), "상점", 16)) gb.OpenPanel(LobbyPanel.Shop);
 
             // 챕터 탭
             for (var c = 0; c < StageCatalog.Chapters.Length; c++)
@@ -586,8 +591,14 @@ namespace ChromaFrontier.Client
                 Text(new Rect(r.x + 62 * _s, r.y + 10 * _s, 260 * _s, 30 * _s), b.Name, 20, Color.white, TextAnchor.MiddleLeft);
                 Text(new Rect(r.x + 62 * _s, r.y + 44 * _s, 300 * _s, 26 * _s), b.Text, 14, Soft, TextAnchor.MiddleLeft, 0f);
                 var price = new Rect(r.xMax - 96 * _s, r.y, 84 * _s, r.height);
-                Image(new Rect(price.x, r.center.y - 15 * _s, 30 * _s, 30 * _s), "UI/icon_gem", Color.white);
-                Text(new Rect(price.x + 30 * _s, r.y, 54 * _s, r.height), b.Price.ToString(), 20, Color.white, TextAnchor.MiddleLeft);
+                var tickets = Progress.Tickets(b.Boost);
+                if (tickets > 0)
+                    Text(new Rect(price.x - 20 * _s, r.y, 104 * _s, r.height), $"이용권\n{tickets}장", 16, Gold, TextAnchor.MiddleCenter);
+                else
+                {
+                    Image(new Rect(price.x, r.center.y - 15 * _s, 30 * _s, 30 * _s), "UI/icon_gem", Color.white);
+                    Text(new Rect(price.x + 30 * _s, r.y, 54 * _s, r.height), b.Price.ToString(), 20, Color.white, TextAnchor.MiddleLeft);
+                }
             }
 
             // 무르기: 모아 두고 판 중에 쓴다 (손패 위 무르기 버튼)
@@ -723,7 +734,7 @@ namespace ChromaFrontier.Client
                 }
             }
             if (gb.RoadTab == 0) DrawRoadSteps(gb, stars);
-            else DrawThemes(gb);
+            else DrawThemeGrid(gb, 296);
 
             if (Button(R(280, 822, 210, 56), new Color(1f, 0.55f, 0.2f), "닫기", 22)) gb.OpenPanel(LobbyPanel.None);
             Text(R(24, 880, RefW - 48, 44), gb.PanelMessage, 16, Gold, TextAnchor.MiddleCenter, 0f);
@@ -779,14 +790,15 @@ namespace ChromaFrontier.Client
         }
 
         /// <summary>보드 테마: 빈 칸·장식·바다 그림. 별의 길에서 열리면 결정으로 산다.</summary>
-        private static void DrawThemes(GameBootstrap gb)
+        /// <summary>보드 테마 8종 2x4 (별의 길 창과 상점에서 같이 쓴다). top = 첫 줄 y.</summary>
+        private static void DrawThemeGrid(GameBootstrap gb, float top)
         {
             var current = Progress.Theme;
             var all = ThemeShop.All;
             for (var i = 0; i < all.Length; i++)
             {
                 var t = all[i];
-                var r = R(22 + i % 2 * 252, 296 + i / 2 * 128, 244, 122);
+                var r = R(22 + i % 2 * 252, top + i / 2 * 128, 244, 122);
                 var owned = Progress.ThemeOwned(t.Id);
                 var inUse = t.Id == current;
                 Nine(r, "UI/panel", 28, inUse ? new Color(1f, 0.92f, 0.6f) : Color.white);
@@ -1012,8 +1024,8 @@ namespace ChromaFrontier.Client
             var inner = Inset(bar, 7);
             var pw = inner.width * p / total;
             var aw = inner.width * a / total;
-            if (pw > 1f) Nine(new Rect(inner.x, inner.y, Mathf.Max(pw, inner.height), inner.height), "UI/bar_fill", 22, Palette.Player);
-            if (aw > 1f) Nine(new Rect(inner.xMax - Mathf.Max(aw, inner.height), inner.y, Mathf.Max(aw, inner.height), inner.height), "UI/bar_fill", 22, Palette.Ai);
+            if (pw > 1f) Nine(new Rect(inner.x, inner.y, Mathf.Max(pw, inner.height), inner.height), "UI/bar_fill", 22, Palette.Mine);
+            if (aw > 1f) Nine(new Rect(inner.xMax - Mathf.Max(aw, inner.height), inner.y, Mathf.Max(aw, inner.height), inner.height), "UI/bar_fill", 22, Palette.Foe);
             Text(Inset(inner, 4), $"{p * 100 / total}%", 19, Color.white, TextAnchor.MiddleLeft, 0.7f);
             Text(Inset(inner, 4), $"{a * 100 / total}%", 19, Color.white, TextAnchor.MiddleRight, 0.7f);
 

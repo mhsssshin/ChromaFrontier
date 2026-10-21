@@ -7,7 +7,7 @@
 //   users/{uid}/name            대전에 보이는 이름
 //   users/{uid}/save            { at, data } — data 는 localStorage 의 cf.* 값 전부(JSON 문자열)
 //   rooms/{id}                  { title, size(팀 인원 1|2), host, status(wait|play|done), map, seed, created,
-//                                 seats/{0..3}: { uid, name, ready, left, deck } }  짝수 자리 = 1팀, 홀수 자리 = 2팀
+//                                 seats/{0..3}: { uid, name, ready, left, deck, skin } }  짝수 자리 = 1팀, 홀수 자리 = 2팀
 //   moves/{id}/{n}              n 번째 수 (Core PvpMove 문자열). 한 번 쓰면 못 바꾼다 (보안 규칙)
 (function () {
   'use strict';
@@ -297,7 +297,7 @@
     var n = (r.size || 1) * 2, list = [];
     for (var i = 0; i < n; i++) {
       var s = r.seats && r.seats[i];
-      list.push(s ? { uid: s.uid || '', name: s.name || '', ready: !!s.ready, left: !!s.left, deck: s.deck || '' } : { uid: '', name: '', ready: false, left: false, deck: '' });
+      list.push(s ? { uid: s.uid || '', name: s.name || '', ready: !!s.ready, left: !!s.left, deck: s.deck || '', skin: s.skin || '' } : { uid: '', name: '', ready: false, left: false, deck: '', skin: '' });
     }
     return list;
   }
@@ -479,16 +479,16 @@
       });
     },
 
-    createRoom: function (title, size, map, deck) {
+    createRoom: function (title, size, map, deck, skin) {
       if (!user) return;
       size = +size === 2 ? 2 : 1;
       var id = db.key();
       var r = { title: title, size: size, host: user.uid, status: 'wait', map: map, seed: 0, created: Date.now(), seats: {} };
-      r.seats[0] = { uid: user.uid, name: user.name, ready: true, left: false, deck: deck };
+      r.seats[0] = { uid: user.uid, name: user.name, ready: true, left: false, deck: deck, skin: skin || '' };
       db.set('rooms/' + id, r).then(function () { enterRoom(id); }).catch(fail);
     },
 
-    joinRoom: function (id, deck) {
+    joinRoom: function (id, deck, skin) {
       if (!user) return;
       var seat = -1;
       db.txn('rooms/' + id, function (r) {
@@ -499,7 +499,7 @@
         if (findSeat(r, user.uid) >= 0) { seat = findSeat(r, user.uid); return r; }
         for (var i = 0; i < n; i++) {
           if (!r.seats[i]) {
-            r.seats[i] = { uid: user.uid, name: user.name, ready: false, left: false, deck: deck };
+            r.seats[i] = { uid: user.uid, name: user.name, ready: false, left: false, deck: deck, skin: skin || '' };
             seat = i;
             return r;
           }

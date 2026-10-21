@@ -7,7 +7,7 @@ namespace ChromaFrontier.Client
     public enum AppScreen { Splash, Lobby, Battle, Tower, Login, PvpLobby, PvpRoom }
 
     /// <summary>대기실 위에 뜨는 창.</summary>
-    public enum LobbyPanel { None, Deck, Quest, Prep, Road, Account }
+    public enum LobbyPanel { None, Deck, Quest, Prep, Road, Account, Shop }
 
     /// <summary>
     /// 씬의 유일한 진입점 (씬에는 카메라 + 이것뿐). 대기실(스테이지 선택) ↔ 전투를 오가며,
@@ -210,6 +210,9 @@ namespace ChromaFrontier.Client
 
         // ---------------------------------------------------------------- 별의 길
 
+        public int ShopTab { get; set; }  // 상점: 0 스킬 카드, 1 아이템, 2 스킨
+        public int SkinTab { get; set; }  // 상점 스킨: 0 재질, 1 색, 2 보드 테마
+
         public const int RoadPerPage = 7;
         public int RoadTab { get; set; }  // 0 보상, 1 보드 테마
         public int RoadPage { get; set; }
@@ -220,6 +223,13 @@ namespace ChromaFrontier.Client
             for (var i = 0; i < StarRoad.Steps.Length; i++)
                 if (!Progress.RoadClaimed(i)) return i;
             return StarRoad.Steps.Length - 1;
+        }
+
+        /// <summary>내 땅 타일 스킨을 바꾸고 대기실 미리보기를 다시 그린다.</summary>
+        public void UseSkin(string skin)
+        {
+            Progress.TileSkin = skin;
+            SelectLobbyStage(LobbyStage);
         }
 
         /// <summary>보드 테마를 바꾸고 대기실 미리보기를 다시 그린다.</summary>
@@ -254,7 +264,7 @@ namespace ChromaFrontier.Client
             {
                 var n = 0;
                 foreach (var b in BoostShop.All)
-                    if (Boosts.Contains(b.Boost)) n += b.Price;
+                    if (Boosts.Contains(b.Boost) && Progress.Tickets(b.Boost) == 0) n += b.Price; // 이용권이 있으면 그걸 쓴다
                 return n;
             }
         }
@@ -269,7 +279,11 @@ namespace ChromaFrontier.Client
                 return;
             }
             var loadout = new Loadout { Levels = Progress.Cards.Levels() };
-            foreach (var b in Boosts) loadout.Boosts.Add(b);
+            foreach (var b in Boosts)
+            {
+                Progress.UseTicket(b);
+                loadout.Boosts.Add(b);
+            }
             Boosts.Clear();
             Panel = LobbyPanel.None;
             StartStage(LobbyStage, loadout);

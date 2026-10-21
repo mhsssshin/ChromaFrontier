@@ -22,6 +22,9 @@ namespace ChromaFrontier.Client
         public int ProxySent = -1;          // 나간 사람 대신 보낸 수의 번호
         public Side ForfeitWinner = Side.None; // 한 팀이 모두 나가 판이 끝났다
         public bool Recorded;
+        public float MyTurnAt = -99f;        // 내 차례가 시작된 시각 (가운데 알림)
+        public int[] Claim;                  // 2:2: 칸마다 마지막으로 차지한 자리 (-1 = 모름) — 그 사람 재질로 그린다
+        public string SkinOf(int seat) => seat < Room.seats.Length && !string.IsNullOrEmpty(Room.seats[seat].skin) ? Room.seats[seat].skin : TileSkins.Default;
 
         public int Seats => Room.size * 2;
         public bool Left(int seat) => seat < Room.seats.Length && Room.seats[seat].left;
@@ -79,7 +82,7 @@ namespace ChromaFrontier.Client
         private bool SendPvp(PvpMove m)
         {
             var enc = m.Encode();
-            if (!m.TryApply(Game))
+            if (!ApplyPvpMove(m))
             {
                 Message = "지금은 둘 수 없는 수예요.";
                 return false;
@@ -174,12 +177,12 @@ namespace ChromaFrontier.Client
         public void CreateRoom(int teamSize)
         {
             if (!Online.SignedIn) return;
-            Online.CreateRoom($"{Online.Name}의 방", teamSize, PvpCatalog.MapsFor(teamSize)[0].Id, MyDeckCodes);
+            Online.CreateRoom($"{Online.Name}의 방", teamSize, PvpCatalog.MapsFor(teamSize)[0].Id, MyDeckCodes, Progress.TileSkin);
         }
 
         public void JoinRoom(RoomInfo r)
         {
-            if (Online.SignedIn) Online.JoinRoom(r.id, MyDeckCodes);
+            if (Online.SignedIn) Online.JoinRoom(r.id, MyDeckCodes, Progress.TileSkin);
         }
 
         private string _roomMap = "";
@@ -254,6 +257,8 @@ namespace ChromaFrontier.Client
             }
             Palette.Viewer = Game.SideOfSeat(Mathf.Max(0, Online.MySeat)); // 미리보기도 내 팀 시작 땅이 파랑
             UpdateRoomPreview();
+            RoomSkins(Online.Room, Mathf.Max(0, Online.MySeat), out var mineSkin, out var foeSkin);
+            BoardView.UseSkins(mineSkin, foeSkin);
         }
 
         // ---------------------------------------------------------------- PvP 판
@@ -268,6 +273,7 @@ namespace ChromaFrontier.Client
             Pvp = pvp;
             Palette.Viewer = Me;
             Pvp.TurnStarted = Time.unscaledTime;
+            ApplyPvpSkins();
             var mates = new List<string>();
             for (var i = 0; i < pvp.Seats; i++)
                 if (i != pvp.MySeat && Game.SideOfSeat(i) == Me) mates.Add(pvp.NameOf(i));
@@ -281,9 +287,10 @@ namespace ChromaFrontier.Client
             var p = Pvp;
             Game = PvpCatalog.CreateGame(p.Map, p.Decks, p.Room.seed);
             p.Applied = 0;
+            InitClaims();
             while (p.Log.TryGetValue(p.Applied, out var s))
             {
-                if (PvpMove.TryDecode(s, out var m)) m.TryApply(Game);
+                if (PvpMove.TryDecode(s, out var m)) ApplyPvpMove(m);
                 p.Applied++;
             }
             Hand.Reset();
@@ -314,7 +321,7 @@ namespace ChromaFrontier.Client
                 p.Applied++;
                 var actor = Game.Current;
                 var seat = Game.CurrentSeat;
-                if (PvpMove.TryDecode(next, out var m) && m.TryApply(Game))
+                if (PvpMove.TryDecode(next, out var m) && ApplyPvpMove(m))
                 {
                     _actorSeat = seat;
                     if (seat == p.MySeat) Deselect();
@@ -340,6 +347,7 @@ namespace ChromaFrontier.Client
             {
                 p.TurnKey = key;
                 p.TurnStarted = Time.unscaledTime;
+                if (Game.CurrentSeat == p.MySeat && !BattleOver) p.MyTurnAt = Time.unscaledTime;
             }
             var waited = Time.unscaledTime - p.TurnStarted;
             var caughtUp = !p.Log.ContainsKey(p.Applied);
@@ -374,6 +382,92 @@ namespace ChromaFrontier.Client
                 if (IsHost) Online.Finish();
                 Deselect();
             }
+        }
+
+        // ---------------------------------------------------------------- PvP 타일 스킨
+
+        /// <summary>
+        /// 1:1: 내 땅은 내 스킨, 상대 땅은 상대 스킨(색이 같으면 상대를 빨강으로).
+        /// 2:2: 팀 색은 우리 파랑·상대 빨강으로 고정하고, 칸마다 그 칸을 차지한 사람의 재질로 그린다.
+        /// </summary>
+        private static string SeatSkin(RoomInfo r, int seat) =>
+            seat < r.seats.Length && !string.IsNullOrEmpty(r.seats[seat].skin) ? r.seats[seat].skin : TileSkins.Default;
+
+        /// <summary>방·판의 팀 그림: 1:1 은 각자 스킨(색이 같으면 상대 빨강), 2:2 는 파랑·빨강에 재질만 (상대는 그 팀 앞 자리 재질).</summary>
+        private static void RoomSkins(RoomInfo r, int mySeat, out string mine, out string foe)
+        {
+            var me = SeatSkin(r, mySeat);
+            var foeSeat = (mySeat + 1) % (r.size * 2);
+            if (r.size == 1)
+            {
+                mine = me;
+                foe = TileSkins.AgainstMine(SeatSkin(r, foeSeat), me);
+                return;
+            }
+            mine = TileSkins.WithColor(me, "blue");
+            foe = TileSkins.WithColor(SeatSkin(r, foeSeat), TileSkins.EnemyColor);
+        }
+
+        private void ApplyPvpSkins()
+        {
+            var p = Pvp;
+            RoomSkins(p.Room, p.MySeat, out var mineSkin, out var foeSkin);
+            BoardView.UseSkins(mineSkin, foeSkin);
+            if (p.Room.size == 1)
+            {
+                BoardView.CellTile = null;
+                p.Claim = null;
+                return;
+            }
+            InitClaims();
+            BoardView.CellTile = c =>
+            {
+                var s = Pvp;
+                if (s?.Claim == null || Game == null) return null;
+                var k = c.Y * Game.Board.Width + c.X;
+                if (k >= s.Claim.Length || s.Claim[k] < 0) return null;
+                var seat = s.Claim[k];
+                return TileSkins.Sprite(TileSkins.WithColor(s.SkinOf(seat), Game.SideOfSeat(seat) == Me ? "blue" : TileSkins.EnemyColor));
+            };
+        }
+
+        /// <summary>2:2 시작 땅: 팀의 두 사람 중 보드 왼쪽 절반은 앞 자리, 오른쪽은 뒤 자리 것으로.</summary>
+        private void InitClaims()
+        {
+            var p = Pvp;
+            if (p == null || p.Room.size != 2) return;
+            var b = Game.Board;
+            p.Claim = new int[b.Width * b.Height];
+            foreach (var c in b.Cells())
+            {
+                var owner = b[c].Owner;
+                var team = owner == Side.Player ? 0 : owner == Side.Ai ? 1 : -1;
+                p.Claim[c.Y * b.Width + c.X] = team < 0 ? -1 : team + (c.X < b.Width / 2 ? 0 : 2);
+            }
+        }
+
+        /// <summary>PvP 수를 두고, 2:2 면 주인이 바뀐 칸을 그 수를 둔 사람(상대 팀 칸이 되면 그 팀 앞 자리) 것으로 적는다.</summary>
+        private bool ApplyPvpMove(PvpMove m)
+        {
+            var p = Pvp;
+            var b = Game.Board;
+            Side[] before = null;
+            if (p?.Claim != null)
+            {
+                before = new Side[p.Claim.Length];
+                foreach (var c in b.Cells()) before[c.Y * b.Width + c.X] = b[c].Owner;
+            }
+            var seat = Game.CurrentSeat;
+            if (!m.TryApply(Game)) return false;
+            if (before == null) return true;
+            foreach (var c in Game.Board.Cells())
+            {
+                var k = c.Y * b.Width + c.X;
+                var owner = Game.Board[c].Owner;
+                if (owner == before[k]) continue;
+                p.Claim[k] = owner == Side.None ? -1 : owner == Game.SideOfSeat(seat) ? seat : (owner == Side.Player ? 0 : 1);
+            }
+            return true;
         }
 
         /// <summary>대신 넘기는 수를 쓰는 사람: 나가지 않은 자리 중 가장 앞.</summary>
