@@ -80,6 +80,7 @@ CF_GEN_TIER=3 "$T/dotnet/dotnet.exe" test tests/Core.Tests --filter "FullyQualif
     - `kit.mjs`: 색 섞기(`mix`/`dark`/`light`), 그라데이션이나 필터를 쓰는 `Pic` 클래스, 둥근 도형
     - `tiles.mjs`: 타일 4종, 내 땅 스킨(`SKIN_MATERIALS` 7 × `SKIN_COLORS` 9, Core `TileSkins` 와 id·색을 맞춤 → `Tiles/skin_<재질>_<색>`, 기본 재질의 파랑·빨강은 `tile_player`·`tile_ai`), 윗면 오버레이(glow/select/lock/shield), 장식, 바다, 거품. 보드 테마(`THEMES`, id는 Core `ThemeShop`과 맞춤)마다 풀밭 두 장(`tile_grass_a_<id>`/`_b_<id>`), 장식 4종(`Decor/<이름>_<id>`), 바다(`Bg/sea_<id>`, 빌드 크기 때문에 반 해상도 270x480)를 따로 굽는다
     - `units.mjs`: 원소 유닛 9종, 팀 링, 지뢰, 거점 깃발
+    - `units_halloween.mjs`: 유닛 스킨 세트 "할로윈"(`Units/unit_<원소>_halloween` 9종: 잭오랜턴·물귀신·묘비 번개·마녀 모자 회오리·박쥐 구름·마녀 솥·유령 촛불·검은 고양이·묘비 석상). 새 세트는 같은 방식으로 파일을 더하고 build.mjs 와 Core `UnitSkins.All` 에 id 를 맞춰 넣는다
     - `fx.mjs`: 프레임 이펙트 `<이름>_<n>`
     - `ui.mjs`: 카드 틀, 아이콘(카드, 결정 `icon_gem`, 덱, 퀘스트, 첨탑 `icon_tower`, 대전 `icon_pvp`, 상점 `icon_shop`, 계정 `icon_user`, 싱글 `icon_single`), 반투명 재료(짙은 유리 `panel` 28, 밝은 유리 `glass` 28, 캡슐 `pill` 22, 모드 카드 `mode_card` 28, 후광 `glow`, 위·아래 그늘 띠 `fade_top`/`fade_bottom` — `Hud.Fill` 로 늘려 그림), 바, 버튼, 패널, 밝은 말풍선(`bubble`, 튜토리얼), 스플래시 엠블럼
     - `logo.mjs`: 영문 로고 "CHROMA FRONTIER"(`UI/logo_title`). 스플래시와 대기실에 쓰고, 빌드할 때 WebGL 템플릿(`WebGLTemplates/Portrait/logo.png`, 웹 로딩 화면)에도 복사한다.
@@ -182,6 +183,7 @@ client/Assets/WebGLTemplates/Portrait/ — 9:16 비율로 창에 맞추는 WebGL
   - `PvpMove`: 수 하나를 문자열 `자리,종류(P/C/M),손패,x,y,a,b` 로. `TryApply` 는 차례가 아닌 자리이거나 규칙에 어긋난 수면 판을 안 건드리고 false — 모든 기기에서 똑같이 건너뛴다. 테스트 `Replay_FromEncodedMoves_ReachesTheSameBoard` 가 PvP 맵 6개를 AI 끼리 두고 문자열만으로 재생해 같은 판이 되는지 본다.
 - **상점·스킨**(`Meta.cs` `TileSkins`, `BoostShop`): 대기실 위 상점 버튼(또는 결정 표시)을 누르면 상점 창(`LobbyPanel.Shop`, `Hud.Shop.cs`). 탭 셋: 스킬 카드(9종 사기), 아이템(무르기 1개·5개 묶음 60, 소모품 이용권 — 출격 준비에서 켜면 결정 대신 이용권을 쓴다, `cf.items.<boost>`), 스킨(땅 재질 7종·땅 색 8종·보드 테마).
   - 내 땅 타일 = 재질 × 색. 따로 사서(`cf.skin.mats`, `cf.skin.colors`) 맞추고 지금 것은 `cf.skin`("재질:색", `Progress.TileSkin`). 빨강은 상대 색이라 팔지 않는다. AI 땅은 늘 기본 빨강. `BoardView.UseSkins(mine, foe)` 가 그림과 `Palette.Mine/Foe`(점유율 막대 등 색)를 정하고, 보드를 만들 때 내 스킨으로 초기화된다.
+  - 유닛 스킨 세트(`UnitSkins`, 상점 스킨 → 유닛 탭): 원소 유닛 9종 그림을 통째로 바꾼다. 기본(무료), 할로윈(500, 할로윈 한정 표시). `cf.uskins`(가진 세트), `cf.uskin`(쓰는 세트). `BoardView.UseUnitSkins(mine, foe)` 로 팀마다 다르게 그리고, 싱글 모드의 AI 는 늘 기본. 대전 자리 스킨은 "재질:색:유닛세트"(`Progress.SeatSkin`, `TileSkins.UnitPart`)라 상대 유닛은 상대 세트로 보인다. 홈 카드 그림도 내 세트로 그린다. 할로윈 세트를 아직 안 샀으면 홈 상점 아이콘에 NEW.
   - PvP 1:1 은 각자 스킨(색이 같으면 상대를 빨강으로, `TileSkins.AgainstMine`). 2:2 는 같은 편이 헷갈리지 않게 팀 색을 우리 파랑·상대 빨강으로 고정하고 재질만 스킨을 쓴다. 칸마다 마지막으로 차지한 자리를 기억해(`PvpSession.Claim`, `ApplyPvpMove`) 그 사람 재질로 그린다(`BoardView.CellTile`). 자리 스킨은 방 seats 의 `skin`.
 - **게임 중 목표**(`Objectives.cs`): 판마다 플레이어에게 목표 3개(`ObjectiveCatalog.Pick`, seed로 결정적)를 준다. 덱으로 못 이루는 목표(지뢰가 없는데 지뢰 폭발 등)는 뽑지 않는다. `StageDef.CreateGame`이 뽑는다. AI에게는 없다.
   - 수가 끝날 때마다(`Game.AfterResolve`) 한 판 기록(`Game.StatsOf`, `MatchStats`)을 쌓고 목표를 확인한다. 달성하면 **그 자리에서 효과가 발동**한다: 땅 N칸 흡수(내 땅과 맞닿은 칸, 상대 땅 우선), 전선 2턴 보호, 거점 세우기, 한 번 더 두기(다음에 유닛을 놓은 뒤, `Game.BonusTurnTaken`).

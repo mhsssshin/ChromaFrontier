@@ -89,10 +89,23 @@ namespace ChromaFrontier.Client
             Palette.Foe = Palette.Hex(TileSkins.Color(fc).HexA);
         }
 
+        // 유닛 스킨 세트: 내 팀·상대 팀 (싱글 모드의 AI 는 기본)
+        private static string _mineUnits = "", _foeUnits = "";
+
+        public static void UseUnitSkins(string mine, string foe)
+        {
+            _mineUnits = mine ?? "";
+            _foeUnits = foe ?? "";
+        }
+
+        private static Sprite UnitSprite(Element e, Side owner) =>
+            Art.Sprite(UnitSkins.Sprite(e, Palette.Look(owner) == Side.Ai ? _foeUnits : _mineUnits));
+
         public BoardView(Transform parent, int width, int height)
         {
             UseTheme(Progress.Theme);
             UseSkins(Progress.TileSkin, TileSkins.Join("plain", TileSkins.EnemyColor));
+            UseUnitSkins(Progress.UnitSkin, "");
             CellTile = null;
             _w = width;
             _h = height;
@@ -184,7 +197,7 @@ namespace ChromaFrontier.Client
                 {
                     if (t.Unit != Element.None) v.Pop = PopTime;
                     v.LastUnit = t.Unit;
-                    v.Unit.sprite = t.HasUnit ? Art.Sprite("Units/unit_" + t.Unit.ToString().ToLowerInvariant()) : null;
+                    v.Unit.sprite = t.HasUnit ? UnitSprite(t.Unit, t.UnitOwner) : null;
                 }
 
                 // 낭떠러지는 아예 비워 바다가 보이게. 블랙홀은 전용 타일로 그리고 그 위에는 아무것도 없다.
@@ -252,7 +265,7 @@ namespace ChromaFrontier.Client
                 v.Ghost.enabled = hl.Ghost.HasValue && hl.Ghost.Value == c && !t.HasUnit && hl.GhostUnit != Element.None;
                 if (v.Ghost.enabled)
                 {
-                    v.Ghost.sprite = Art.Sprite("Units/unit_" + hl.GhostUnit.ToString().ToLowerInvariant());
+                    v.Ghost.sprite = UnitSprite(hl.GhostUnit, Palette.Viewer);
                     v.Ghost.color = new Color(1f, 1f, 1f, 0.4f + 0.15f * pulse);
                 }
 

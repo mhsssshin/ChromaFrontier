@@ -451,6 +451,31 @@ namespace ChromaFrontier.Core
         public string Id, Name;
         public int Price;        // 결정 (0 = 처음부터 가짐)
         public string HexA, HexB; // 색: 윗면 진한 쪽·밝은 쪽 (art/tiles.mjs 의 SKIN_COLORS 와 같게)
+        public string Note = "";
+    }
+
+    /// <summary>
+    /// 유닛 스킨 세트: 원소 유닛 9종(1~3단계 + 무속성)의 그림을 통째로 바꾼다. 그림 이름은 Units/unit_원소_세트
+    /// (기본 세트는 꼬리 없음). 원소는 색과 실루엣으로 그대로 알아볼 수 있게 그린다 (art/units_*.mjs).
+    /// 대전에서는 각 팀 유닛이 그 팀 사람의 세트로 보인다. 싱글 모드의 AI 는 늘 기본.
+    /// </summary>
+    public static class UnitSkins
+    {
+        public static readonly SkinPart[] All =
+        {
+            new() { Id = "", Name = "기본", Note = "처음 원소 친구들" },
+            new() { Id = "halloween", Name = "할로윈", Price = 500, Note = "잭오랜턴·물귀신·묘비 번개·검은 고양이…" },
+        };
+
+        public static SkinPart Find(string id)
+        {
+            foreach (var s in All)
+                if (s.Id == (id ?? "")) return s;
+            return All[0];
+        }
+
+        public static string Sprite(Element e, string set) =>
+            "Units/unit_" + e.ToString().ToLowerInvariant() + (string.IsNullOrEmpty(set) || Find(set).Id == "" ? "" : "_" + Find(set).Id);
     }
 
     /// <summary>
@@ -529,6 +554,13 @@ namespace ChromaFrontier.Core
             Split(theirs, out var tm, out var tc);
             Split(mine, out _, out var mc);
             return Join(tm, tc == mc ? EnemyColor : tc);
+        }
+
+        /// <summary>대전 자리 스킨 "재질:색:유닛세트" 의 유닛 세트 (없으면 기본 "").</summary>
+        public static string UnitPart(string skin)
+        {
+            var parts = (skin ?? "").Split(':');
+            return parts.Length > 2 ? UnitSkins.Find(parts[2]).Id : "";
         }
 
         /// <summary>재질은 그대로, 색만 바꾼 스킨 (2:2 팀 색 고정).</summary>

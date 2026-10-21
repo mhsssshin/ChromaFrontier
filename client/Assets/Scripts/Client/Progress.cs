@@ -450,6 +450,34 @@ namespace ChromaFrontier.Client
             set => LocalStore.SetString(SkinKey, value);
         }
 
+        // ---------------------------------------------------------------- 유닛 스킨 세트
+
+        private const string UnitSkinsKey = "cf.uskins", UnitSkinKey = "cf.uskin";
+
+        public static bool UnitSkinOwned(SkinPart set) => set.Price == 0 || ("," + LocalStore.GetString(UnitSkinsKey, "") + ",").Contains("," + set.Id + ",");
+
+        public static bool BuyUnitSkin(SkinPart set)
+        {
+            if (UnitSkinOwned(set) || !SpendGems(set.Price)) return false;
+            var list = LocalStore.GetString(UnitSkinsKey, "");
+            LocalStore.SetString(UnitSkinsKey, list.Length == 0 ? set.Id : list + "," + set.Id);
+            return true;
+        }
+
+        /// <summary>지금 쓰는 유닛 세트 id (가진 것만, 아니면 기본 "").</summary>
+        public static string UnitSkin
+        {
+            get
+            {
+                var s = UnitSkins.Find(LocalStore.GetString(UnitSkinKey, ""));
+                return UnitSkinOwned(s) ? s.Id : "";
+            }
+            set => LocalStore.SetString(UnitSkinKey, value ?? "");
+        }
+
+        /// <summary>대전 방에 올리는 내 스킨 "재질:색:유닛세트".</summary>
+        public static string SeatSkin => TileSkin + ":" + UnitSkin;
+
         /// <summary>개발 빌드 전용: 결정 지급.</summary>
         public static void AddGemsDebug(int n) => Gems += n;
 

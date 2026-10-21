@@ -5,10 +5,10 @@ import { Pic, ell, rounded, poly, star, dark, light, stroke, f } from './kit.mjs
 export const UNIT = { w: 96, h: 112, gx: 48, gy: 100 };
 const G = UNIT;
 
-const shadow = (p, w = 22) => p.path(ell(G.gx, G.gy, w, w * 0.38), '#10202a', 'opacity="0.28"');
+export const shadow = (p, w = 22) => p.path(ell(G.gx, G.gy, w, w * 0.38), '#10202a', 'opacity="0.28"');
 
 /** 눈 두 개 + 반짝임 + 작은 입 (물방울·회색 돌에 쓰는 귀여운 얼굴) */
-function face(p, cx, cy, s = 1, mouth = true) {
+export function face(p, cx, cy, s = 1, mouth = true) {
   for (const dx of [-9, 9]) {
     p.path(ell(cx + dx * s, cy, 4.2 * s, 5.4 * s), '#20304a');
     p.path(ell(cx + dx * s - 1.4 * s, cy - 2 * s, 1.6 * s, 1.8 * s), '#ffffff');
@@ -18,7 +18,7 @@ function face(p, cx, cy, s = 1, mouth = true) {
   p.path(ell(cx + 15 * s, cy + 6 * s, 3.5 * s, 2 * s), '#ff8fb0', 'opacity="0.55"');
 }
 
-function flame(p, cx, by, h, w, cols) {
+export function flame(p, cx, by, h, w, cols) {
   const [outer, mid, core] = cols;
   const shape = (s) => {
     const hh = h * s, ww = w * s, y0 = by - hh;
@@ -33,7 +33,7 @@ function flame(p, cx, by, h, w, cols) {
   p.path(shape(0.38), core);
 }
 
-function bolt(cx, cy, s) {
+export function bolt(cx, cy, s) {
   return poly([[cx + 4 * s, cy - 22 * s], [cx - 10 * s, cy + 2 * s], [cx - 1 * s, cy + 2 * s], [cx - 5 * s, cy + 22 * s], [cx + 10 * s, cy - 4 * s], [cx + 1 * s, cy - 4 * s]].map(([x, y]) => [x, y]));
 }
 

@@ -178,12 +178,12 @@ namespace ChromaFrontier.Client
         public void CreateRoom(int teamSize)
         {
             if (!Online.SignedIn) return;
-            Online.CreateRoom($"{Online.Name}의 방", teamSize, PvpCatalog.MapsFor(teamSize)[0].Id, MyDeckCodes, Progress.TileSkin);
+            Online.CreateRoom($"{Online.Name}의 방", teamSize, PvpCatalog.MapsFor(teamSize)[0].Id, MyDeckCodes, Progress.SeatSkin);
         }
 
         public void JoinRoom(RoomInfo r)
         {
-            if (Online.SignedIn) Online.JoinRoom(r.id, MyDeckCodes, Progress.TileSkin);
+            if (Online.SignedIn) Online.JoinRoom(r.id, MyDeckCodes, Progress.SeatSkin);
         }
 
         private string _roomMap = "";
@@ -414,6 +414,7 @@ namespace ChromaFrontier.Client
             var p = Pvp;
             RoomSkins(p.Room, p.MySeat, out var mineSkin, out var foeSkin);
             BoardView.UseSkins(mineSkin, foeSkin);
+            BoardView.UseUnitSkins(TileSkins.UnitPart(SeatSkin(p.Room, p.MySeat)), TileSkins.UnitPart(SeatSkin(p.Room, (p.MySeat + 1) % p.Seats)));
             if (p.Room.size == 1)
             {
                 BoardView.CellTile = null;

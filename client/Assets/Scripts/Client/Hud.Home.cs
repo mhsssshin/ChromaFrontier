@@ -79,6 +79,13 @@ namespace ChromaFrontier.Client
                 var size = hot ? 70f : 64f;
                 Image(new Rect(r.center.x - size * 0.5f * _s, r.y + (40 - size * 0.5f) * _s, size * _s, size * _s), icons[i], Color.white);
                 Text(new Rect(r.x, r.y + 76 * _s, r.width, 28 * _s), labels[i], 18, Color.white, TextAnchor.MiddleCenter, 0.7f);
+                if (i == 1 && !Progress.UnitSkinOwned(UnitSkins.Find("halloween")))
+                {
+                    // 새 스킨 알림
+                    var tagR = new Rect(r.center.x + 14 * _s, r.y + 8 * _s, 52 * _s, 24 * _s);
+                    Nine(tagR, "UI/button", 22, new Color(1f, 0.55f, 0.15f));
+                    Text(tagR, "NEW", 12, Color.white, TextAnchor.MiddleCenter, 0.4f);
+                }
                 if (!GUI.Button(r, GUIContent.none, GUIStyle.none)) continue;
                 if (i == 0) gb.OpenPanel(LobbyPanel.Deck);
                 else if (i == 1) gb.OpenPanel(LobbyPanel.Shop);
@@ -117,9 +124,9 @@ namespace ChromaFrontier.Client
             IsoTile(cx + dx, top + dy, k, tile);
             IsoTile(cx, top + 2 * dy, k, tile);
             var t = Time.unscaledTime * 2.2f;
-            IsoUnit(cx, top, k, "Units/unit_red", t);
-            IsoUnit(cx - dx, top + dy, k, "Units/unit_blue", t + 1f);
-            IsoUnit(cx + dx, top + dy, k, "Units/unit_yellow", t + 2f);
+            IsoUnit(cx, top, k, MyUnit(Element.Red), t);
+            IsoUnit(cx - dx, top + dy, k, MyUnit(Element.Blue), t + 1f);
+            IsoUnit(cx + dx, top + dy, k, MyUnit(Element.Yellow), t + 2f);
         }
 
         /// <summary>멀티 카드 그림: 우리 땅(내 스킨) 물 유닛 vs 상대 땅(빨강) 불 유닛, 사이에 칼과 VS.</summary>
@@ -131,12 +138,15 @@ namespace ChromaFrontier.Client
             var rx = a.center.x + 58 * _s;
             IsoTile(lx, y, k, TileSkins.Sprite(material, color));
             IsoTile(rx, y, k, TileSkins.Sprite("plain", TileSkins.EnemyColor));
-            IsoUnit(lx, y, k, "Units/unit_blue", Time.unscaledTime * 2.2f);
+            IsoUnit(lx, y, k, MyUnit(Element.Blue), Time.unscaledTime * 2.2f);
             IsoUnit(rx, y, k, "Units/unit_red", Time.unscaledTime * 2.2f + 1.5f);
             var pulse = 1f + 0.08f * Mathf.Sin(Time.unscaledTime * 4f);
             Image(new Rect(a.center.x - 22 * _s, a.y + 4 * _s, 44 * _s, 44 * _s), "UI/icon_pvp", Color.white);
             Text(new Rect(a.center.x - 40 * pulse * _s, a.y + 50 * _s, 80 * pulse * _s, 44 * _s), "VS", Mathf.RoundToInt(30 * pulse), Gold, TextAnchor.MiddleCenter, 0.9f);
         }
+
+        /// <summary>내 유닛 세트의 그림 이름.</summary>
+        private static string MyUnit(Element e) => UnitSkins.Sprite(e, Progress.UnitSkin);
 
         /// <summary>윗면 가운데가 (cx, cy) 인 타일 그림 (캔버스 136x104, 윗면 중심 68,34).</summary>
         private static void IsoTile(float cx, float cy, float k, string sprite) =>

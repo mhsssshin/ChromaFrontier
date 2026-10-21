@@ -93,7 +93,7 @@ namespace ChromaFrontier.Client
 
         // ---------------------------------------------------------------- 스킨
 
-        private static readonly string[] SkinTabs = { "땅 재질", "땅 색", "보드 테마" };
+        private static readonly string[] SkinTabs = { "땅 재질", "땅 색", "유닛", "보드 테마" };
 
         private static void DrawShopSkins(GameBootstrap gb)
         {
@@ -102,13 +102,19 @@ namespace ChromaFrontier.Client
             var pv = R(24, 156, RefW - 48, 92);
             Nine(pv, "UI/panel", 28, Color.white);
             for (var k = 0; k < 3; k++)
-                Image(new Rect(pv.x + (12 + k * 52) * _s, pv.y + (16 + (k % 2) * 12) * _s, 72 * _s, 55 * _s), TileSkins.Sprite(curM, curC), Color.white);
-            Text(new Rect(pv.x + 210 * _s, pv.y + 10 * _s, pv.width - 220 * _s, 34 * _s), $"내 땅: {TileSkins.Material(curM).Name} · {TileSkins.Color(curC).Name}", 19, Color.white, TextAnchor.MiddleLeft);
-            Text(new Rect(pv.x + 210 * _s, pv.y + 44 * _s, pv.width - 220 * _s, 40 * _s), "재질과 색을 따로 골라 맞춰요. 2:2 대전에서는 팀 색이 파랑·빨강으로 고정되고 재질만 보여요.", 12, Soft, TextAnchor.UpperLeft, 0f);
+            {
+                var tr = new Rect(pv.x + (12 + k * 52) * _s, pv.y + (22 + (k % 2) * 12) * _s, 72 * _s, 55 * _s);
+                Image(tr, TileSkins.Sprite(curM, curC), Color.white);
+                var cx = tr.x + 36 * _s;
+                var cy = tr.y + 18 * _s;
+                Image(new Rect(cx - 19 * _s, cy - 42 * _s, 38 * _s, 44 * _s), MyUnit(k == 0 ? Element.Red : k == 1 ? Element.Blue : Element.Yellow), Color.white);
+            }
+            Text(new Rect(pv.x + 210 * _s, pv.y + 10 * _s, pv.width - 220 * _s, 34 * _s), $"내 땅: {TileSkins.Material(curM).Name} · {TileSkins.Color(curC).Name}  ·  유닛: {UnitSkins.Find(Progress.UnitSkin).Name}", 19, Color.white, TextAnchor.MiddleLeft);
+            Text(new Rect(pv.x + 210 * _s, pv.y + 44 * _s, pv.width - 220 * _s, 40 * _s), "땅은 재질과 색을 따로 골라 맞추고, 유닛은 세트로 바꿔요. 2:2 대전에서는 팀 색이 파랑·빨강으로 고정돼요.", 12, Soft, TextAnchor.UpperLeft, 0f);
 
             for (var i = 0; i < SkinTabs.Length; i++)
             {
-                var r = R(24 + i * 166, 256, 158, 42);
+                var r = R(24 + i * 124, 256, 118, 42);
                 if (Button(r, i == gb.SkinTab ? new Color(0.6f, 0.45f, 0.85f) : new Color(0.35f, 0.38f, 0.55f), SkinTabs[i], 17))
                 {
                     gb.SkinTab = i;
@@ -116,9 +122,14 @@ namespace ChromaFrontier.Client
                 }
             }
 
-            if (gb.SkinTab == 2)
+            if (gb.SkinTab == 3)
             {
                 DrawThemeGrid(gb, 308);
+                return;
+            }
+            if (gb.SkinTab == 2)
+            {
+                DrawUnitSkins(gb);
                 return;
             }
             var material = gb.SkinTab == 0;
@@ -149,6 +160,59 @@ namespace ChromaFrontier.Client
                         gb.PanelMessage = $"{part.Name}{(material ? " 재질" : "")}을(를) 샀어요!";
                     }
                     else NotEnough(gb, part.Price);
+                }
+            }
+        }
+    
+        /// <summary>유닛 스킨 세트: 세트마다 큰 카드에 원소 유닛 9종을 늘어놓고 사기·사용하기.</summary>
+        private static void DrawUnitSkins(GameBootstrap gb)
+        {
+            Element[] order = { Element.Red, Element.Blue, Element.Yellow, Element.Green, Element.Purple, Element.Orange, Element.White, Element.Black, Element.Grey };
+            var sets = UnitSkins.All;
+            for (var i = 0; i < sets.Length; i++)
+            {
+                var set = sets[i];
+                var r = R(24, 308 + i * 270, RefW - 48, 258);
+                var owned = Progress.UnitSkinOwned(set);
+                var inUse = set.Id == Progress.UnitSkin;
+                var tint = set.Id == "halloween" ? new Color(1f, 0.6f, 0.25f) : new Color(0.36f, 0.62f, 1f);
+                if (inUse) Image(Inset(r, -14), "UI/glow", new Color(1f, 0.85f, 0.4f, 0.45f));
+                Nine(r, "UI/mode_card", 28, tint);
+                Text(new Rect(r.x + 18 * _s, r.y + 10 * _s, 260 * _s, 36 * _s), set.Name, 24, Color.white, TextAnchor.MiddleLeft, 0.8f);
+                Text(new Rect(r.x + 18 * _s, r.y + 44 * _s, r.width - 36 * _s, 22 * _s), set.Note, 13, Color.white, TextAnchor.MiddleLeft, 0.5f);
+                if (set.Id == "halloween")
+                {
+                    var tag = new Rect(r.xMax - 132 * _s, r.y + 14 * _s, 116 * _s, 28 * _s);
+                    Nine(tag, "UI/pill", 22, Color.white);
+                    Text(tag, "할로윈 한정", 13, Gold, TextAnchor.MiddleCenter, 0f);
+                }
+                // 유닛 9종 (위 5, 아래 4)
+                var shelf = new Rect(r.x + 12 * _s, r.y + 70 * _s, r.width - 24 * _s, 124 * _s);
+                Nine(shelf, "UI/pill", 22, new Color(1f, 1f, 1f, 0.7f));
+                for (var k = 0; k < order.Length; k++)
+                {
+                    var row = k < 5 ? 0 : 1;
+                    var col = row == 0 ? k : k - 5;
+                    var n = row == 0 ? 5 : 4;
+                    var w = shelf.width / 5f;
+                    var x = shelf.x + (5 - n) * w * 0.5f + col * w + w * 0.5f;
+                    var y = shelf.y + (row == 0 ? 4 : 62) * _s;
+                    Image(new Rect(x - 25 * _s, y, 50 * _s, 58 * _s), UnitSkins.Sprite(order[k], set.Id), Color.white);
+                }
+                var btn = new Rect(r.center.x - 110 * _s, r.yMax - 56 * _s, 220 * _s, 46 * _s);
+                if (inUse) Text(btn, "사용 중", 19, Gold, TextAnchor.MiddleCenter, 0.7f);
+                else if (owned)
+                {
+                    if (Button(btn, new Color(0.3f, 0.7f, 0.45f), "사용하기", 18)) gb.UseUnitSkin(set.Id);
+                }
+                else if (PriceButton(btn, new Color(1f, 0.55f, 0.2f), "", set.Price, 18))
+                {
+                    if (Progress.BuyUnitSkin(set))
+                    {
+                        gb.UseUnitSkin(set.Id);
+                        gb.PanelMessage = $"{set.Name} 유닛 세트를 샀어요!";
+                    }
+                    else NotEnough(gb, set.Price);
                 }
             }
         }

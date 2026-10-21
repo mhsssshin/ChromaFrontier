@@ -233,6 +233,13 @@ namespace ChromaFrontier.Client
             RefreshPreview();
         }
 
+        /// <summary>유닛 스킨 세트를 바꾸고 미리보기를 다시 그린다.</summary>
+        public void UseUnitSkin(string id)
+        {
+            Progress.UnitSkin = id;
+            RefreshPreview();
+        }
+
         /// <summary>보드 테마를 바꾸고 대기실 미리보기를 다시 그린다.</summary>
         public void UseTheme(string id)
         {
