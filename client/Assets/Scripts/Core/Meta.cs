@@ -452,6 +452,7 @@ namespace ChromaFrontier.Core
         public int Price;        // 결정 (0 = 처음부터 가짐)
         public string HexA, HexB; // 색: 윗면 진한 쪽·밝은 쪽 (art/tiles.mjs 의 SKIN_COLORS 와 같게)
         public string Note = "";
+        public string Tag = "";   // 상점 카드 꼬리표 (예: "할로윈 한정")
     }
 
     /// <summary>
@@ -463,8 +464,9 @@ namespace ChromaFrontier.Core
     {
         public static readonly SkinPart[] All =
         {
-            new() { Id = "", Name = "기본", Note = "처음 원소 친구들" },
-            new() { Id = "halloween", Name = "할로윈", Price = 500, Note = "잭오랜턴·물귀신·묘비 번개·검은 고양이…" },
+            new() { Id = "", Name = "기본", Note = "처음 원소 친구들", HexA = "#5c9eff" },
+            new() { Id = "halloween", Name = "할로윈", Price = 500, Note = "잭오랜턴·물귀신·묘비 번개·검은 고양이…", Tag = "할로윈 한정", HexA = "#ff9a40" },
+            new() { Id = "jeheon", Name = "제헌절", Price = 500, Note = "청사초롱·갓 쓴 물방울·헌법 책·달항아리·태극…", Tag = "제헌절 기념", HexA = "#d84a5a" },
         };
 
         public static SkinPart Find(string id)

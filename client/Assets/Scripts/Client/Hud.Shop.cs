@@ -164,48 +164,36 @@ namespace ChromaFrontier.Client
             }
         }
     
-        /// <summary>유닛 스킨 세트: 세트마다 큰 카드에 원소 유닛 9종을 늘어놓고 사기·사용하기.</summary>
+        /// <summary>유닛 스킨 세트: 세트마다 카드 한 장 — 이름·설명·꼬리표, 사기·사용하기 버튼, 원소 유닛 9종 한 줄 진열.</summary>
         private static void DrawUnitSkins(GameBootstrap gb)
         {
             Element[] order = { Element.Red, Element.Blue, Element.Yellow, Element.Green, Element.Purple, Element.Orange, Element.White, Element.Black, Element.Grey };
             var sets = UnitSkins.All;
-            for (var i = 0; i < sets.Length; i++)
+            for (var i = 0; i < sets.Length && i < 3; i++)
             {
                 var set = sets[i];
-                var r = R(24, 308 + i * 270, RefW - 48, 258);
+                var r = R(24, 308 + i * 186, RefW - 48, 176);
                 var owned = Progress.UnitSkinOwned(set);
                 var inUse = set.Id == Progress.UnitSkin;
-                var tint = set.Id == "halloween" ? new Color(1f, 0.6f, 0.25f) : new Color(0.36f, 0.62f, 1f);
+                var tint = Palette.Hex(string.IsNullOrEmpty(set.HexA) ? "#5c9eff" : set.HexA);
                 if (inUse) Image(Inset(r, -14), "UI/glow", new Color(1f, 0.85f, 0.4f, 0.45f));
                 Nine(r, "UI/mode_card", 28, tint);
-                Text(new Rect(r.x + 18 * _s, r.y + 10 * _s, 260 * _s, 36 * _s), set.Name, 24, Color.white, TextAnchor.MiddleLeft, 0.8f);
-                Text(new Rect(r.x + 18 * _s, r.y + 44 * _s, r.width - 36 * _s, 22 * _s), set.Note, 13, Color.white, TextAnchor.MiddleLeft, 0.5f);
-                if (set.Id == "halloween")
+                Text(new Rect(r.x + 18 * _s, r.y + 8 * _s, 200 * _s, 34 * _s), set.Name, 23, Color.white, TextAnchor.MiddleLeft, 0.8f);
+                if (!string.IsNullOrEmpty(set.Tag))
                 {
-                    var tag = new Rect(r.xMax - 132 * _s, r.y + 14 * _s, 116 * _s, 28 * _s);
+                    var tag = new Rect(r.x + 18 * _s + Mathf.Min(200f, set.Name.Length * 26f + 8f) * _s, r.y + 12 * _s, 104 * _s, 26 * _s);
                     Nine(tag, "UI/pill", 22, Color.white);
-                    Text(tag, "할로윈 한정", 13, Gold, TextAnchor.MiddleCenter, 0f);
+                    Text(tag, set.Tag, 12, Gold, TextAnchor.MiddleCenter, 0f);
                 }
-                // 유닛 9종 (위 5, 아래 4)
-                var shelf = new Rect(r.x + 12 * _s, r.y + 70 * _s, r.width - 24 * _s, 124 * _s);
-                Nine(shelf, "UI/pill", 22, new Color(1f, 1f, 1f, 0.7f));
-                for (var k = 0; k < order.Length; k++)
-                {
-                    var row = k < 5 ? 0 : 1;
-                    var col = row == 0 ? k : k - 5;
-                    var n = row == 0 ? 5 : 4;
-                    var w = shelf.width / 5f;
-                    var x = shelf.x + (5 - n) * w * 0.5f + col * w + w * 0.5f;
-                    var y = shelf.y + (row == 0 ? 4 : 62) * _s;
-                    Image(new Rect(x - 25 * _s, y, 50 * _s, 58 * _s), UnitSkins.Sprite(order[k], set.Id), Color.white);
-                }
-                var btn = new Rect(r.center.x - 110 * _s, r.yMax - 56 * _s, 220 * _s, 46 * _s);
+                Text(new Rect(r.x + 18 * _s, r.y + 42 * _s, r.width - 190 * _s, 22 * _s), set.Note, 12, Color.white, TextAnchor.MiddleLeft, 0.5f);
+
+                var btn = new Rect(r.xMax - 158 * _s, r.y + 14 * _s, 144 * _s, 44 * _s);
                 if (inUse) Text(btn, "사용 중", 19, Gold, TextAnchor.MiddleCenter, 0.7f);
                 else if (owned)
                 {
-                    if (Button(btn, new Color(0.3f, 0.7f, 0.45f), "사용하기", 18)) gb.UseUnitSkin(set.Id);
+                    if (Button(btn, new Color(0.3f, 0.7f, 0.45f), "사용하기", 17)) gb.UseUnitSkin(set.Id);
                 }
-                else if (PriceButton(btn, new Color(1f, 0.55f, 0.2f), "", set.Price, 18))
+                else if (PriceButton(btn, new Color(1f, 0.55f, 0.2f), "", set.Price, 17))
                 {
                     if (Progress.BuyUnitSkin(set))
                     {
@@ -213,6 +201,17 @@ namespace ChromaFrontier.Client
                         gb.PanelMessage = $"{set.Name} 유닛 세트를 샀어요!";
                     }
                     else NotEnough(gb, set.Price);
+                }
+
+                // 유닛 9종 한 줄
+                var shelf = new Rect(r.x + 10 * _s, r.y + 70 * _s, r.width - 20 * _s, 94 * _s);
+                Nine(shelf, "UI/pill", 22, new Color(1f, 1f, 1f, 0.7f));
+                var w = shelf.width / order.Length;
+                for (var k = 0; k < order.Length; k++)
+                {
+                    var x = shelf.x + k * w + w * 0.5f;
+                    var bob = Mathf.Sin(Time.unscaledTime * 2.4f + k * 0.7f) * 2f * _s;
+                    Image(new Rect(x - 24 * _s, shelf.y + 12 * _s + bob, 48 * _s, 56 * _s), UnitSkins.Sprite(order[k], set.Id), Color.white);
                 }
             }
         }

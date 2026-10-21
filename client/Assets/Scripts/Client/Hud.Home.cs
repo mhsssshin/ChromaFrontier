@@ -79,7 +79,7 @@ namespace ChromaFrontier.Client
                 var size = hot ? 70f : 64f;
                 Image(new Rect(r.center.x - size * 0.5f * _s, r.y + (40 - size * 0.5f) * _s, size * _s, size * _s), icons[i], Color.white);
                 Text(new Rect(r.x, r.y + 76 * _s, r.width, 28 * _s), labels[i], 18, Color.white, TextAnchor.MiddleCenter, 0.7f);
-                if (i == 1 && !Progress.UnitSkinOwned(UnitSkins.Find("halloween")))
+                if (i == 1 && System.Array.Exists(UnitSkins.All, u => !Progress.UnitSkinOwned(u)))
                 {
                     // 새 스킨 알림
                     var tagR = new Rect(r.center.x + 14 * _s, r.y + 8 * _s, 52 * _s, 24 * _s);
