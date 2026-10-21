@@ -115,7 +115,7 @@ namespace ChromaFrontier.Client
         private void EnterGame()
         {
             if (!Progress.TutorialDone) StartTutorial(Progress.TutorialLesson);
-            else ShowLobby(Mathf.Min(Progress.Unlocked - 1, StageCatalog.Count - 1));
+            else ShowHome();
         }
 
         public void PlayOffline()
@@ -147,7 +147,8 @@ namespace ChromaFrontier.Client
         /// <summary>클라우드 기록을 받았다: 보이는 화면을 새 기록으로 다시 그린다.</summary>
         private void OnReloaded()
         {
-            if (Mode == AppScreen.Lobby) ShowLobby(Mathf.Min(Progress.Unlocked - 1, StageCatalog.Count - 1));
+            if (Mode == AppScreen.Lobby) ShowSingle();
+            else if (Mode == AppScreen.Home) ShowHome();
         }
 
         // ---------------------------------------------------------------- PvP 로비·방
@@ -478,13 +479,16 @@ namespace ChromaFrontier.Client
             return false;
         }
 
-        /// <summary>판 중에 나간다 (진 것으로 치고 보상 없음). 판이 끝났으면 그냥 나간다.</summary>
+        /// <summary>판 중에 나간다 (기권: 패배로 기록하고 보상 없음). 판이 끝났으면 그냥 나간다.</summary>
         public void LeavePvp()
         {
+            var forfeit = Pvp != null && !Pvp.Recorded;
+            if (forfeit) Progress.RecordPvpForfeit();
             Online.LeaveRoom();
             Pvp = null;
             Palette.Viewer = Side.Player;
             ShowPvpLobby();
+            if (forfeit) ShowToast("기권했어요 — 패배로 기록했어요.");
         }
 
         public float PvpTimeLeft => Pvp == null ? 0f : Mathf.Max(0f, PvpCatalog.TurnSeconds - (Time.unscaledTime - Pvp.TurnStarted));

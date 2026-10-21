@@ -180,7 +180,7 @@ namespace ChromaFrontier.Client
         {
             Progress.TutorialDone = true;
             Tutorial = false;
-            ShowLobby(Mathf.Min(Progress.Unlocked - 1, StageCatalog.Count - 1));
+            ShowHome();
         }
 
         public void DismissTip()

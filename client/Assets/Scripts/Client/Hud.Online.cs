@@ -137,7 +137,7 @@ namespace ChromaFrontier.Client
 
         private static void DrawPvpLobby(GameBootstrap gb)
         {
-            if (Button(R(14, 14, 100, 44), new Color(0.4f, 0.42f, 0.58f), "← 대기실", 16)) gb.ShowLobby(Mathf.Min(Progress.Unlocked - 1, StageCatalog.Count - 1));
+            if (Button(R(14, 14, 100, 44), new Color(0.4f, 0.42f, 0.58f), "← 홈", 16)) gb.ShowHome();
             Text(R(0, 14, RefW, 44), "대전", 28, Gold, TextAnchor.MiddleCenter, 0.7f);
             GemPill(R(RefW - 132, 14, 118, 44));
 
@@ -175,6 +175,7 @@ namespace ChromaFrontier.Client
                 if (Button(new Rect(r.xMax - 124 * _s, r.y + 12 * _s, 112 * _s, 48 * _s), new Color(1f, 0.55f, 0.2f), full ? "꽉 참" : "입장", 19)) gb.JoinRoom(room);
                 GUI.enabled = true;
             }
+            if (Time.time < gb.ToastUntil) Text(R(20, 856, RefW - 40, 30), gb.Toast, 16, Gold, TextAnchor.MiddleCenter, 0.7f);
             OnlineError(904);
         }
 

@@ -53,9 +53,13 @@ namespace ChromaFrontier.Client
                 DrawPvpRoom(gb);
                 return;
             }
-            if (gb.Mode == AppScreen.Lobby)
+            if (gb.Mode == AppScreen.Lobby || gb.Mode == AppScreen.Home)
             {
-                if (gb.Panel == LobbyPanel.None || Event.current.type == EventType.Repaint) DrawLobby(gb);
+                if (gb.Panel == LobbyPanel.None || Event.current.type == EventType.Repaint)
+                {
+                    if (gb.Mode == AppScreen.Home) DrawHome(gb);
+                    else DrawLobby(gb);
+                }
                 if (gb.Panel == LobbyPanel.Deck) DrawDeckPanel(gb);
                 else if (gb.Panel == LobbyPanel.Quest) DrawQuestPanel(gb);
                 else if (gb.Panel == LobbyPanel.Prep) DrawPrepPanel(gb);
@@ -292,43 +296,16 @@ namespace ChromaFrontier.Client
 
         private static void DrawLobby(GameBootstrap gb)
         {
-            // 개발 빌드 대기실 단축키: U = 전체 스테이지 해금
-            var e = Event.current;
-            if (Debug.isDebugBuild && e.type == EventType.KeyDown && e.keyCode == KeyCode.U)
-            {
-                Progress.UnlockAll();
-                e.Use();
-            }
-            // 개발 빌드: G = 결정 500 지급
-            if (Debug.isDebugBuild && e.type == EventType.KeyDown && e.keyCode == KeyCode.G)
-            {
-                Progress.AddGemsDebug(500);
-                e.Use();
-            }
-
+            DebugKeys();
             var stage = StageCatalog.Get(gb.LobbyStage);
             var chapter = StageCatalog.Chapters[stage.Chapter];
 
-            // 제목 + 결정 + 별 합계
-            Image(R(4, 10, 172, 74), "UI/logo_title", Color.white);
-            // 결정을 누르면 상점
-            var gems = R(178, 22, 104, 44);
+            // 위 줄: 홈 · 제목 · 결정
+            if (Button(R(14, 22, 92, 44), new Color(0.4f, 0.42f, 0.58f), "← 홈", 17)) gb.ShowHome();
+            Text(R(110, 22, RefW - 250, 44), "싱글 모드", 26, Gold, TextAnchor.MiddleCenter, 0.7f);
+            var gems = R(RefW - 134, 22, 120, 44);
             GemPill(gems);
             if (GUI.Button(gems, GUIContent.none, GUIStyle.none)) gb.OpenPanel(LobbyPanel.Shop);
-            var starPill = R(286, 22, 104, 44);
-            if (Button(starPill, new Color(0.85f, 0.6f, 0.2f))) gb.OpenPanel(LobbyPanel.Road);
-            Image(new Rect(starPill.x + 8 * _s, starPill.y + 6 * _s, 32 * _s, 32 * _s), "UI/star_on", Color.white);
-            Text(new Rect(starPill.x + 40 * _s, starPill.y, starPill.width - 44 * _s, starPill.height), Progress.AllStars().ToString(), 19, Color.white);
-            var roadReady = Progress.RoadReadyCount();
-            if (roadReady > 0)
-            {
-                var badge = R(372, 12, 26, 26);
-                Nine(badge, "UI/button", 22, new Color(0.95f, 0.25f, 0.3f));
-                Text(badge, roadReady.ToString(), 14, Color.white, TextAnchor.MiddleCenter, 0f);
-            }
-            if (Button(R(394, 22, 64, 44), Online.SignedIn ? new Color(0.35f, 0.5f, 0.9f) : new Color(0.45f, 0.47f, 0.6f), Online.SignedIn ? "계정" : "로그인", 15))
-                gb.OpenPanel(LobbyPanel.Account);
-            if (Button(R(462, 22, 66, 44), new Color(1f, 0.6f, 0.25f), "상점", 16)) gb.OpenPanel(LobbyPanel.Shop);
 
             // 챕터 탭
             for (var c = 0; c < StageCatalog.Chapters.Length; c++)
@@ -340,7 +317,7 @@ namespace ChromaFrontier.Client
                 if (Button(r, tint, open ? $"{c + 1}장" : $"{c + 1}장 잠김", 18)) gb.SelectLobbyChapter(c);
                 GUI.enabled = true;
             }
-            Text(R(16, 140, RefW - 32, 26), $"[{ModeName(Progress.Mode)}]  {stage.Chapter + 1}장 {chapter.Name} — {chapter.Theme}   ·   {StarRoad.RankOf(Progress.AllStars())}", 15, Soft);
+            Text(R(16, 140, RefW - 32, 26), $"[{ModeName(Progress.Mode)}]  {stage.Chapter + 1}장 {chapter.Name} — {chapter.Theme}", 15, Soft);
 
             // (보드 미리보기는 카메라가 165~465 띠에 그린다)
 
@@ -377,27 +354,18 @@ namespace ChromaFrontier.Client
                 if (s.IsBoss) Image(new Rect(r.xMax - 26 * _s, r.y - 10 * _s, 30 * _s, 30 * _s), "UI/crown", Color.white);
             }
 
-            // 모드 + 덱 + 퀘스트 + 출격
+            // 모드 + 퀘스트 + 출격
             var mode = Progress.Mode;
-            if (Button(R(10, 854, 86, 76), ModeColor(mode))) gb.CycleMode();
-            Text(R(10, 862, 86, 26), "모드", 14, Color.white);
-            Text(R(10, 888, 86, 34), StageCatalog.ModeNames[mode], 20, Color.white);
+            if (Button(R(14, 854, 140, 76), ModeColor(mode))) gb.CycleMode();
+            Text(R(14, 862, 140, 26), "모드", 14, Color.white);
+            Text(R(14, 888, 140, 34), StageCatalog.ModeNames[mode], 22, Color.white);
             if (Time.time < gb.ModeHintUntil && mode + 1 < StageCatalog.Modes)
                 Text(R(0, 832, RefW, 22), $"{ModeName(mode)} 5-10 을 깨면 {ModeName(mode + 1)}가 열려요", 14, Gold, TextAnchor.MiddleCenter, 0.7f);
-            if (IconButton(R(102, 854, 72, 76), new Color(0.35f, 0.5f, 0.9f), "UI/icon_deck", "덱")) gb.OpenPanel(LobbyPanel.Deck);
-            if (IconButton(R(180, 854, 72, 76), new Color(0.6f, 0.45f, 0.85f), "UI/icon_quest", "퀘스트")) gb.OpenPanel(LobbyPanel.Quest);
-            if (IconButton(R(258, 854, 72, 76), new Color(0.25f, 0.62f, 0.7f), "UI/icon_tower", "첨탑")) gb.ShowTower(Mathf.Min(Progress.TowerCleared, PuzzleCatalog.Count - 1));
-            if (IconButton(R(336, 854, 72, 76), new Color(0.85f, 0.4f, 0.5f), "UI/icon_pvp", "대전")) gb.ShowPvpLobby();
+            if (IconButton(R(162, 854, 120, 76), new Color(0.6f, 0.45f, 0.85f), "UI/icon_quest", "퀘스트")) gb.OpenPanel(LobbyPanel.Quest);
+            Badge(R(262, 846, 30, 30), Progress.QuestsReady());
             if (Time.time < gb.ToastUntil) Text(R(0, 808, RefW, 22), gb.Toast, 14, Gold, TextAnchor.MiddleCenter, 0.7f);
-            var ready = Progress.QuestsReady();
-            if (ready > 0)
-            {
-                var badge = R(234, 846, 30, 30);
-                Nine(badge, "UI/button", 22, new Color(0.95f, 0.25f, 0.3f));
-                Text(badge, ready.ToString(), 15, Color.white, TextAnchor.MiddleCenter, 0f);
-            }
             GUI.enabled = Progress.IsUnlocked(gb.LobbyStage);
-            if (Button(R(414, 854, 116, 76), new Color(1f, 0.55f, 0.2f), "출격!", 26)) gb.OpenPanel(LobbyPanel.Prep);
+            if (Button(R(290, 854, 236, 76), new Color(1f, 0.55f, 0.2f), "출격!", 30)) gb.OpenPanel(LobbyPanel.Prep);
             GUI.enabled = true;
         }
 
@@ -843,7 +811,7 @@ namespace ChromaFrontier.Client
         {
             var floor = gb.TowerFloor;
             var p = PuzzleCatalog.Floors[floor];
-            if (Button(R(14, 14, 90, 44), new Color(0.4f, 0.42f, 0.58f), "← 대기실", 15)) gb.ShowLobby(gb.LobbyStage);
+            if (Button(R(14, 14, 90, 44), new Color(0.4f, 0.42f, 0.58f), "← 홈", 15)) gb.ShowHome();
             Text(R(110, 10, 300, 52), "크로마 첨탑", 30, Gold, TextAnchor.MiddleCenter, 0.7f);
             GemPill(R(RefW - 136, 14, 122, 44));
             Text(R(16, 66, RefW - 32, 26), $"정해진 카드로 몇 수 안에 모든 칸을 내 색으로!   {Progress.TowerCleared} / {PuzzleCatalog.Count}층", 14, Soft);

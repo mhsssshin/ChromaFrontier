@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace ChromaFrontier.Client
 {
-    public enum AppScreen { Splash, Lobby, Battle, Tower, Login, PvpLobby, PvpRoom }
+    public enum AppScreen { Splash, Lobby, Battle, Tower, Login, PvpLobby, PvpRoom, Home }
 
     /// <summary>대기실 위에 뜨는 창.</summary>
     public enum LobbyPanel { None, Deck, Quest, Prep, Road, Account, Shop }
@@ -161,6 +161,7 @@ namespace ChromaFrontier.Client
                 case AppScreen.Login: top = 0.75f; bottom = 0.98f; break;
                 case AppScreen.PvpRoom: top = 0.08f; bottom = 0.34f; break;
                 case AppScreen.Lobby: top = 0.17f; bottom = 0.485f; break;
+                case AppScreen.Home: top = 0.12f; bottom = 0.48f; break;
                 case AppScreen.Tower: top = 0.13f; bottom = 0.43f; break;
                 default: top = 0.27f; bottom = 0.75f; break; // 위쪽 HUD 아래에 게임 중 목표 줄이 있다
             }
@@ -229,14 +230,14 @@ namespace ChromaFrontier.Client
         public void UseSkin(string skin)
         {
             Progress.TileSkin = skin;
-            SelectLobbyStage(LobbyStage);
+            RefreshPreview();
         }
 
         /// <summary>보드 테마를 바꾸고 대기실 미리보기를 다시 그린다.</summary>
         public void UseTheme(string id)
         {
             Progress.Theme = id;
-            SelectLobbyStage(LobbyStage);
+            RefreshPreview();
         }
 
         /// <summary>대기실 모드 버튼: 열린 모드끼리 돌아가며 바꾼다. 하나뿐이면 여는 방법을 잠깐 보여 준다.</summary>
@@ -447,7 +448,7 @@ namespace ChromaFrontier.Client
                 }
                 if (Mode != AppScreen.Battle) return;
             }
-            if (Mode == AppScreen.Lobby || Mode == AppScreen.Tower)
+            if (Mode == AppScreen.Lobby || Mode == AppScreen.Tower || Mode == AppScreen.Home)
             {
                 _hl.Clear();
                 _view.Sync(_previewBoard, _hl, Time.time, Time.deltaTime);

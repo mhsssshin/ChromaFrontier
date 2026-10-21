@@ -483,6 +483,9 @@ namespace ChromaFrontier.Client
         public static int PvpDraws => LocalStore.GetInt(PvpDrawKey, 0);
         public static int PvpLosses => LocalStore.GetInt(PvpLoseKey, 0);
 
+        /// <summary>대전 기권: 패배로 남기고 결정은 없다.</summary>
+        public static void RecordPvpForfeit() => LocalStore.SetInt(PvpLoseKey, LocalStore.GetInt(PvpLoseKey, 0) + 1);
+
         /// <summary>대전 결과: 전적을 남기고 결정을 준다. 받은 결정 수.</summary>
         public static int RecordPvp(Side winner, Side team)
         {
