@@ -45,6 +45,7 @@ namespace ChromaFrontier.Core
         public readonly List<ObjectiveEvent> ObjectiveEvents = new(); // 직전 수에서 달성한 목표
         public bool BonusTurnTaken { get; private set; }     // 직전 수 뒤에 목표 보상으로 한 번 더 두게 됐다
         public int TurnsTaken { get; private set; }          // 끝난 차례 수 (추가 턴 포함). 뷰가 차례가 바뀐 것을 알아챈다
+        public bool ExtraTurnNow { get; private set; }       // 지금 차례는 흑색·보너스로 얻은 '한 번 더' 차례
         public readonly List<Cell> PioneerCells = new();     // 소모품 개척으로 시작할 때 받은 칸
 
         private Rng _rng;
@@ -134,6 +135,7 @@ namespace ChromaFrontier.Core
                 _playerStats = _playerStats.Clone(),
                 _aiStats = _aiStats.Clone(),
                 _bonusTurn = _bonusTurn,
+                ExtraTurnNow = ExtraTurnNow,
                 _levels = _levels,
                 TurnsTaken = TurnsTaken,
             };
@@ -523,6 +525,7 @@ namespace ChromaFrontier.Core
             DeckOf(Current).Refill(_rng, HoldLockFor(extraTurn));
             Board.TickTimers();
             SkillUsed = false;
+            ExtraTurnNow = extraTurn && !Rules.Solo;
             if (!extraTurn)
             {
                 Turn++;
@@ -534,6 +537,16 @@ namespace ChromaFrontier.Core
                 }
             }
             CheckStuck();
+            // 한 번 더 두는 차례인데 상대가 더 놓을 칸이 없으면(땅을 다 잃음) 기다릴 것 없이 끝낸다
+            if (extraTurn && !Rules.Solo && Stuck == Side.None && Turn < MaxTurns && !CanAnyPlace(Current.Opponent()))
+                Stuck = Current.Opponent();
+        }
+
+        private bool CanAnyPlace(Side s)
+        {
+            foreach (var c in Board.Cells())
+                if (CanPlaceIgnoringLock(s, c)) return true;
+            return false;
         }
 
         /// <summary>

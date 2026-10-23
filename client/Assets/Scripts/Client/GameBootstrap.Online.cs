@@ -359,7 +359,8 @@ namespace ChromaFrontier.Client
             {
                 p.TurnKey = key;
                 p.TurnStarted = Time.unscaledTime;
-                if (Game.CurrentSeat == p.MySeat && !BattleOver) p.MyTurnAt = Time.unscaledTime;
+                if (Game.CurrentSeat == p.MySeat && !BattleOver && !Game.ExtraTurnNow)
+                    ShowBanner("내 차례!", $"카드를 끌어 놓으세요 · {PvpCatalog.TurnSeconds}초", Palette.Mine);
             }
             var waited = Time.unscaledTime - p.TurnStarted;
             var caughtUp = !p.Log.ContainsKey(p.Applied);

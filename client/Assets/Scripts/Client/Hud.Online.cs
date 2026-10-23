@@ -296,6 +296,7 @@ namespace ChromaFrontier.Client
             var friendly = Game.SideOfSeat(seat) == gb.Me;
             Nine(who, "UI/button", 22, g.IsOver ? new Color(0.6f, 0.6f, 0.7f) : friendly ? Palette.Mine : Palette.Foe);
             var label = g.IsOver ? "게임 종료" : seat == p.MySeat ? "내 차례!" : friendly ? $"짝 {p.NameOf(seat)} 차례" : $"{p.NameOf(seat)} 차례";
+            if (!g.IsOver && g.ExtraTurnNow) label = seat == p.MySeat ? "한 번 더!" : $"{p.NameOf(seat)} 한 번 더";
             if (!g.IsOver && p.Left(seat)) label += " (나감)";
             Text(who, label, 17, Color.white);
 
@@ -417,28 +418,6 @@ namespace ChromaFrontier.Client
                 gb.EmoteOpen = false;
                 e.Use();
             }
-        }
-
-        /// <summary>내 차례가 되면 화면 가운데에 크게 "내 차례!" (1.8초, 통통 튀며 나타났다 사라짐).</summary>
-        private static void DrawMyTurnBanner(GameBootstrap gb)
-        {
-            var t = Time.unscaledTime - gb.Pvp.MyTurnAt;
-            if (t < 0f || t > 1.8f || gb.BattleOver) return;
-            var k = EaseOutBack(Mathf.Clamp01(t / 0.35f));
-            var a = Mathf.Clamp01((1.8f - t) / 0.4f);
-            var w = 360f * k;
-            var h = 120f * k;
-            var prev = GUI.color;
-            GUI.color = new Color(1f, 1f, 1f, a);
-            var r = R(RefW * 0.5f - w * 0.5f, 380f - h * 0.5f, w, h);
-            Nine(Inset(r, -5), "UI/button", 22, new Color(Gold.r, Gold.g, Gold.b, a));
-            Nine(r, "UI/button", 22, new Color(Palette.Mine.r, Palette.Mine.g, Palette.Mine.b, a));
-            if (k > 0.6f)
-            {
-                Text(new Rect(r.x, r.y + 8 * _s, r.width, 64 * _s), "내 차례!", 46, new Color(Gold.r, Gold.g, Gold.b, a), TextAnchor.MiddleCenter, 0.8f);
-                Text(new Rect(r.x, r.y + 72 * _s, r.width, 32 * _s), $"카드를 끌어 놓으세요 · {PvpCatalog.TurnSeconds}초", 16, new Color(1f, 1f, 1f, a), TextAnchor.MiddleCenter, 0.5f);
-            }
-            GUI.color = prev;
         }
 
         private static void DrawPvpResult(GameBootstrap gb, Game g)

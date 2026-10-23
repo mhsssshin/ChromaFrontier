@@ -35,7 +35,8 @@ namespace ChromaFrontier.Client
             if (!PlayerTurn) return;
             if (!CanUse(MyDeck.Hand[handIndex]))
             {
-                Message = "스킬은 한 턴에 한 장만 쓸 수 있어요. 유닛을 놓으세요.";
+                Message = "아이템(스킬) 카드는 한 턴에 한 장만 쓸 수 있어요. 유닛을 놓거나 패 버리기를 하세요.";
+                ShowBanner("아이템은 턴당 1장", "이번 턴엔 유닛을 놓으면 끝나요", new Color(0.45f, 0.47f, 0.6f), 1.4f);
                 return;
             }
             Selected = handIndex;

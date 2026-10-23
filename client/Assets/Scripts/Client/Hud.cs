@@ -79,10 +79,10 @@ namespace ChromaFrontier.Client
             else DrawTop(gb, g);
             DrawHand(gb, g);
             DrawCine(gb);
+            if (!gb.Tutorial) DrawBanner(gb);
             if (gb.Pvp != null)
             {
                 DrawEmotes(gb);
-                DrawMyTurnBanner(gb);
                 if (gb.EmoteOpen && !gb.BattleOver) DrawEmotePalette(gb);
             }
             if (gb.Tutorial) DrawFinger(gb);
@@ -547,6 +547,32 @@ namespace ChromaFrontier.Client
                     Buy(gb, card, entry.Price);
             }
             else Text(new Rect(r.x + 94 * _s, y, r.width - 100 * _s, h), "최대", 14, new Color(0.85f, 0.85f, 0.9f), TextAnchor.MiddleCenter, 0f);
+        }
+
+        private static bool _skillSpent; // 이번 턴에 아이템(스킬)을 이미 썼다 (손패 그릴 때)
+
+        /// <summary>가운데 큰 배너 (내 차례·한 번 더·안내). 통통 튀며 나타났다가 사라진다.</summary>
+        private static void DrawBanner(GameBootstrap gb)
+        {
+            var t = Time.unscaledTime - gb.BannerAt;
+            var len = gb.BannerLength;
+            if (t < 0f || t > len || gb.BattleOver) return;
+            var k = EaseOutBack(Mathf.Clamp01(t / 0.35f));
+            var a = Mathf.Clamp01((len - t) / 0.4f);
+            var w = 380f * k;
+            var h = 120f * k;
+            var prev = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, a);
+            var r = R(RefW * 0.5f - w * 0.5f, 400f - h * 0.5f, w, h);
+            Image(Inset(r, -30), "UI/glow", new Color(gb.BannerColor.r, gb.BannerColor.g, gb.BannerColor.b, 0.5f * a));
+            Nine(Inset(r, -5), "UI/button", 22, new Color(Gold.r, Gold.g, Gold.b, a));
+            Nine(r, "UI/button", 22, new Color(gb.BannerColor.r, gb.BannerColor.g, gb.BannerColor.b, a));
+            if (k > 0.6f)
+            {
+                Text(new Rect(r.x, r.y + 8 * _s, r.width, 64 * _s), gb.BannerTitle, 44, new Color(Gold.r, Gold.g, Gold.b, a), TextAnchor.MiddleCenter, 0.8f);
+                Text(new Rect(r.x, r.y + 72 * _s, r.width, 32 * _s), gb.BannerSub, 16, new Color(1f, 1f, 1f, a), TextAnchor.MiddleCenter, 0.5f);
+            }
+            GUI.color = prev;
         }
 
         private static Card? _upgradeArmed;
@@ -1014,7 +1040,10 @@ namespace ChromaFrontier.Client
             var whoColor = g.IsOver ? new Color(0.6f, 0.6f, 0.7f) : mine ? Palette.Player : Palette.Ai;
             if (mine && !g.IsOver) Image(Inset(who, -12), "UI/glow", new Color(whoColor.r, whoColor.g, whoColor.b, 0.35f + 0.2f * Mathf.Sin(Time.unscaledTime * 4f)));
             Nine(who, "UI/button", 22, whoColor);
-            Text(who, g.IsOver ? "게임 종료" : mine ? "내 차례" : "AI 차례", 19, Color.white);
+            var extra = !g.IsOver && g.ExtraTurnNow;
+            if (extra) Nine(Inset(who, -4), "UI/button", 22, new Color(Gold.r, Gold.g, Gold.b, 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 8f)));
+            if (extra) Nine(who, "UI/button", 22, whoColor);
+            Text(who, g.IsOver ? "게임 종료" : extra ? (mine ? "한 번 더!" : "AI 한 번 더") : mine ? "내 차례" : "AI 차례", 19, extra ? Gold : Color.white);
 
             Text(R(0, 66, RefW, 30), "영토 점유율", 17, Soft, TextAnchor.MiddleCenter, 0.6f);
             var bar = R(36, 98, RefW - 72, 46);
@@ -1128,6 +1157,13 @@ namespace ChromaFrontier.Client
                 }
             }
 
+            _skillSpent = gb.PlayerTurn && g.SkillUsed;
+            if (_skillSpent)
+            {
+                var chip = R(RefW * 0.5f - 110, 768, 220, 28);
+                Nine(chip, "UI/pill", 22, Color.white);
+                Text(chip, "아이템 1/1 사용 — 이제 유닛을 놓으세요", 13, new Color(1f, 0.85f, 0.4f), TextAnchor.MiddleCenter, 0f);
+            }
             foreach (var v in hv.Leaving) DrawCard(v, false, true, g.LevelOf(gb.Me, v.Card));
             foreach (var i in order) DrawCard(hv.Cards[i], i == gb.Selected, gb.PlayerTurn && gb.CanUse(hv.Cards[i].Card), g.LevelOf(gb.Me, hv.Cards[i].Card));
         }
@@ -1216,6 +1252,12 @@ namespace ChromaFrontier.Client
             var subInk = card.IsUnit ? new Color(0.45f, 0.35f, 0.25f, a) : new Color(0.75f, 0.78f, 0.95f, a);
             Text(new Rect(r.x, art.yMax + 5 * _s, r.width, 26 * _s), Palette.Name(card), card.IsUnit ? 20 : 16, ink, TextAnchor.MiddleCenter, 0f);
             Text(new Rect(r.x + 6 * _s, art.yMax + 32 * _s, r.width - 12 * _s, 30 * _s), Palette.Hint(card), 12, subInk, TextAnchor.UpperCenter, 0f);
+            if (!enabled && !card.IsUnit && _skillSpent)
+            {
+                var band = new Rect(r.x, art.center.y - 14 * _s, r.width, 28 * _s);
+                Nine(band, "UI/pill", 22, new Color(1f, 1f, 1f, a));
+                Text(band, "다음 턴", 15, new Color(1f, 0.85f, 0.4f, a), TextAnchor.MiddleCenter, 0f);
+            }
             GUI.matrix = saved;
         }
 
@@ -1329,7 +1371,7 @@ namespace ChromaFrontier.Client
             var flash = Mathf.Clamp01((gb.CineStrong ? 0.75f : 0.5f) - t * 2.6f);
             if (flash > 0f)
             {
-                GUI.color = new Color(1f, 1f, 1f, flash);
+                GUI.color = new Color(gb.CineFlash.r, gb.CineFlash.g, gb.CineFlash.b, flash);
                 GUI.DrawTexture(new Rect(0, 0, UnityEngine.Screen.width, UnityEngine.Screen.height), Texture2D.whiteTexture);
             }
             var color = Palette.Of(gb.CineElement);
@@ -1342,7 +1384,8 @@ namespace ChromaFrontier.Client
             GUI.color = prev;
             var pop = 1f + 0.5f * Mathf.Exp(-t * 8f);
             var slide = (1f - Mathf.Clamp01(t / 0.2f)) * 60f;
-            Image(R(24 - slide, 586, 90, 105), "Units/unit_" + gb.CineElement.ToString().ToLowerInvariant(), new Color(1f, 1f, 1f, a));
+            if (gb.CineIcon != "") Image(R(20 - slide, 600, 92, 62), gb.CineIcon, new Color(1f, 1f, 1f, a));
+            else Image(R(24 - slide, 586, 90, 105), "Units/unit_" + gb.CineElement.ToString().ToLowerInvariant(), new Color(1f, 1f, 1f, a));
             var title = Color.Lerp(color, Color.white, 0.6f); // 흑색처럼 어두운 색도 띠 위에서 읽히게
             title.a = a;
             Text(R(110 + slide, 596, RefW - 130, 54), gb.CineTitle, Mathf.RoundToInt(38 * pop), title, TextAnchor.MiddleLeft, 0.9f);

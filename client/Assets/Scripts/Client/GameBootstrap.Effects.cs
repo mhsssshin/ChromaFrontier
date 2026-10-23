@@ -11,6 +11,36 @@ namespace ChromaFrontier.Client
         {
             DescribeMove(actor, at, at2);
             PlayObjectiveEffects();
+            AnnounceExtraTurn(actor);
+        }
+
+        // ---------------------------------------------------------------- 가운데 배너 (내 차례·한 번 더·안내)
+
+        public float BannerAt { get; private set; } = -99f; // 배너가 뜨는 시각 (실제 시간)
+        public float BannerLength { get; private set; } = 1.8f;
+        public string BannerTitle { get; private set; } = "";
+        public string BannerSub { get; private set; } = "";
+        public Color BannerColor { get; private set; } = Color.white;
+
+        /// <summary>화면 가운데에 큰 배너. 합성·지뢰 연출 중이면 그게 끝난 뒤에 뜬다.</summary>
+        public void ShowBanner(string title, string sub, Color color, float length = 1.8f)
+        {
+            BannerTitle = title;
+            BannerSub = sub;
+            BannerColor = color;
+            BannerLength = length;
+            BannerAt = Time.unscaledTime + (CineActive ? Mathf.Max(0f, CineLength - CineTime - 0.3f) : 0f);
+        }
+
+        /// <summary>흑색(추가 턴)·게임 중 목표 보너스로 한 번 더 두게 되면 크게 알린다.</summary>
+        private void AnnounceExtraTurn(Side actor)
+        {
+            if (Game == null || Game.IsOver || Tutorial) return;
+            var black = Game.LastResult != null && Game.LastResult.ExtraTurn;
+            if (!black && !Game.BonusTurnTaken) return;
+            var why = black ? "흑색 효과" : "보너스";
+            if (actor == Me) ShowBanner("한 번 더!", $"{why} — 한 장 더 놓으세요", Palette.Mine, 2.2f);
+            else ShowBanner(Pvp != null ? $"{WhoName(actor)} 한 번 더!" : "AI 한 번 더!", $"{why}로 상대가 한 번 더 둬요", Palette.Foe, 1.8f);
         }
 
         /// <summary>게임 중 목표를 방금 이뤘으면: 효과로 바뀐 칸 연출 + 메시지, HUD 목표 칸을 반짝인다.</summary>
@@ -160,8 +190,43 @@ namespace ChromaFrontier.Client
         /// 융합하면: 시간이 느려지고(최저 0.25배), 카메라가 그 칸으로 다가가고, 반응에 휘말린 칸만 밝게 남기고
         /// 나머지는 어두워진다. HUD 는 섬광과 융합 이름 띠를 띄운다 (Hud.DrawCine). AI 의 융합은 조금 짧게.
         /// </summary>
+        public string CineIcon { get; private set; } = "";     // 띠 왼쪽 그림 (비면 융합 유닛)
+        public Color CineFlash { get; private set; } = Color.white; // 시작할 때 화면 섬광 색
+
+        /// <summary>
+        /// 지뢰 폭발: 합성 연출과 같은 슬로모션·클로즈업으로, 빼앗긴(차지한) 칸만 밝게 남기고 붉은 섬광과 함께
+        /// "쾅! 지뢰" 띠를 띄운다. 밟은 쪽이 나면 무엇을 잃었는지, 상대면 무엇을 얻었는지 분명하게.
+        /// </summary>
+        private void StartMineCine(Side actor, PlayResult r, Cell at)
+        {
+            CineStrong = true;
+            CineLength = 2.2f;
+            CineTime = 0f;
+            CineElement = Element.Red;
+            CineIcon = "Units/mine";
+            CineFlash = new Color(1f, 0.25f, 0.15f);
+            var n = r.Captured.Count;
+            if (actor == Me)
+            {
+                CineTitle = "쾅! 지뢰를 밟았다!";
+                CineSub = $"상대 함정 — 내 땅 {n}칸을 빼앗겼어요";
+            }
+            else
+            {
+                CineTitle = Pvp != null ? $"쾅! {WhoName(actor)}이(가) 지뢰를!" : "쾅! 상대가 지뢰를 밟았다!";
+                CineSub = $"내 함정 — 주변 {n}칸이 내 땅으로!";
+            }
+            _cineCells.Clear();
+            _cineCells.Add(at);
+            foreach (var c in r.Captured) _cineCells.Add(c);
+            var w = _view.ToWorld(at);
+            _cineFocus = new Vector2(w.x, w.y);
+        }
+
         private void StartCine(Side actor, PlayResult r, Cell at)
         {
+            CineIcon = "";
+            CineFlash = Color.white;
             CineStrong = r.Fused.Tier() == 3;
             CineLength = (CineStrong ? 2.2f : 1.6f) * (actor != Me ? 0.75f : 1f);
             CineTime = 0f;
@@ -281,9 +346,19 @@ namespace ChromaFrontier.Client
             }
             else if (r.MineTriggered)
             {
-                _fx.Spawn(FxView.Burst, pos + lift, white, 1.8f);
-                _fx.Spawn(FxView.Smoke, pos + lift, new Color(0.5f, 0.45f, 0.45f), 1.6f, 0.15f);
-                _shake = 0.35f;
+                StartMineCine(actor, r, at);
+                _fx.Spawn(FxView.Burst, pos + lift, white, 2.6f);
+                _fx.Spawn(FxView.Burst, pos + lift, new Color(1f, 0.5f, 0.3f), 3.6f, 0.12f);
+                _fx.Spawn(FxView.Smoke, pos + lift, new Color(0.5f, 0.45f, 0.45f), 2.2f, 0.15f);
+                _fx.Spawn(FxView.Ring, pos, new Color(1f, 0.35f, 0.25f), 4.2f, 0.05f);
+                // 빼앗긴(차지한) 칸에 차례로 불꽃이 번진다
+                foreach (var c in r.Captured)
+                {
+                    var d = 0.25f + c.Chebyshev(at) * 0.12f;
+                    _fx.Spawn(FxView.Burst, _view.ToWorld(c) + lift, new Color(1f, 0.6f, 0.35f), 1.1f, d);
+                    _fx.Spawn(FxView.Ring, _view.ToWorld(c), Palette.Of(actor.Opponent()), 1.4f, d + 0.05f);
+                }
+                _shake = 0.6f;
             }
             else
             {

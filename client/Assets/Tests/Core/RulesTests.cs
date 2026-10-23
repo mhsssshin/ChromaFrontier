@@ -480,6 +480,43 @@ namespace ChromaFrontier.Core.Tests
         }
 
         [Test]
+        public void ExtraTurn_EndsGameAtOnce_WhenOpponentHasNoLandLeft()
+        {
+            // 상대 땅은 한 칸뿐이고, 화염 십자로 그 칸을 빼앗는다. 선공(한 번 더)이 남아 있어도 바로 끝나야 한다.
+            var b = Empty();
+            b[new Cell(3, 3)].Owner = Side.Player;
+            b[new Cell(3, 5)].Owner = Side.Ai;
+            var deck = new System.Collections.Generic.List<Card>();
+            for (var i = 0; i < 8; i++) deck.Add(Card.Unit(Element.Red));
+            var g = Game.Create(b, deck, Game.StarterDeck(), 1);
+            var l = new Loadout();
+            l.Boosts.Add(Boost.FirstStrike);
+            g.ApplyLoadout(l);
+            g.Play(0, new Cell(3, 4));
+            Assert.AreEqual(0, g.Board.Count(Side.Ai));
+            Assert.IsTrue(g.IsOver, "한 번 더 둘 차례지만 상대 땅이 없으면 바로 끝");
+            Assert.AreEqual(Side.Player, g.Winner);
+        }
+
+        [Test]
+        public void ExtraTurn_Flag_IsSetOnBonusTurn()
+        {
+            var b = Empty();
+            b[new Cell(0, 7)].Owner = Side.Player;
+            b[new Cell(7, 0)].Owner = Side.Ai;
+            var deck = new System.Collections.Generic.List<Card>();
+            for (var i = 0; i < 8; i++) deck.Add(Card.Unit(Element.Red));
+            var g = Game.Create(b, deck, Game.StarterDeck(), 1);
+            var l = new Loadout();
+            l.Boosts.Add(Boost.FirstStrike);
+            g.ApplyLoadout(l);
+            g.Play(0, new Cell(1, 7));
+            Assert.IsTrue(g.ExtraTurnNow);
+            g.Play(0, new Cell(2, 7));
+            Assert.IsFalse(g.ExtraTurnNow);
+        }
+
+        [Test]
         public void OldEchoSave_BecomesSurge()
         {
             var c = Collection.Parse("echo:2|echo|echo:3");
