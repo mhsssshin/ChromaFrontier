@@ -572,4 +572,40 @@ namespace ChromaFrontier.Core
             return Join(m, color);
         }
     }
+
+    /// <summary>대전 이모티콘 팩 하나: 8장. 그림은 UI/emote_(팩 순서 × 8 + 칸) (art/emotes.mjs, art/emote_packs.mjs).</summary>
+    public sealed class EmotePack
+    {
+        public string Id, Name, Note = "", Tag = "", HexA = "#5c9eff";
+        public int Price;          // 결정 (0 = 처음부터 가짐)
+        public string[] Captions;  // 8장의 문구 (팔레트·상점에 쓴다)
+    }
+
+    /// <summary>
+    /// 대전 이모티콘 팩. 기본 팩은 무료, 나머지는 상점에서 산다. 보낼 때는 전체 번호(팩 × 8 + 칸)를 쓰므로
+    /// 받는 쪽은 그 팩을 안 가져도 그림이 보인다.
+    /// </summary>
+    public static class EmotePacks
+    {
+        public const int PerPack = 8;
+
+        public static readonly EmotePack[] All =
+        {
+            new() { Id = "basic", Name = "기본", Note = "원소 친구들의 기본 표정",
+                Captions = new[] { "좋아요!", "화난다!", "헉!", "흑흑", "ㅋㅋㅋ", "잘했어!", "음…", "GG" } },
+            new() { Id = "taunt", Name = "킹받는 팩", Price = 300, Tag = "킹받음 주의", HexA = "#ff7a3a", Note = "메롱·어쩔티비·선글라스… 상대 속을 긁는다",
+                Captions = new[] { "메롱~", "어쩔티비", "깐족깐족", "ㅋ", "응 아니야", "하암~", "짝짝짝", "그걸 놓네?" } },
+            new() { Id = "cute", Name = "귀요미 팩", Price = 300, Tag = "심쿵", HexA = "#ff7fb0", Note = "부끄·쪽·쿨쿨·꽃 받아… 사랑스러운 원소들",
+                Captions = new[] { "부끄", "반짝반짝", "쪽", "쿨쿨", "꽃 받아", "브이", "사랑해", "화이팅" } },
+            new() { Id = "panic", Name = "멘붕 팩", Price = 300, Tag = "멘탈 붕괴", HexA = "#8a6ae0", Note = "녹아내리고, 영혼이 빠지고, 터진다",
+                Captions = new[] { "멘붕", "영혼 탈출", "눈물바다", "폭발", "해탈", "흰자", "띠용", "털썩" } },
+        };
+
+        public static int Total => All.Length * PerPack;
+
+        public static EmotePack PackOf(int index) => All[Math.Max(0, Math.Min(All.Length - 1, index / PerPack))];
+
+        public static string Caption(int index) =>
+            index >= 0 && index < Total ? PackOf(index).Captions[index % PerPack] : "";
+    }
 }

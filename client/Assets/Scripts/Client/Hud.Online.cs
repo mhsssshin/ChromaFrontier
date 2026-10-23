@@ -328,8 +328,6 @@ namespace ChromaFrontier.Client
             }
         }
 
-        public static readonly string[] EmoteCaptions = { "좋아요!", "화난다!", "헉!", "흑흑", "ㅋㅋㅋ", "잘했어!", "음…", "GG" };
-
         /// <summary>대전 자리 줄에서 그 자리 칸의 기준 좌표 사각형 (DrawPvpTop 과 같은 계산).</summary>
         private static Rect SeatChip(int seat, int seats)
         {
@@ -378,22 +376,39 @@ namespace ChromaFrontier.Client
             if (GUI.Button(r, GUIContent.none, GUIStyle.none)) gb.EmoteOpen = !gb.EmoteOpen;
         }
 
-        /// <summary>이모티콘 팔레트: 손패 위에 뜨는 유리 판, 4x2 스티커. 하나를 누르면 보내고 닫힌다.</summary>
+        /// <summary>이모티콘 팔레트: 손패 위에 뜨는 유리 판. 위에 가진 팩 탭, 아래 4x2 스티커. 하나를 누르면 보내고 닫힌다.</summary>
         private static void DrawEmotePalette(GameBootstrap gb)
         {
-            var panel = R(20, 452, RefW - 40, 254);
+            var panel = R(20, 404, RefW - 40, 302);
             Nine(panel, "UI/glass", 28, Color.white);
             Nine(Inset(panel, 4), "UI/panel", 28, new Color(1f, 1f, 1f, 0.8f));
-            var cool = gb.EmoteReadyAt - Time.unscaledTime;
-            for (var i = 0; i < GameBootstrap.EmoteCount; i++)
+            // 가진 팩 탭
+            var owned = new System.Collections.Generic.List<int>();
+            for (var k = 0; k < EmotePacks.All.Length; k++)
+                if (Progress.EmotePackOwned(EmotePacks.All[k])) owned.Add(k);
+            if (!owned.Contains(gb.EmotePackTab)) gb.EmotePackTab = 0;
+            var tw = Mathf.Min(116f, (RefW - 64f) / owned.Count - 4f);
+            for (var n = 0; n < owned.Count; n++)
             {
-                var cell = R(32 + (i % 4) * 120, 462 + (i / 4) * 120, 116, 116);
+                var pk = owned[n];
+                var tab = R(32 + n * (tw + 4), 414, tw, 34);
+                if (pk == gb.EmotePackTab) Nine(tab, "UI/button", 22, Palette.Hex(EmotePacks.All[pk].HexA));
+                else Nine(tab, "UI/pill", 22, Color.white);
+                Text(tab, EmotePacks.All[pk].Name, 13, Color.white, TextAnchor.MiddleCenter, 0.4f);
+                if (GUI.Button(tab, GUIContent.none, GUIStyle.none)) gb.EmotePackTab = pk;
+            }
+            var cool = gb.EmoteReadyAt - Time.unscaledTime;
+            var first = gb.EmotePackTab * EmotePacks.PerPack;
+            for (var c = 0; c < EmotePacks.PerPack; c++)
+            {
+                var idx = first + c;
+                var cell = R(32 + (c % 4) * 120, 456 + (c / 4) * 120, 116, 116);
                 var hot = HotGlow(cell);
                 if (hot) Image(Inset(cell, -6), "UI/glow", new Color(1f, 1f, 1f, 0.6f));
                 var bounce = hot ? Mathf.Abs(Mathf.Sin(Time.unscaledTime * 8f)) * 4f : 0f;
-                Image(new Rect(cell.x + 14 * _s, cell.y + (4 - bounce) * _s, 88 * _s, 88 * _s), "UI/emote_" + i, cool > 0f ? new Color(1f, 1f, 1f, 0.45f) : Color.white);
-                Text(new Rect(cell.x, cell.y + 90 * _s, cell.width, 22 * _s), EmoteCaptions[i], 13, Color.white, TextAnchor.MiddleCenter, 0.6f);
-                if (GUI.Button(cell, GUIContent.none, GUIStyle.none) && cool <= 0f) gb.SendEmote(i);
+                Image(new Rect(cell.x + 14 * _s, cell.y + (4 - bounce) * _s, 88 * _s, 88 * _s), "UI/emote_" + idx, cool > 0f ? new Color(1f, 1f, 1f, 0.45f) : Color.white);
+                Text(new Rect(cell.x, cell.y + 90 * _s, cell.width, 22 * _s), EmotePacks.Caption(idx), 13, Color.white, TextAnchor.MiddleCenter, 0.6f);
+                if (GUI.Button(cell, GUIContent.none, GUIStyle.none) && cool <= 0f) gb.SendEmote(idx);
             }
             // 판 밖을 누르면 닫는다 (보드로 입력이 새지 않게)
             var e = Event.current;

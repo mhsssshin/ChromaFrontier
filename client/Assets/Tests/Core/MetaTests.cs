@@ -350,5 +350,20 @@ namespace ChromaFrontier.Core.Tests
             Assert.AreEqual("wood:pink", TileSkins.AgainstMine("wood:pink", "stone:blue"));
             Assert.AreEqual("crystal:blue", TileSkins.WithColor("crystal:black", "blue"));
         }
+    
+        [Test]
+        public void EmotePacks_HaveEightCaptions_BasicIsFree_IdsUnique()
+        {
+            Assert.AreEqual(0, EmotePacks.All[0].Price);
+            var ids = new System.Collections.Generic.HashSet<string>();
+            foreach (var pack in EmotePacks.All)
+            {
+                Assert.AreEqual(EmotePacks.PerPack, pack.Captions.Length, pack.Id);
+                Assert.IsTrue(ids.Add(pack.Id), pack.Id);
+            }
+            Assert.AreEqual(EmotePacks.All.Length * 8, EmotePacks.Total);
+            Assert.AreEqual("메롱~", EmotePacks.Caption(8));
+            Assert.AreEqual("", EmotePacks.Caption(EmotePacks.Total));
+        }
     }
 }

@@ -478,6 +478,21 @@ namespace ChromaFrontier.Client
         /// <summary>대전 방에 올리는 내 스킨 "재질:색:유닛세트".</summary>
         public static string SeatSkin => TileSkin + ":" + UnitSkin;
 
+        // ---------------------------------------------------------------- 이모티콘 팩
+
+        private const string EmotePacksKey = "cf.emotepacks";
+
+        public static bool EmotePackOwned(EmotePack pack) =>
+            pack.Price == 0 || ("," + LocalStore.GetString(EmotePacksKey, "") + ",").Contains("," + pack.Id + ",");
+
+        public static bool BuyEmotePack(EmotePack pack)
+        {
+            if (EmotePackOwned(pack) || !SpendGems(pack.Price)) return false;
+            var list = LocalStore.GetString(EmotePacksKey, "");
+            LocalStore.SetString(EmotePacksKey, list.Length == 0 ? pack.Id : list + "," + pack.Id);
+            return true;
+        }
+
         /// <summary>개발 빌드 전용: 결정 지급.</summary>
         public static void AddGemsDebug(int n) => Gems += n;
 

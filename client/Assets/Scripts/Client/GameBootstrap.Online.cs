@@ -505,7 +505,8 @@ namespace ChromaFrontier.Client
 
         // ---------------------------------------------------------------- 이모티콘
 
-        public const int EmoteCount = 8;
+        public static int EmoteCount => EmotePacks.Total;
+        public int EmotePackTab { get; set; } // 팔레트에서 보고 있는 팩
         public const float EmoteCooldown = 3f, EmoteShowTime = 3f;
         public bool EmoteOpen { get; set; }
         public float EmoteReadyAt { get; private set; }

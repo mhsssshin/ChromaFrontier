@@ -6,7 +6,7 @@ namespace ChromaFrontier.Client
     /// <summary>상점: 스킬 카드 · 아이템(무르기, 소모품 이용권) · 스킨(땅 타일 재질·색, 보드 테마)을 결정으로 산다.</summary>
     public static partial class Hud
     {
-        private static readonly string[] ShopTabs = { "스킬 카드", "아이템", "스킨" };
+        private static readonly string[] ShopTabs = { "스킬 카드", "아이템", "스킨", "이모티콘" };
 
         private static void DrawShopPanel(GameBootstrap gb)
         {
@@ -18,8 +18,8 @@ namespace ChromaFrontier.Client
 
             for (var i = 0; i < ShopTabs.Length; i++)
             {
-                var r = R(24 + i * 166, 100, 158, 48);
-                if (Button(r, i == gb.ShopTab ? new Color(0.3f, 0.6f, 1f) : new Color(0.35f, 0.38f, 0.55f), ShopTabs[i], 19))
+                var r = R(24 + i * 124, 100, 118, 48);
+                if (Button(r, i == gb.ShopTab ? new Color(0.3f, 0.6f, 1f) : new Color(0.35f, 0.38f, 0.55f), ShopTabs[i], 17))
                 {
                     gb.ShopTab = i;
                     gb.PanelMessage = "";
@@ -28,7 +28,8 @@ namespace ChromaFrontier.Client
 
             if (gb.ShopTab == 0) DrawShopCards(gb);
             else if (gb.ShopTab == 1) DrawShopItems(gb);
-            else DrawShopSkins(gb);
+            else if (gb.ShopTab == 2) DrawShopSkins(gb);
+            else DrawShopEmotes(gb);
 
             Text(R(24, 884, RefW - 48, 40), gb.PanelMessage, 16, Gold, TextAnchor.MiddleCenter, 0.5f);
             SwallowInput();
@@ -212,6 +213,47 @@ namespace ChromaFrontier.Client
                     var x = shelf.x + k * w + w * 0.5f;
                     var bob = Mathf.Sin(Time.unscaledTime * 2.4f + k * 0.7f) * 2f * _s;
                     Image(new Rect(x - 24 * _s, shelf.y + 12 * _s + bob, 48 * _s, 56 * _s), UnitSkins.Sprite(order[k], set.Id), Color.white);
+                }
+            }
+        }
+
+        /// <summary>이모티콘 팩: 팩마다 카드 한 장 — 이름·꼬리표·설명·사기, 8장 진열 (마우스를 올리면 문구).</summary>
+        private static void DrawShopEmotes(GameBootstrap gb)
+        {
+            Text(R(24, 154, RefW - 48, 24), "산 팩은 대전 중 이모티콘 판에 탭으로 생겨요. 상대는 팩이 없어도 내 이모티콘을 볼 수 있어요.", 13, new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft, 0f);
+            var packs = EmotePacks.All;
+            for (var i = 0; i < packs.Length; i++)
+            {
+                var pack = packs[i];
+                var r = R(24, 184 + i * 172, RefW - 48, 164);
+                var owned = Progress.EmotePackOwned(pack);
+                Nine(r, "UI/mode_card", 28, Palette.Hex(pack.HexA));
+                Text(new Rect(r.x + 18 * _s, r.y + 8 * _s, 200 * _s, 32 * _s), pack.Name, 21, Color.white, TextAnchor.MiddleLeft, 0.8f);
+                if (!string.IsNullOrEmpty(pack.Tag))
+                {
+                    var tag = new Rect(r.x + 18 * _s + Mathf.Min(170f, pack.Name.Length * 22f + 10f) * _s, r.y + 12 * _s, 96 * _s, 24 * _s);
+                    Nine(tag, "UI/pill", 22, Color.white);
+                    Text(tag, pack.Tag, 12, Gold, TextAnchor.MiddleCenter, 0f);
+                }
+                Text(new Rect(r.x + 18 * _s, r.y + 38 * _s, r.width - 190 * _s, 20 * _s), pack.Note, 12, Color.white, TextAnchor.MiddleLeft, 0.5f);
+                var btn = new Rect(r.xMax - 150 * _s, r.y + 12 * _s, 136 * _s, 42 * _s);
+                if (owned) Text(btn, pack.Price == 0 ? "기본 제공" : "가지고 있어요", 16, Gold, TextAnchor.MiddleCenter, 0.7f);
+                else if (PriceButton(btn, new Color(1f, 0.55f, 0.2f), "", pack.Price, 17))
+                {
+                    if (Progress.BuyEmotePack(pack)) gb.PanelMessage = $"{pack.Name}을(를) 샀어요! 대전 중 이모티콘 판에서 써 보세요.";
+                    else NotEnough(gb, pack.Price);
+                }
+                var shelf = new Rect(r.x + 10 * _s, r.y + 62 * _s, r.width - 20 * _s, 94 * _s);
+                Nine(shelf, "UI/pill", 22, new Color(1f, 1f, 1f, 0.7f));
+                var w = shelf.width / EmotePacks.PerPack;
+                for (var c = 0; c < EmotePacks.PerPack; c++)
+                {
+                    var idx = i * EmotePacks.PerPack + c;
+                    var cell = new Rect(shelf.x + c * w, shelf.y, w, shelf.height);
+                    var hot = HotGlow(cell);
+                    var bob = hot ? Mathf.Abs(Mathf.Sin(Time.unscaledTime * 8f)) * 4f * _s : 0f;
+                    Image(new Rect(cell.center.x - 26 * _s, cell.y + 8 * _s - bob, 52 * _s, 52 * _s), "UI/emote_" + idx, Color.white);
+                    Text(new Rect(cell.x - 4 * _s, cell.y + 62 * _s, cell.width + 8 * _s, 22 * _s), EmotePacks.Caption(idx), 10, hot ? Gold : Color.white, TextAnchor.MiddleCenter, 0.5f);
                 }
             }
         }
