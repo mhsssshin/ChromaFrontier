@@ -338,31 +338,31 @@ namespace ChromaFrontier.Client
             return new Rect(12 + seat * (w + gap), 210, w, 46);
         }
 
-        /// <summary>떠 있는 이모티콘: 보낸 사람 자리 칸 아래에 통통 튀며 나타나 둥실거리다 사라진다.</summary>
+        /// <summary>
+        /// 떠 있는 이모티콘: 보낸 사람의 이름 칸(위쪽 자리 줄)에서 말풍선이 톡 튀어나와 이모티콘을 보여 주고,
+        /// 잠시 뒤 작아지며 사라진다.
+        /// </summary>
         private static void DrawEmotes(GameBootstrap gb)
         {
             var p = gb.Pvp;
             foreach (var e in p.Emotes)
             {
                 var t = Time.unscaledTime - e.At;
-                var k = EaseOutBack(Mathf.Clamp01(t / 0.32f));
-                var a = Mathf.Clamp01((GameBootstrap.EmoteShowTime - t) / 0.4f);
+                var life = GameBootstrap.EmoteShowTime;
+                var k = t < 0.3f ? EaseOutBack(t / 0.3f) : t > life - 0.3f ? Mathf.Clamp01((life - t) / 0.3f) : 1f;
+                if (k <= 0.01f) continue;
                 var chip = SeatChip(e.Seat, p.Seats);
-                var size = 118f * k;
-                var cx = Mathf.Clamp(chip.center.x, 70f, RefW - 70f);
-                var bob = Mathf.Sin(t * 5f) * 3f;
-                var prev = GUI.color;
-                GUI.color = new Color(1f, 1f, 1f, a);
-                Image(R(cx - size * 0.5f - 20, 262 + bob - 20, size + 40, size + 40), "UI/glow", new Color(1f, 1f, 1f, 0.5f * a));
-                Image(R(cx - size * 0.5f, 262 + bob + (118 - size) * 0.5f, size, size), "UI/emote_" + e.Index, new Color(1f, 1f, 1f, a));
-                if (k > 0.7f)
-                {
-                    var cap = R(cx - 60, 380 + bob, 120, 30);
-                    Nine(cap, "UI/pill", 22, new Color(1f, 1f, 1f, a));
-                    var who = e.Seat == p.MySeat ? "나" : p.NameOf(e.Seat);
-                    Text(cap, $"{who}: {EmoteCaptions[e.Index]}", 13, new Color(1f, 1f, 1f, a), TextAnchor.MiddleCenter, 0f);
-                }
-                GUI.color = prev;
+                var cx = Mathf.Clamp(chip.center.x, 64f, RefW - 64f);
+                const float w = 112f, h = 104f;
+                var top = chip.yMax + 10f;
+                // 말풍선은 꼬리(이름 칸 아래 가운데)를 중심으로 커진다
+                var bw = w * k;
+                var bh = h * k;
+                var bob = Mathf.Sin(t * 4f) * 2f;
+                Image(R(cx - 17 * k, top - 16 * k + bob, 34 * k, 20 * k), "UI/bubble_tail", Color.white);
+                var bubble = R(cx - bw * 0.5f, top + bob, bw, bh);
+                Nine(bubble, "UI/bubble", 28, Color.white);
+                Image(R(cx - 42 * k, top + bob + 10 * k, 84 * k, 84 * k), "UI/emote_" + e.Index, Color.white);
             }
         }
 

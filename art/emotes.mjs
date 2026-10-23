@@ -141,6 +141,12 @@ export function emotes() {
   p.path('M104 100 Q110 92 114 96', 'none', 'stroke="#4a4652" stroke-width="5" stroke-linecap="round"');
   out.push(p.sprite('UI/emote_7'));
 
+  // 이모티콘 말풍선 꼬리 (위를 가리키는 삼각형, 48x28). 바탕 말풍선은 UI/bubble 과 같은 색·테두리
+  p = new Pic(48, 28);
+  p.path('M24 2 L44 27 L4 27 Z', p.lin([[0, '#fffdf4'], [1, '#fffaee']]));
+  p.path('M4 27 L24 2 L44 27', 'none', 'stroke="#b07a2a" stroke-width="4" stroke-linejoin="round"');
+  out.push(p.sprite('UI/bubble_tail'));
+
   // 이모티콘 버튼 아이콘: 웃는 물방울 말풍선
   p = new Pic(128, 128);
   const bub = 'M20 22 H108 Q118 22 118 32 V84 Q118 94 108 94 H54 L34 112 L38 94 H20 Q10 94 10 84 V32 Q10 22 20 22 Z';
