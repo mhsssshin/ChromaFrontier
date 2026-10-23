@@ -8,7 +8,7 @@ namespace ChromaFrontier.Client
     [Serializable]
     public sealed class SeatInfo
     {
-        public string uid = "", name = "", deck = "", skin = "";
+        public string uid = "", name = "", deck = "", skin = "", emote = "";
         public bool ready, left;
         public bool Empty => string.IsNullOrEmpty(uid);
     }
@@ -241,6 +241,7 @@ namespace ChromaFrontier.Client
         public static void SetDeck(string deck) => Call("setDeck", deck);
         public static void StartGame() => Call("start");
         public static void Finish() => Call("finish");
+        public static void SendEmote(int index) => Call("emote", index.ToString());
 
         public static void LeaveRoom()
         {

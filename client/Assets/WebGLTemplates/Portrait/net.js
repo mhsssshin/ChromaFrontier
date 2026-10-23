@@ -7,7 +7,7 @@
 //   users/{uid}/name            대전에 보이는 이름
 //   users/{uid}/save            { at, data } — data 는 localStorage 의 cf.* 값 전부(JSON 문자열)
 //   rooms/{id}                  { title, size(팀 인원 1|2), host, status(wait|play|done), map, seed, created,
-//                                 seats/{0..3}: { uid, name, ready, left, deck, skin } }  짝수 자리 = 1팀, 홀수 자리 = 2팀
+//                                 seats/{0..3}: { uid, name, ready, left, deck, skin, emote } }  emote = "번호:시각" (대전 이모티콘)  짝수 자리 = 1팀, 홀수 자리 = 2팀
 //   moves/{id}/{n}              n 번째 수 (Core PvpMove 문자열). 한 번 쓰면 못 바꾼다 (보안 규칙)
 (function () {
   'use strict';
@@ -297,7 +297,7 @@
     var n = (r.size || 1) * 2, list = [];
     for (var i = 0; i < n; i++) {
       var s = r.seats && r.seats[i];
-      list.push(s ? { uid: s.uid || '', name: s.name || '', ready: !!s.ready, left: !!s.left, deck: s.deck || '', skin: s.skin || '' } : { uid: '', name: '', ready: false, left: false, deck: '', skin: '' });
+      list.push(s ? { uid: s.uid || '', name: s.name || '', ready: !!s.ready, left: !!s.left, deck: s.deck || '', skin: s.skin || '', emote: s.emote || '' } : { uid: '', name: '', ready: false, left: false, deck: '', skin: '', emote: '' });
     }
     return list;
   }
@@ -559,6 +559,12 @@
       var p = 'moves/' + roomId + '/' + n;
       if (onlyIfEmpty) db.txn(p, function (cur) { return cur === null ? move : undefined; }).catch(fail);
       else db.set(p, move).catch(fail);
+    },
+
+    // 대전 이모티콘: 내 자리에 "번호:시각" 을 쓰면 방을 보는 모두에게 바뀐 값이 간다
+    emote: function (index) {
+      if (!roomId || mySeat < 0) return;
+      db.set('rooms/' + roomId + '/seats/' + mySeat + '/emote', (+index) + ':' + Date.now()).catch(fail);
     },
 
     finish: function () {

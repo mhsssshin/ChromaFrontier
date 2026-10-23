@@ -10,6 +10,7 @@ import { tiles, boardFoam } from './tiles.mjs';
 import { units } from './units.mjs';
 import { halloweenUnits } from './units_halloween.mjs';
 import { jeheonUnits } from './units_jeheon.mjs';
+import { emotes } from './emotes.mjs';
 import { fx } from './fx.mjs';
 import { ui } from './ui.mjs';
 import { logo } from './logo.mjs';
@@ -17,7 +18,7 @@ import { logo } from './logo.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'client', 'Assets', 'Resources', 'Art');
 
-const sprites = [...tiles(), boardFoam(), ...units(), ...halloweenUnits(), ...jeheonUnits(), ...fx(), ...ui(), logo()];
+const sprites = [...tiles(), boardFoam(), ...units(), ...halloweenUnits(), ...jeheonUnits(), ...fx(), ...ui(), ...emotes(), logo()];
 const t0 = Date.now();
 const rendered = renderSvgSprites(sprites);
 for (const { name, image } of rendered) image.save(join(outDir, `${name}.png`));

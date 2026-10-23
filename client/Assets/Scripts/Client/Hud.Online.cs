@@ -328,6 +328,82 @@ namespace ChromaFrontier.Client
             }
         }
 
+        public static readonly string[] EmoteCaptions = { "좋아요!", "화난다!", "헉!", "흑흑", "ㅋㅋㅋ", "잘했어!", "음…", "GG" };
+
+        /// <summary>대전 자리 줄에서 그 자리 칸의 기준 좌표 사각형 (DrawPvpTop 과 같은 계산).</summary>
+        private static Rect SeatChip(int seat, int seats)
+        {
+            const float gap = 6f;
+            var w = (RefW - 24f - (seats - 1) * gap) / seats;
+            return new Rect(12 + seat * (w + gap), 210, w, 46);
+        }
+
+        /// <summary>떠 있는 이모티콘: 보낸 사람 자리 칸 아래에 통통 튀며 나타나 둥실거리다 사라진다.</summary>
+        private static void DrawEmotes(GameBootstrap gb)
+        {
+            var p = gb.Pvp;
+            foreach (var e in p.Emotes)
+            {
+                var t = Time.unscaledTime - e.At;
+                var k = EaseOutBack(Mathf.Clamp01(t / 0.32f));
+                var a = Mathf.Clamp01((GameBootstrap.EmoteShowTime - t) / 0.4f);
+                var chip = SeatChip(e.Seat, p.Seats);
+                var size = 118f * k;
+                var cx = Mathf.Clamp(chip.center.x, 70f, RefW - 70f);
+                var bob = Mathf.Sin(t * 5f) * 3f;
+                var prev = GUI.color;
+                GUI.color = new Color(1f, 1f, 1f, a);
+                Image(R(cx - size * 0.5f - 20, 262 + bob - 20, size + 40, size + 40), "UI/glow", new Color(1f, 1f, 1f, 0.5f * a));
+                Image(R(cx - size * 0.5f, 262 + bob + (118 - size) * 0.5f, size, size), "UI/emote_" + e.Index, new Color(1f, 1f, 1f, a));
+                if (k > 0.7f)
+                {
+                    var cap = R(cx - 60, 380 + bob, 120, 30);
+                    Nine(cap, "UI/pill", 22, new Color(1f, 1f, 1f, a));
+                    var who = e.Seat == p.MySeat ? "나" : p.NameOf(e.Seat);
+                    Text(cap, $"{who}: {EmoteCaptions[e.Index]}", 13, new Color(1f, 1f, 1f, a), TextAnchor.MiddleCenter, 0f);
+                }
+                GUI.color = prev;
+            }
+        }
+
+        /// <summary>이모티콘 버튼 (손패 위, 패 버리기 왼쪽). 누르면 팔레트를 열고 닫는다.</summary>
+        private static void DrawEmoteButton(GameBootstrap gb)
+        {
+            var r = R(RefW - 346, 712, 126, 48);
+            var cool = gb.EmoteReadyAt - Time.unscaledTime;
+            if (HotGlow(r) || gb.EmoteOpen) Image(Inset(r, -10), "UI/glow", new Color(1f, 1f, 1f, 0.45f));
+            Nine(r, "UI/pill", 22, Color.white);
+            Image(new Rect(r.x + 8 * _s, r.y + 4 * _s, 40 * _s, 40 * _s), "UI/icon_emote", cool > 0f ? new Color(1f, 1f, 1f, 0.5f) : Color.white);
+            Text(new Rect(r.x + 48 * _s, r.y, r.width - 52 * _s, r.height), cool > 0f ? $"{Mathf.CeilToInt(cool)}초" : "이모티콘", 14, Color.white, TextAnchor.MiddleCenter, 0.4f);
+            if (GUI.Button(r, GUIContent.none, GUIStyle.none)) gb.EmoteOpen = !gb.EmoteOpen;
+        }
+
+        /// <summary>이모티콘 팔레트: 손패 위에 뜨는 유리 판, 4x2 스티커. 하나를 누르면 보내고 닫힌다.</summary>
+        private static void DrawEmotePalette(GameBootstrap gb)
+        {
+            var panel = R(20, 452, RefW - 40, 254);
+            Nine(panel, "UI/glass", 28, Color.white);
+            Nine(Inset(panel, 4), "UI/panel", 28, new Color(1f, 1f, 1f, 0.8f));
+            var cool = gb.EmoteReadyAt - Time.unscaledTime;
+            for (var i = 0; i < GameBootstrap.EmoteCount; i++)
+            {
+                var cell = R(32 + (i % 4) * 120, 462 + (i / 4) * 120, 116, 116);
+                var hot = HotGlow(cell);
+                if (hot) Image(Inset(cell, -6), "UI/glow", new Color(1f, 1f, 1f, 0.6f));
+                var bounce = hot ? Mathf.Abs(Mathf.Sin(Time.unscaledTime * 8f)) * 4f : 0f;
+                Image(new Rect(cell.x + 14 * _s, cell.y + (4 - bounce) * _s, 88 * _s, 88 * _s), "UI/emote_" + i, cool > 0f ? new Color(1f, 1f, 1f, 0.45f) : Color.white);
+                Text(new Rect(cell.x, cell.y + 90 * _s, cell.width, 22 * _s), EmoteCaptions[i], 13, Color.white, TextAnchor.MiddleCenter, 0.6f);
+                if (GUI.Button(cell, GUIContent.none, GUIStyle.none) && cool <= 0f) gb.SendEmote(i);
+            }
+            // 판 밖을 누르면 닫는다 (보드로 입력이 새지 않게)
+            var e = Event.current;
+            if (e.type == EventType.MouseDown && !panel.Contains(e.mousePosition) && !R(RefW - 346, 712, 126, 48).Contains(e.mousePosition))
+            {
+                gb.EmoteOpen = false;
+                e.Use();
+            }
+        }
+
         /// <summary>내 차례가 되면 화면 가운데에 크게 "내 차례!" (1.8초, 통통 튀며 나타났다 사라짐).</summary>
         private static void DrawMyTurnBanner(GameBootstrap gb)
         {

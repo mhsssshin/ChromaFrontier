@@ -23,12 +23,22 @@ namespace ChromaFrontier.Client
         public Side ForfeitWinner = Side.None; // 한 팀이 모두 나가 판이 끝났다
         public bool Recorded;
         public float MyTurnAt = -99f;        // 내 차례가 시작된 시각 (가운데 알림)
+        public string[] SeenEmote;           // 자리마다 마지막으로 본 이모티콘 값 (처음 값은 띄우지 않음)
+        public readonly List<EmoteShow> Emotes = new(); // 지금 떠 있는 이모티콘
         public int[] Claim;                  // 2:2: 칸마다 마지막으로 차지한 자리 (-1 = 모름) — 그 사람 재질로 그린다
         public string SkinOf(int seat) => seat < Room.seats.Length && !string.IsNullOrEmpty(Room.seats[seat].skin) ? Room.seats[seat].skin : TileSkins.Default;
 
         public int Seats => Room.size * 2;
         public bool Left(int seat) => seat < Room.seats.Length && Room.seats[seat].left;
         public string NameOf(int seat) => seat < Room.seats.Length ? Room.seats[seat].name : "?";
+    }
+
+    /// <summary>대전 이모티콘 하나: 누가(자리), 무엇을(번호), 언제(실제 시간).</summary>
+    public readonly struct EmoteShow
+    {
+        public readonly int Seat, Index;
+        public readonly float At;
+        public EmoteShow(int seat, int index, float at) { Seat = seat; Index = index; At = at; }
     }
 
     /// <summary>로그인 화면, 계정, PvP 로비·방·판 (온라인 기능은 Online 이 net.js 와 주고받는다).</summary>
@@ -304,6 +314,7 @@ namespace ChromaFrontier.Client
         {
             var p = Pvp;
             if (Online.Room != null && Online.Room.id == p.Room.id) p.Room = Online.Room;
+            UpdateEmotes(p);
 
             // 받은 수
             var resync = false;
@@ -490,6 +501,43 @@ namespace ChromaFrontier.Client
             Palette.Viewer = Side.Player;
             ShowPvpLobby();
             if (forfeit) ShowToast("기권했어요 — 패배로 기록했어요.");
+        }
+
+        // ---------------------------------------------------------------- 이모티콘
+
+        public const int EmoteCount = 8;
+        public const float EmoteCooldown = 3f, EmoteShowTime = 3f;
+        public bool EmoteOpen { get; set; }
+        public float EmoteReadyAt { get; private set; }
+
+        public void SendEmote(int index)
+        {
+            EmoteOpen = false;
+            if (Pvp == null || Time.unscaledTime < EmoteReadyAt) return;
+            EmoteReadyAt = Time.unscaledTime + EmoteCooldown;
+            Online.SendEmote(index); // 방을 거쳐 돌아오면(내 것 포함) UpdateEmotes 가 띄운다
+        }
+
+        /// <summary>방 자리의 이모티콘 값이 바뀌었으면 띄운다. 오래된 것은 지운다.</summary>
+        private void UpdateEmotes(PvpSession p)
+        {
+            var seats = p.Room.seats;
+            if (p.SeenEmote == null)
+            {
+                p.SeenEmote = new string[seats.Length];
+                for (var i = 0; i < seats.Length; i++) p.SeenEmote[i] = seats[i].emote;
+            }
+            for (var i = 0; i < seats.Length && i < p.SeenEmote.Length; i++)
+            {
+                var v = seats[i].emote ?? "";
+                if (v == p.SeenEmote[i]) continue;
+                p.SeenEmote[i] = v;
+                var colon = v.IndexOf(':');
+                if (colon <= 0 || !int.TryParse(v.Substring(0, colon), out var idx) || idx < 0 || idx >= EmoteCount) continue;
+                p.Emotes.RemoveAll(e => e.Seat == i);
+                p.Emotes.Add(new EmoteShow(i, idx, Time.unscaledTime));
+            }
+            p.Emotes.RemoveAll(e => Time.unscaledTime - e.At > EmoteShowTime);
         }
 
         public float PvpTimeLeft => Pvp == null ? 0f : Mathf.Max(0f, PvpCatalog.TurnSeconds - (Time.unscaledTime - Pvp.TurnStarted));

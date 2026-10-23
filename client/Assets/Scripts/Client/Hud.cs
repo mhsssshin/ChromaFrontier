@@ -79,7 +79,12 @@ namespace ChromaFrontier.Client
             else DrawTop(gb, g);
             DrawHand(gb, g);
             DrawCine(gb);
-            if (gb.Pvp != null) DrawMyTurnBanner(gb);
+            if (gb.Pvp != null)
+            {
+                DrawEmotes(gb);
+                DrawMyTurnBanner(gb);
+                if (gb.EmoteOpen && !gb.BattleOver) DrawEmotePalette(gb);
+            }
             if (gb.Tutorial) DrawFinger(gb);
             if (gb.Concept != null)
             {
@@ -1090,6 +1095,7 @@ namespace ChromaFrontier.Client
                     if (gb.Pvp == null && Button(R(RefW - 346, 712, 126, 48), new Color(0.3f, 0.65f, 0.8f), $"무르기 {Progress.Undos}", 18))
                         gb.Undo();
                     GUI.enabled = true;
+                    if (gb.Pvp != null && !gb.BattleOver) DrawEmoteButton(gb);
                 }
             }
 
