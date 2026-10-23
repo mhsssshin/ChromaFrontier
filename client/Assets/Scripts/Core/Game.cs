@@ -246,11 +246,31 @@ namespace ChromaFrontier.Core
                 // 첨탑 퍼즐에서는 번개 재점화(무작위 낙뢰)를 막는다: 풀이가 운이 되면 안 된다
                 Skill.Echo => t.Unit.IsBase() && t.UnitOwner == s && !(Rules.Solo && t.Unit == Element.Yellow),
                 Skill.Beacon => t.Owner == s && t.Beacon == Side.None,
+                Skill.Surge => t.HasUnit && t.UnitOwner == s && t.Unit != Element.Grey,
+                Skill.Siphon => t.HasUnit && t.UnitOwner == s.Opponent() && (t.Unit.Tier() == 1 || t.Unit.Tier() == 2) && !t.IsProtectedFrom(s),
+                Skill.Barrier => t.Owner == s,
+                Skill.Split => t.Unit.IsBase() && t.UnitOwner == s && HasSplitRoom(s, c),
+                Skill.Quake => HasQuakeTarget(s, c),
                 _ => false,
             };
         }
 
         public bool CanTarget(Side s, Skill skill, Cell c) => CanTarget(s, Card.Of(skill), c);
+
+        private bool HasSplitRoom(Side s, Cell c)
+        {
+            foreach (var d in Cell.Orthogonal)
+                if (Resolver.CanSplitInto(Board, c + d, s)) return true;
+            return false;
+        }
+
+        /// <summary>지진은 3x3 안에 부술 상대 유닛이 있어야 쓴다 (헛방 방지).</summary>
+        private bool HasQuakeTarget(Side s, Cell c)
+        {
+            foreach (var d in Cell.Around8)
+                if (Resolver.IsQuakeTarget(Board, c + d, s)) return true;
+            return Resolver.IsQuakeTarget(Board, c, s);
+        }
 
         public bool CanCast(Side s, Card card, Cell a, Cell b) =>
             CanTarget(s, card, a) && (card.Skill != Skill.Warp || (a != b && CanTarget(s, card, b)));

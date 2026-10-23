@@ -150,6 +150,10 @@ namespace ChromaFrontier.Core
                         continue;
                     case Skill.Transmute:
                     case Skill.Echo:
+                    case Skill.Surge:
+                    case Skill.Siphon:
+                    case Skill.Split:
+                    case Skill.Quake:
                         foreach (var c in view.Board.Cells())
                         {
                             if (!view.CanTarget(me, card, c)) continue;
@@ -175,6 +179,7 @@ namespace ChromaFrontier.Core
                         Skill.Lock => ScoreLock(view, c, me, foe) * persona.LockWeight,
                         Skill.Mine => ScoreMine(view, c, me, foe) * persona.MineWeight,
                         Skill.Beacon => ScoreBeacon(view, c, me, foe),
+                        Skill.Barrier => ScoreBarrier(view, c, me, foe),
                         _ => 0f,
                     };
                     if (score > 0f) skills.Offer(new Move { HandIndex = h, IsSkill = true, At = c, Score = score + pressure });
@@ -188,6 +193,23 @@ namespace ChromaFrontier.Core
             if (m.Mulligan) game.Mulligan();
             else if (m.IsSkill) game.Cast(m.HandIndex, m.At, m.Target2);
             else game.Play(m.HandIndex, m.At, m.Dir);
+        }
+
+        /// <summary>방벽: 3x3 안에서 아직 보호막이 없고 상대 땅과 맞닿은 내 칸 수 (빼앗기기 쉬운 전선).</summary>
+        private static float ScoreBarrier(Game view, Cell at, Side me, Side foe)
+        {
+            var n = 0;
+            foreach (var c in view.Board.Cells())
+            {
+                if (c.Chebyshev(at) > 1 || view.Board[c].Owner != me || view.Board[c].Shield > 0) continue;
+                foreach (var d in Cell.Orthogonal)
+                    if (view.Board.InBounds(c + d) && view.Board[c + d].Owner == foe)
+                    {
+                        n++;
+                        break;
+                    }
+            }
+            return n * 0.6f - 1f;
         }
 
         private static int Diff(Game g, Side me) => g.Board.Count(me) - g.Board.Count(me.Opponent());

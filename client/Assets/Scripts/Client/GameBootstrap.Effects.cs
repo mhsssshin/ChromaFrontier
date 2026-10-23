@@ -83,6 +83,26 @@ namespace ChromaFrontier.Client
                         _view.Flash(new[] { at });
                         Message += " — 깃발을 꽂았다. 라운드마다 주변 한 칸을 차지한다";
                         break;
+                    case Skill.Surge:
+                        _view.Flash(r.Captured);
+                        Message += $" — {Palette.Name(r.Placed)} 유닛이 폭주! +{r.Captured.Count}칸";
+                        break;
+                    case Skill.Siphon:
+                        _view.Flash(r.Captured);
+                        Message += $" — 상대 {Palette.Name(r.Bleached)} 유닛을 빼앗았다";
+                        break;
+                    case Skill.Barrier:
+                        _view.Flash(r.Catalysts);
+                        Message += $" — 땅 {r.Catalysts.Count}칸에 보호막";
+                        break;
+                    case Skill.Split:
+                        _view.Flash(r.Catalysts);
+                        Message += $" — {Palette.Name(r.Placed)} 유닛이 {r.Catalysts.Count}개 복제됐다";
+                        break;
+                    case Skill.Quake:
+                        _view.Flash(r.Catalysts);
+                        Message += $" — 상대 유닛 {r.Catalysts.Count}개 파괴" + (r.Captured.Count > 0 ? $", +{r.Captured.Count}칸" : "");
+                        break;
                 }
                 return;
             }
@@ -231,8 +251,33 @@ namespace ChromaFrontier.Client
                         _fx.Spawn(FxView.Sparkle, pos + lift * 1.5f, new Color(1f, 0.9f, 0.45f), 1.4f);
                         _fx.Spawn(FxView.Ring, pos, Palette.Of(actor), 1.5f, 0.1f);
                         break;
+                    case Skill.Surge:
+                        _fx.Spawn(FxView.Ring, pos, new Color(1f, 0.7f, 0.3f), 2.4f);
+                        _fx.Spawn(FxView.Burst, pos + lift, white, 1.8f, 0.05f);
+                        _shake = 0.2f;
+                        break;
+                    case Skill.Siphon:
+                        _fx.Spawn(FxView.Void, pos + lift, new Color(1f, 0.6f, 0.75f), 1.1f);
+                        _fx.Spawn(FxView.Sparkle, pos + lift * 1.5f, Palette.Of(actor), 1.3f, 0.2f);
+                        break;
+                    case Skill.Barrier:
+                        foreach (var c in r.Catalysts)
+                            _fx.Spawn(FxView.Sparkle, _view.ToWorld(c) + lift, new Color(0.7f, 0.95f, 1f), 0.9f, c.Manhattan(at) * 0.05f);
+                        break;
+                    case Skill.Split:
+                        foreach (var c in r.Catalysts)
+                        {
+                            _fx.Spawn(FxView.Ring, _view.ToWorld(c), Palette.Of(r.Placed), 1.3f, 0.1f);
+                            _fx.Spawn(FxView.Sparkle, _view.ToWorld(c) + lift, white, 1f, 0.15f);
+                        }
+                        break;
+                    case Skill.Quake:
+                        foreach (var c in r.Catalysts)
+                            _fx.Spawn(FxView.Smoke, _view.ToWorld(c) + lift * 0.5f, new Color(0.65f, 0.5f, 0.35f), 1.2f, c.Manhattan(at) * 0.05f);
+                        _shake = 0.45f;
+                        break;
                 }
-                if (r.Skill != Skill.Echo) return; // 재점화는 아래에서 점유한 칸 연출까지 이어간다
+                if (r.Skill != Skill.Echo && r.Skill != Skill.Surge && r.Skill != Skill.Siphon && r.Skill != Skill.Quake) return; // 재점화는 아래에서 점유한 칸 연출까지 이어간다
             }
             else if (r.MineTriggered)
             {

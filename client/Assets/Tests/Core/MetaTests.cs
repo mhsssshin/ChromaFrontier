@@ -30,7 +30,7 @@ namespace ChromaFrontier.Core.Tests
             Assert.IsTrue(c.Buy(Warp));
             Assert.IsFalse(c.Buy(Warp), "한 종류는 MaxCopies 장까지");
             Assert.IsTrue(c.Buy(Mine));
-            Assert.IsTrue(c.Buy(Card.Of(Skill.Echo)));
+            Assert.IsTrue(c.Buy(Card.Of(Skill.Surge)));
             Assert.AreEqual(CardShop.SkillSlots, c.Skills.Count);
             Assert.IsTrue(c.Buy(Card.Of(Skill.Lock)), "덱이 꽉 차도 살 수는 있다");
             Assert.AreEqual(0, c.InDeck(Card.Of(Skill.Lock)));
@@ -261,7 +261,7 @@ namespace ChromaFrontier.Core.Tests
             Assert.AreEqual(CardShop.MaxLevel, c.Level(Mine));
             var back = Collection.Parse(c.Serialize());
             Assert.AreEqual(3, back.Level(Mine));
-            Assert.AreEqual(1, back.Level(Card.Of(Skill.Echo)));
+            Assert.AreEqual(1, back.Level(Card.Of(Skill.Surge)));
             Assert.AreEqual(3, back.Levels()[Mine]);
             // 강화가 생기기 전 저장 (두 칸짜리)도 읽힌다
             Assert.AreEqual(1, Collection.Parse("mine:1|mine").Level(Mine));

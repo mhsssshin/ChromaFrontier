@@ -29,11 +29,18 @@ namespace ChromaFrontier.Core
             new() { Card = Card.Transmute(Element.Yellow), Code = "tr_yellow", Starter = 1, Price = 60 },
             new() { Card = Card.Of(Skill.Bleach), Code = "bleach", Starter = 1, Price = 80 },
             new() { Card = Card.Of(Skill.Mine), Code = "mine", Starter = 1, Price = 80 },
-            new() { Card = Card.Of(Skill.Echo), Code = "echo", Starter = 1, Price = 80 },
+            new() { Card = Card.Of(Skill.Surge), Code = "surge", Starter = 1, Price = 90 },
             new() { Card = Card.Of(Skill.Beacon), Code = "beacon", Starter = 0, Price = 120 },
             new() { Card = Card.Of(Skill.Warp), Code = "warp", Starter = 0, Price = 160 },
             new() { Card = Card.Of(Skill.Lock), Code = "lock", Starter = 0, Price = 200 },
+            new() { Card = Card.Of(Skill.Split), Code = "split", Starter = 0, Price = 110 },
+            new() { Card = Card.Of(Skill.Barrier), Code = "barrier", Starter = 0, Price = 120 },
+            new() { Card = Card.Of(Skill.Siphon), Code = "siphon", Starter = 0, Price = 150 },
+            new() { Card = Card.Of(Skill.Quake), Code = "quake", Starter = 0, Price = 170 },
         };
+
+        /// <summary>예전 카드 코드 → 지금 코드 (재점화는 원소 폭주로 바뀌었다).</summary>
+        public static string Migrate(string code) => code == "echo" ? "surge" : code;
 
         public static Entry Find(Card c)
         {
@@ -44,6 +51,7 @@ namespace ChromaFrontier.Core
 
         public static Entry Find(string code)
         {
+            code = Migrate(code);
             foreach (var e in All)
                 if (e.Code == code) return e;
             return null;
@@ -61,6 +69,11 @@ namespace ChromaFrontier.Core
             Skill.Beacon => new[] { "라운드마다 1칸 점유", "라운드마다 2칸 점유", "라운드마다 3칸 점유" },
             Skill.Warp => new[] { "기본 효과", "바꾼 두 칸을 내 땅으로", "+ 두 칸의 상하좌우도 내 땅으로" },
             Skill.Lock => new[] { "2턴 잠금", "3턴 잠금", "4턴 잠금" },
+            Skill.Surge => new[] { "주변 3x3 차지", "3x3 + 십자 2칸 차지", "주변 5x5 차지" },
+            Skill.Siphon => new[] { "유닛과 칸을 빼앗기", "+ 상하좌우 칸도 내 땅으로", "+ 주변 3x3 도 내 땅으로" },
+            Skill.Barrier => new[] { "3x3 보호막 2턴", "3x3 보호막 3턴", "5x5 보호막 3턴" },
+            Skill.Split => new[] { "옆 빈 칸 1곳에 복제", "옆 빈 칸 2곳에 복제", "상하좌우 빈 칸 모두 복제" },
+            Skill.Quake => new[] { "3x3 상대 유닛 파괴", "+ 부순 칸을 내 땅으로", "5x5 파괴 + 칸 차지" },
             _ => new[] { "", "", "" },
         };
 
@@ -194,7 +207,7 @@ namespace ChromaFrontier.Core
             {
                 var kv = item.Split(':');
                 if (kv.Length == 2 && CardShop.Find(kv[0]) != null && int.TryParse(kv[1], out var n))
-                    c._owned[kv[0]] = Math.Max(0, Math.Min(CardShop.MaxCopies, n));
+                    c._owned[CardShop.Migrate(kv[0])] = Math.Max(0, Math.Min(CardShop.MaxCopies, n));
             }
             foreach (var code in parts[1].Split(','))
             {
@@ -206,7 +219,7 @@ namespace ChromaFrontier.Core
                 {
                     var kv = item.Split(':');
                     if (kv.Length == 2 && CardShop.Find(kv[0]) != null && int.TryParse(kv[1], out var n) && n > 1)
-                        c._levels[kv[0]] = Math.Min(CardShop.MaxLevel, n);
+                        c._levels[CardShop.Migrate(kv[0])] = Math.Min(CardShop.MaxLevel, n);
                 }
             return c;
         }

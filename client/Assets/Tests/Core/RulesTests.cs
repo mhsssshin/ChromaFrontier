@@ -418,6 +418,77 @@ namespace ChromaFrontier.Core.Tests
         }
 
         [Test]
+        public void Surge_ClaimsThreeByThreeAroundMyUnit_UnitStays()
+        {
+            var g = WithHand(Card.Of(Skill.Surge));
+            Unit(g.Board, 3, 3, Element.Green, Side.Player);
+            Unit(g.Board, 5, 5, Element.Red, Side.Ai);
+            Assert.IsFalse(g.CanTarget(Side.Player, Skill.Surge, new Cell(5, 5)));
+            var r = g.Cast(0, new Cell(3, 3));
+            Assert.AreEqual(8, r.Captured.Count); // 가운데는 이미 내 땅
+            Assert.AreEqual(Side.Player, g.Board[new Cell(2, 2)].Owner);
+            Assert.AreEqual(Element.Green, g.Board[new Cell(3, 3)].Unit);
+        }
+
+        [Test]
+        public void Siphon_StealsEnemyUnitAndTile_ButNotTier3()
+        {
+            var g = WithHand(Card.Of(Skill.Siphon));
+            Unit(g.Board, 4, 4, Element.Blue, Side.Ai);
+            Unit(g.Board, 6, 6, Element.Black, Side.Ai);
+            Assert.IsFalse(g.CanTarget(Side.Player, Skill.Siphon, new Cell(6, 6)));
+            g.Cast(0, new Cell(4, 4));
+            Assert.AreEqual(Side.Player, g.Board[new Cell(4, 4)].UnitOwner);
+            Assert.AreEqual(Side.Player, g.Board[new Cell(4, 4)].Owner);
+        }
+
+        [Test]
+        public void Barrier_ShieldsMyTilesOnly()
+        {
+            var g = WithHand(Card.Of(Skill.Barrier));
+            g.Board[new Cell(1, 7)].Owner = Side.Player;
+            g.Board[new Cell(1, 6)].Owner = Side.Ai;
+            g.Cast(0, new Cell(0, 7));
+            Assert.Greater(g.Board[new Cell(1, 7)].Shield, 0);
+            Assert.AreEqual(0, g.Board[new Cell(1, 6)].Shield);
+            Assert.IsTrue(g.Board[new Cell(1, 7)].IsProtectedFrom(Side.Ai));
+        }
+
+        [Test]
+        public void Split_CopiesUnitIntoEmptyNeighbor()
+        {
+            var g = WithHand(Card.Of(Skill.Split));
+            Unit(g.Board, 3, 3, Element.Yellow, Side.Player);
+            var r = g.Cast(0, new Cell(3, 3));
+            Assert.AreEqual(1, r.Catalysts.Count);
+            var c = r.Catalysts[0];
+            Assert.AreEqual(Element.Yellow, g.Board[c].Unit);
+            Assert.AreEqual(Side.Player, g.Board[c].UnitOwner);
+            Assert.AreEqual(1, c.Manhattan(new Cell(3, 3)));
+        }
+
+        [Test]
+        public void Quake_DestroysEnemyUnitsOnly_AndNeedsATarget()
+        {
+            var g = WithHand(Card.Of(Skill.Quake));
+            Unit(g.Board, 4, 4, Element.Blue, Side.Ai);
+            Unit(g.Board, 5, 5, Element.Red, Side.Player);
+            Assert.IsFalse(g.CanTarget(Side.Player, Skill.Quake, new Cell(1, 1)));
+            g.Cast(0, new Cell(4, 5));
+            Assert.IsFalse(g.Board[new Cell(4, 4)].HasUnit);
+            Assert.IsTrue(g.Board[new Cell(5, 5)].HasUnit);
+        }
+
+        [Test]
+        public void OldEchoSave_BecomesSurge()
+        {
+            var c = Collection.Parse("echo:2|echo|echo:3");
+            Assert.AreEqual(2, c.Owned(Card.Of(Skill.Surge)));
+            Assert.AreEqual(1, c.InDeck(Card.Of(Skill.Surge)));
+            Assert.AreEqual(3, c.Level(Card.Of(Skill.Surge)));
+        }
+
+        [Test]
         public void Beacon_GrowsEachRound_AndFallsWhenCaptured()
         {
             var g = WithHand(Card.Of(Skill.Beacon));

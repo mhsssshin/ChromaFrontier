@@ -239,8 +239,15 @@ namespace ChromaFrontier.Client
             if (card.Skill == Skill.Lock)
                 foreach (var c in Game.Board.Cells())
                     if (c.Chebyshev(f) <= Balance.LockRadius) _hl.Preview.Add(c);
-            if (card.Skill == Skill.Echo && Game.CanTarget(Me, card, f))
-                foreach (var c in Game.CloneFor(Me).Cast(Selected, f).Captured) _hl.Preview.Add(c);
+            if ((card.Skill == Skill.Echo || card.Skill == Skill.Surge || card.Skill == Skill.Siphon || card.Skill == Skill.Split || card.Skill == Skill.Quake) && Game.CanTarget(Me, card, f))
+            {
+                var pr = Game.CloneFor(Me).Cast(Selected, f);
+                foreach (var c in pr.Captured) _hl.Preview.Add(c);
+                foreach (var c in pr.Catalysts) _hl.Preview.Add(c);
+            }
+            if (card.Skill == Skill.Barrier)
+                foreach (var c in Game.Board.Cells())
+                    if (c.Chebyshev(f) <= Balance.BarrierRadius(Game.LevelOf(Me, card)) && Game.Board[c].Owner == Me) _hl.Preview.Add(c);
         }
 
         /// <summary>정한 칸으로 카드를 낸다 (물·공간 왜곡은 다음 단계로 넘어갈 수 있음).</summary>

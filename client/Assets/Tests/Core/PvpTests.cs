@@ -5,7 +5,7 @@ namespace ChromaFrontier.Core.Tests
 {
     public class PvpTests
     {
-        private static readonly string[] Decks4 = { "tr_red,bleach,mine", "echo,beacon,warp,lock", "tr_blue,tr_yellow", "" };
+        private static readonly string[] Decks4 = { "tr_red,bleach,mine,surge,siphon", "split,beacon,warp,lock,barrier", "tr_blue,tr_yellow,quake,split", "" };
 
         /// <summary>AI 가 고른 수를 PvpMove 로 바꾼다 (실제 기기가 보내는 것과 같은 모양).</summary>
         private static PvpMove ToMove(Game g, AiBrain.Move m)

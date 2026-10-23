@@ -239,6 +239,41 @@ export function ui() {
       p.lin([[0, '#fff2a8'], [0.5, '#ff9a3a'], [1, '#e0401a']]), stroke(4, '#6a1a08'));
     p.path('M64 62 C70 70 74 76 74 84 C74 91 69 96 64 96 C59 96 54 91 54 84 C54 76 58 70 64 62 Z', '#fff6c8');
   }));
+  out.push(icon('icon_surge', (p) => {
+    // 원소 폭주: 빛나는 구에서 사방으로 터지는 빛줄기
+    for (let k = 0; k < 8; k++)
+      p.add(`<path d="M64 64 L70 14 L58 14 Z" fill="#ffd25a" opacity="0.85" transform="rotate(${k * 45} 64 64)" ${stroke(2.5, '#a8501a')}/>`);
+    p.path(ell(64, 64, 30, 30), p.rad([[0, '#fff8d0'], [0.5, '#ffb03a'], [1, '#ff4a1a']], 0.4, 0.38, 0.65), stroke(4, '#6a1a08'));
+    p.path(star(64, 64, 14, 5), '#ffffff');
+  }));
+  out.push(icon('icon_siphon', (p) => {
+    // 흡수: 말굽 자석이 상대 원소 구슬을 끌어당긴다
+    p.path('M28 20 V66 C28 92 46 108 64 108 C82 108 100 92 100 66 V20 H78 V66 C78 76 72 84 64 84 C56 84 50 76 50 66 V20 Z', p.lin([[0, '#ff6a8a'], [1, '#c8284a']]), stroke(4, '#4a0a1a'));
+    p.path('M28 20 H50 V36 H28 Z M78 20 H100 V36 H78 Z', '#e8ecf5', stroke(4, '#4a0a1a'));
+    p.path(ell(64, 46, 11, 11), p.rad([[0, '#ffd0a0'], [1, '#e2381a']]), stroke(3, '#4a0a1a'));
+    p.path('M40 50 Q46 46 52 50 M76 50 Q82 46 88 50', 'none', 'stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.7"');
+  }));
+  out.push(icon('icon_barrier', (p) => {
+    // 방벽: 반짝이는 방패
+    p.path('M64 12 L106 28 V62 C106 90 88 108 64 118 C40 108 22 90 22 62 V28 Z', p.lin([[0, '#bff6ff'], [1, '#2a9ad8']]), stroke(4, '#0a3a5a'));
+    p.path('M64 24 L94 36 V62 C94 84 82 98 64 106 Z', '#ffffff', 'opacity="0.35"');
+    p.path('M46 64 L58 78 L84 48', 'none', 'stroke="#ffffff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"');
+  }));
+  out.push(icon('icon_split', (p) => {
+    // 분열: 원소 구슬이 둘로 갈라진다
+    p.path(ell(44, 70, 26, 26), p.rad([[0, '#d6ffb0'], [1, '#3fbf5a']], 0.4, 0.35, 0.7), stroke(4, '#1f6a34'));
+    p.path(ell(86, 54, 26, 26), p.rad([[0, '#d6ffb0'], [1, '#3fbf5a']], 0.4, 0.35, 0.7), 'opacity="0.9" ' + stroke(4, '#1f6a34'));
+    p.path('M60 100 L72 112 L84 100 M72 112 V90', 'none', 'stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"');
+    for (const [x, y] of [[44, 70], [86, 54]]) p.path(star(x - 6, y - 8, 7, 2.2), '#ffffff');
+  }));
+  out.push(icon('icon_quake', (p) => {
+    // 지진: 갈라지는 땅과 튀는 돌
+    p.path('M10 76 L118 76 L118 112 L10 112 Z', p.lin([[0, '#c89a5a'], [1, '#7a5228']]), stroke(4, '#3a2410'));
+    p.path('M10 76 L118 76 L118 84 L10 84 Z', '#7fcf5a', stroke(3, '#2a5a1a'));
+    p.path('M64 76 L56 88 L68 96 L58 112', 'none', 'stroke="#2a1808" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"');
+    for (const [x, y, r] of [[40, 48, 9], [80, 36, 11], [100, 58, 7]]) p.path(poly([[x - r, y], [x - r * 0.3, y - r], [x + r, y - r * 0.4], [x + r * 0.6, y + r * 0.8], [x - r * 0.6, y + r * 0.6]]), p.lin([[0, '#c9c4bd'], [1, '#6f6a64']]), stroke(3, '#3a3430'));
+    p.path('M24 60 l-8 -6 M108 30 l8 -6 M60 54 l-4 -8', 'none', 'stroke="#ffd25a" stroke-width="4" stroke-linecap="round"');
+  }));
   out.push(icon('icon_beacon', (p) => {
     p.path(ell(48, 112, 26, 9), p.lin([[0, '#b0a898'], [1, '#6a6458']]), stroke(3, '#2a2620'));
     p.path('M48 112 V18', 'none', 'stroke="#4a3018" stroke-width="10" stroke-linecap="round"');

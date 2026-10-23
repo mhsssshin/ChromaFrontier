@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace ChromaFrontier.Core
@@ -5,6 +6,13 @@ namespace ChromaFrontier.Core
     /// <summary>밸런스 상수. 숫자는 여기서만 조정한다.</summary>
     public static class Balance
     {
+        // 새 스킬 (단계 = 카드 강화 Lv1~3)
+        public static int SurgeRadius(int level) => level >= 3 ? 2 : 1;                 // 폭주: 3x3 → (Lv2 + 십자 2칸) → 5x5
+        public static int BarrierTicks(int level) => (level >= 2 ? 3 : 2) * TicksPerRound; // 방벽: 2턴 → 3턴
+        public static int BarrierRadius(int level) => level >= 3 ? 2 : 1;               //       3x3 → 5x5
+        public static int SplitCopies(int level) => level >= 3 ? 4 : level;             // 분열: 1 → 2 → 4칸
+        public static int QuakeRadius(int level) => level >= 3 ? 2 : 1;                 // 지진: 3x3 → 5x5 (Lv2 부순 칸 차지)
+
         public const int MaxTurns = 20;        // 양측 합산
         public const int HandSize = 5;
         public const int RedCross = 1;         // 화염: 십자 반경
@@ -224,9 +232,87 @@ namespace ChromaFrontier.Core
                 case Skill.Beacon:
                     board[target].Beacon = side;
                     break;
+                case Skill.Surge:
+                {
+                    r.Placed = board[target].Unit;
+                    var rad = Balance.SurgeRadius(level);
+                    foreach (var c in board.Cells())
+                    {
+                        var dx = Math.Abs(c.X - target.X);
+                        var dy = Math.Abs(c.Y - target.Y);
+                        var inside = c.Chebyshev(target) <= rad || (level == 2 && (dx == 0 || dy == 0) && dx + dy <= 2);
+                        if (inside) Claim(board, c, side, r);
+                    }
+                    break;
+                }
+                case Skill.Siphon:
+                    r.Bleached = board[target].Unit;
+                    board[target].UnitOwner = side;
+                    Claim(board, target, side, r);
+                    r.StoleCatalyst = true;
+                    if (level >= 2) ClaimAround(board, target, side, r);
+                    if (level >= 3)
+                        foreach (var d in Cell.Around8)
+                            if (board.InBounds(target + d)) Claim(board, target + d, side, r);
+                    break;
+                case Skill.Barrier:
+                {
+                    var rad = Balance.BarrierRadius(level);
+                    foreach (var c in board.Cells())
+                        if (c.Chebyshev(target) <= rad && board[c].Owner == side && !board[c].Blocked)
+                        {
+                            board[c].Shield = Math.Max(board[c].Shield, Balance.BarrierTicks(level));
+                            r.Catalysts.Add(c);
+                        }
+                    break;
+                }
+                case Skill.Split:
+                {
+                    var element = board[target].Unit;
+                    r.Placed = element;
+                    var left = Balance.SplitCopies(level);
+                    foreach (var d in Cell.Orthogonal)
+                    {
+                        if (left == 0) break;
+                        var c = target + d;
+                        if (!CanSplitInto(board, c, side)) continue;
+                        board[c].Unit = element;
+                        board[c].UnitOwner = side;
+                        Claim(board, c, side, r);
+                        if (!r.Captured.Contains(c)) r.Captured.Add(c);
+                        r.Catalysts.Add(c);
+                        left--;
+                    }
+                    break;
+                }
+                case Skill.Quake:
+                {
+                    var rad = Balance.QuakeRadius(level);
+                    foreach (var c in board.Cells())
+                    {
+                        if (c.Chebyshev(target) > rad || !IsQuakeTarget(board, c, side)) continue;
+                        board[c].Unit = Element.None;
+                        board[c].UnitOwner = Side.None;
+                        r.Catalysts.Add(c);
+                        if (level >= 2) Claim(board, c, side, r);
+                    }
+                    break;
+                }
             }
             return r;
         }
+
+        /// <summary>분열로 복제가 들어갈 수 있는 칸: 빈 평지(잠금·지뢰·상대 보호 없음).</summary>
+        public static bool CanSplitInto(Board board, Cell c, Side side)
+        {
+            if (!board.InBounds(c)) return false;
+            ref var t = ref board[c];
+            return !t.Blocked && !t.HasUnit && t.Lock == 0 && t.Mine == Side.None && !t.IsProtectedFrom(side);
+        }
+
+        /// <summary>지진이 부술 수 있는 유닛: 상대 것이고 보호받지 않는다.</summary>
+        public static bool IsQuakeTarget(Board board, Cell c, Side side) =>
+            board.InBounds(c) && board[c].HasUnit && board[c].UnitOwner == side.Opponent() && !board[c].IsProtectedFrom(side);
 
         /// <summary>
         /// 융합. 놓은 원소 + 상하좌우 이웃 유닛(1·2단계) 1~2개의 색을 합쳐 빨·파·노가 다 모이면 3단계(트리니티).

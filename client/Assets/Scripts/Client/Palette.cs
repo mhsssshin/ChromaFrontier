@@ -81,6 +81,11 @@ namespace ChromaFrontier.Client
             Skill.Transmute => "원소 변환",
             Skill.Echo => "재점화",
             Skill.Beacon => "거점",
+            Skill.Surge => "원소 폭주",
+            Skill.Siphon => "흡수",
+            Skill.Barrier => "방벽",
+            Skill.Split => "분열",
+            Skill.Quake => "지진",
             _ => "",
         };
 
@@ -89,7 +94,7 @@ namespace ChromaFrontier.Client
         /// <summary>카드 아트 칸에 크게 쓰는 한 글자 (Pretendard 에 있는 한글만).</summary>
         public static string Glyph(Card c) => c.IsUnit
             ? Name(c.Element).Substring(0, 1)
-            : c.Skill switch { Skill.Warp => "왜", Skill.Lock => "잠", Skill.Bleach => "탈", Skill.Mine => "뢰", Skill.Transmute => "변", Skill.Echo => "점", Skill.Beacon => "깃", _ => "?" };
+            : c.Skill switch { Skill.Warp => "왜", Skill.Lock => "잠", Skill.Bleach => "탈", Skill.Mine => "뢰", Skill.Transmute => "변", Skill.Echo => "점", Skill.Beacon => "깃", Skill.Surge => "폭", Skill.Siphon => "흡", Skill.Barrier => "벽", Skill.Split => "분", Skill.Quake => "진", _ => "?" };
 
         public static string Hint(Card c) => c.IsUnit
             ? c.Element switch
@@ -108,6 +113,11 @@ namespace ChromaFrontier.Client
                 Skill.Transmute => $"유닛을 {Ro(Name(c.Element))}",
                 Skill.Echo => "내 유닛 효과 한 번 더",
                 Skill.Beacon => "라운드마다 1칸 확장",
+                Skill.Surge => "내 유닛 주변 3x3 차지",
+                Skill.Siphon => "상대 유닛 빼앗기",
+                Skill.Barrier => "내 땅 3x3 보호막",
+                Skill.Split => "옆 칸에 같은 원소 복제",
+                Skill.Quake => "3x3 상대 유닛 파괴",
                 _ => "",
             };
 
@@ -122,6 +132,11 @@ namespace ChromaFrontier.Client
                 Skill.Transmute => Of(c.Element),
                 Skill.Echo => new Color(1f, 0.62f, 0.25f),
                 Skill.Beacon => new Color(0.95f, 0.78f, 0.3f),
+                Skill.Surge => new Color(1f, 0.55f, 0.2f),
+                Skill.Siphon => new Color(0.9f, 0.3f, 0.45f),
+                Skill.Barrier => new Color(0.35f, 0.75f, 0.95f),
+                Skill.Split => new Color(0.4f, 0.8f, 0.45f),
+                Skill.Quake => new Color(0.65f, 0.48f, 0.3f),
                 _ => Color.gray,
             };
 
@@ -139,6 +154,11 @@ namespace ChromaFrontier.Client
                 Skill.Transmute => $"{Ro(Name(c.Element))} 바꿀 유닛을 누르세요. 상대 유닛도 바꿀 수 있어요.",
                 Skill.Echo => "효과를 한 번 더 낼 내 1단계 유닛을 누르세요.",
                 Skill.Beacon => "깃발을 꽂을 내 땅을 누르세요. 라운드마다 주변 한 칸을 차지하고, 빼앗기면 무너져요.",
+                Skill.Surge => "폭주시킬 내 유닛을 누르세요. 주변 3x3 이 내 땅이 돼요 (유닛은 남아요).",
+                Skill.Siphon => "빼앗을 상대 유닛(1·2단계)을 누르세요. 유닛과 칸이 내 것이 돼요.",
+                Skill.Barrier => "보호막을 칠 내 땅을 누르세요. 주변 3x3 의 내 땅을 상대가 못 바꿔요.",
+                Skill.Split => "복제할 내 1단계 유닛을 누르세요. 옆 빈 칸에 같은 원소가 생겨요.",
+                Skill.Quake => "지진을 일으킬 칸을 누르세요. 3x3 안의 상대 유닛이 부서져요.",
                 _ => "",
             };
 

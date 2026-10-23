@@ -211,6 +211,7 @@ namespace ChromaFrontier.Client
 
         // ---------------------------------------------------------------- 별의 길
 
+        public int CardPage { get; set; } // 덱 편성·상점 스킬 카드: 9장씩 쪽
         public int ShopTab { get; set; }  // 상점: 0 스킬 카드, 1 아이템, 2 스킨
         public int SkinTab { get; set; }  // 상점 스킨: 0 재질, 1 색, 2 보드 테마
 

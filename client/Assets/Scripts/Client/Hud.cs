@@ -444,18 +444,34 @@ namespace ChromaFrontier.Client
 
             const float cw = 160f, ch = 212f, gap = 8f;
             var x0 = (RefW - (3 * cw + 2 * gap)) * 0.5f;
-            for (var i = 0; i < CardShop.All.Length; i++)
-                DrawShopCard(gb, CardShop.All[i], R(x0 + i % 3 * (cw + gap), 150 + i / 3 * (ch + gap), cw, ch));
+            var page = CardPager(gb, 806);
+            for (var k = 0; k < 9 && page * 9 + k < CardShop.All.Length; k++)
+                DrawShopCard(gb, CardShop.All[page * 9 + k], R(x0 + k % 3 * (cw + gap), 150 + k / 3 * (ch + gap), cw, ch));
 
-            if (PillButton(R(36, 814, 220, 56), "가진 카드로 채우기", 17))
+            if (PillButton(R(36, 832, 220, 46), "가진 카드로 채우기", 16))
             {
                 cards.FillDefault();
                 Progress.SaveCards();
                 gb.PanelMessage = "가진 카드로 덱을 다시 채웠어요.";
             }
-            if (Button(R(284, 814, 220, 56), new Color(1f, 0.55f, 0.2f), "완료", 22)) gb.OpenPanel(LobbyPanel.None);
-            Text(R(24, 874, RefW - 48, 50), gb.PanelMessage, 15, Gold, TextAnchor.MiddleCenter, 0f);
+            if (Button(R(284, 832, 220, 46), new Color(1f, 0.55f, 0.2f), "완료", 20)) gb.OpenPanel(LobbyPanel.None);
+            Text(R(24, 880, RefW - 48, 50), gb.PanelMessage, 15, Gold, TextAnchor.MiddleCenter, 0f);
             SwallowInput();
+        }
+
+        /// <summary>스킬 카드 쪽 넘기기 (9장씩): ◀ 1/2 ▶ 를 y 줄에 그리고 지금 쪽을 돌려준다.</summary>
+        private static int CardPager(GameBootstrap gb, float y)
+        {
+            var pages = (CardShop.All.Length + 8) / 9;
+            gb.CardPage = Mathf.Clamp(gb.CardPage, 0, pages - 1);
+            if (pages <= 1) return 0;
+            GUI.enabled = gb.CardPage > 0;
+            if (PillButton(R(150, y, 60, 26), "◀", 14)) gb.CardPage--;
+            GUI.enabled = gb.CardPage < pages - 1;
+            if (PillButton(R(330, y, 60, 26), "▶", 14)) gb.CardPage++;
+            GUI.enabled = true;
+            Text(R(210, y, 120, 26), $"{gb.CardPage + 1} / {pages} 쪽", 14, Color.white, TextAnchor.MiddleCenter, 0.5f);
+            return gb.CardPage;
         }
 
         private static void DrawShopCard(GameBootstrap gb, CardShop.Entry entry, Rect r)

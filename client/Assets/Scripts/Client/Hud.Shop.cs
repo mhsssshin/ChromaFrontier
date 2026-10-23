@@ -31,7 +31,7 @@ namespace ChromaFrontier.Client
             else if (gb.ShopTab == 2) DrawShopSkins(gb);
             else DrawShopEmotes(gb);
 
-            Text(R(24, 884, RefW - 48, 40), gb.PanelMessage, 16, Gold, TextAnchor.MiddleCenter, 0.5f);
+            Text(R(24, 892, RefW - 48, 40), gb.PanelMessage, 16, Gold, TextAnchor.MiddleCenter, 0.5f);
             SwallowInput();
         }
 
@@ -44,10 +44,12 @@ namespace ChromaFrontier.Client
         {
             Text(R(24, 154, RefW - 48, 24), $"한 종류에 {CardShop.MaxCopies}장까지 가질 수 있어요. 산 카드는 덱에 빈자리가 있으면 바로 들어가요.", 13, new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft, 0f);
             var cards = CardShop.All;
-            for (var i = 0; i < cards.Length; i++)
+            var page = CardPager(gb, 868);
+            for (var k = 0; k < 9 && page * 9 + k < cards.Length; k++)
             {
-                var e = cards[i];
-                var r = R(24 + (i % 3) * 166, 186 + (i / 3) * 228, 158, 218);
+                var i = k;
+                var e = cards[page * 9 + k];
+                var r = R(24 + (i % 3) * 166, 182 + (i / 3) * 228, 158, 218);
                 var owned = Progress.Cards.Owned(e.Card);
                 Nine(r, "UI/panel", 28, owned > 0 ? Color.white : new Color(0.75f, 0.78f, 0.9f));
                 var face = new Rect(r.x + 29 * _s, r.y + 10 * _s, 100 * _s, 100 * _s);
