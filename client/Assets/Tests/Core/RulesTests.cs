@@ -404,6 +404,78 @@ namespace ChromaFrontier.Core.Tests
             Assert.AreEqual(Element.Purple, r.Fused);          // 물 + 화염 = 폭풍
         }
 
+        /// <summary>바꾼 유닛 옆에 다른 원소가 있으면 그 자리에서 융합한다. 상대 유닛을 바꿨어도 반응하면 내 것이 된다.</summary>
+        [Test]
+        public void Transmute_FusesWithNeighbor_AndTakesTheUnit()
+        {
+            var g = WithHand(Card.Transmute(Element.Red));
+            Unit(g.Board, 3, 3, Element.Yellow, Side.Ai);    // 상대 번개를
+            Unit(g.Board, 4, 3, Element.Blue, Side.Player);  // 내 물 옆에서 화염으로
+            var r = g.Cast(0, new Cell(3, 3));
+            Assert.AreEqual(Element.Purple, r.Fused);        // 화염 + 물 = 폭풍
+            Assert.AreEqual(Element.Purple, g.Board[new Cell(3, 3)].Unit);
+            Assert.AreEqual(Side.Player, g.Board[new Cell(3, 3)].UnitOwner);
+            Assert.AreEqual(Side.Player, g.Board[new Cell(3, 3)].Owner);
+            CollectionAssert.Contains(r.Catalysts, new Cell(4, 3));
+            Assert.IsFalse(g.Board[new Cell(4, 3)].HasUnit);
+        }
+
+        /// <summary>융합할 이웃이 없고 같은 원소 이웃이 있으면 공명한다 (화염 → 업화: 3x3 + 십자 2칸).</summary>
+        [Test]
+        public void Transmute_ResonatesWithSameElementNeighbor()
+        {
+            var g = WithHand(Card.Transmute(Element.Red));
+            Unit(g.Board, 3, 3, Element.Yellow, Side.Player);
+            Unit(g.Board, 3, 4, Element.Red, Side.Player);
+            var r = g.Cast(0, new Cell(3, 3));
+            Assert.IsTrue(r.Resonance);
+            Assert.AreEqual(Element.Red, r.Placed);
+            Assert.IsFalse(g.Board[new Cell(3, 4)].HasUnit);
+            Assert.AreEqual(Element.Red, g.Board[new Cell(3, 3)].Unit);
+            foreach (var c in new[] { new Cell(2, 2), new Cell(4, 4), new Cell(3, 1), new Cell(5, 3) })
+                Assert.AreEqual(Side.Player, g.Board[c].Owner, c.ToString());
+        }
+
+        [Test]
+        public void Transmute_OnSilence_OnlyRecolors()
+        {
+            var g = WithHand(Card.Transmute(Element.Red));
+            g.Board[new Cell(3, 3)].Terrain = Terrain.Silence;
+            Unit(g.Board, 3, 3, Element.Yellow, Side.Ai);
+            Unit(g.Board, 4, 3, Element.Blue, Side.Player);
+            var r = g.Cast(0, new Cell(3, 3));
+            Assert.AreEqual(Element.None, r.Fused);
+            Assert.IsFalse(r.Resonance);
+            Assert.AreEqual(Side.Ai, g.Board[new Cell(3, 3)].UnitOwner);
+            Assert.IsTrue(g.Board[new Cell(4, 3)].HasUnit);
+        }
+
+        /// <summary>변환으로 흑색이 되면 (스킬은 차례를 안 끝내므로) 이어서 유닛을 놓은 뒤 한 번 더 둔다.</summary>
+        [Test]
+        public void Transmute_IntoBlack_GivesExtraTurnAfterNextUnit()
+        {
+            var b = Empty();
+            b[new Cell(0, 7)].Owner = Side.Player;
+            b[new Cell(7, 0)].Owner = Side.Ai;
+            var deck = new System.Collections.Generic.List<Card> { Card.Transmute(Element.Red) };
+            for (var i = 0; i < 8; i++) deck.Add(Card.Unit(Element.Red));
+            var g = Game.Create(b, deck, Game.StarterDeck(), 1, new StageRules { LockFromTurn = 0 }, shuffle: false);
+            Unit(g.Board, 3, 3, Element.Yellow, Side.Player);
+            Unit(g.Board, 4, 3, Element.Blue, Side.Ai);      // 상대 유닛이 촉매 → 흑색
+            Unit(g.Board, 3, 4, Element.Yellow, Side.Ai);
+            var hand = g.DeckOf(Side.Player).Hand;
+            var t = hand.FindIndex(c => c.Skill == Skill.Transmute);
+            var r = g.Cast(t, new Cell(3, 3));
+            Assert.AreEqual(Element.Black, r.Fused);
+            Assert.AreEqual(Side.Player, g.Current);
+            var u = g.DeckOf(Side.Player).Hand.FindIndex(c => c.IsUnit);
+            g.Play(u, g.LegalCells(Side.Player)[0]);
+            Assert.AreEqual(Side.Player, g.Current, "흑색의 한 번 더");
+            Assert.IsTrue(g.ExtraTurnNow);
+            g.Play(g.DeckOf(Side.Player).Hand.FindIndex(c => c.IsUnit), g.LegalCells(Side.Player)[0]);
+            Assert.AreEqual(Side.Ai, g.Current, "한 번만");
+        }
+
         [Test]
         public void Echo_RepeatsBaseEffectWithoutConsumingUnit()
         {

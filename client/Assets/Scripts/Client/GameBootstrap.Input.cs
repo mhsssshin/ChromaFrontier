@@ -240,7 +240,7 @@ namespace ChromaFrontier.Client
             if (card.Skill == Skill.Lock)
                 foreach (var c in Game.Board.Cells())
                     if (c.Chebyshev(f) <= Balance.LockRadius) _hl.Preview.Add(c);
-            if ((card.Skill == Skill.Echo || card.Skill == Skill.Surge || card.Skill == Skill.Siphon || card.Skill == Skill.Split || card.Skill == Skill.Quake) && Game.CanTarget(Me, card, f))
+            if ((card.Skill == Skill.Echo || card.Skill == Skill.Transmute || card.Skill == Skill.Surge || card.Skill == Skill.Siphon || card.Skill == Skill.Split || card.Skill == Skill.Quake) && Game.CanTarget(Me, card, f))
             {
                 var pr = Game.CloneFor(Me).Cast(Selected, f);
                 foreach (var c in pr.Captured) _hl.Preview.Add(c);

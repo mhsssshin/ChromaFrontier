@@ -55,6 +55,7 @@ namespace ChromaFrontier.Core
         private int _seat;
         private MatchStats _playerStats = new(), _aiStats = new();
         private bool _bonusTurn; // 목표 보상·선공: 플레이어가 다음에 유닛을 놓은 뒤 한 번 더
+        private bool _castExtra; // 이번 차례에 스킬(원소 변환)로 흑색이 됐다: 유닛을 놓은 뒤 한 번 더
         private Dictionary<Card, int> _levels; // 플레이어 카드 강화 단계 (판 중에 안 바뀌어 복제본과 공유). AI 는 늘 Lv1
 
         private Game() { }
@@ -135,6 +136,7 @@ namespace ChromaFrontier.Core
                 _playerStats = _playerStats.Clone(),
                 _aiStats = _aiStats.Clone(),
                 _bonusTurn = _bonusTurn,
+                _castExtra = _castExtra,
                 ExtraTurnNow = ExtraTurnNow,
                 _levels = _levels,
                 TurnsTaken = TurnsTaken,
@@ -244,7 +246,9 @@ namespace ChromaFrontier.Core
                 Skill.Bleach => t.HasUnit && t.Unit != Element.Grey && !t.IsProtectedFrom(s),
                 // 빈 칸이면 어디든. 상대 지뢰가 있는지는 모르므로 막지 않는다 (덮어쓴다). 내 지뢰 위에는 못 묻는다.
                 Skill.Mine => !t.HasUnit && t.Mine != s,
-                Skill.Transmute => (t.Unit.IsBase() || t.Unit == Element.Grey) && t.Unit != card.Element && !t.IsProtectedFrom(s),
+                // 첨탑 퍼즐에서는 번개 옆을 번개로 바꾸지 못한다 (뇌우 공명은 무작위 낙뢰)
+                Skill.Transmute => (t.Unit.IsBase() || t.Unit == Element.Grey) && t.Unit != card.Element && !t.IsProtectedFrom(s)
+                                   && !(Rules.Solo && card.Element == Element.Yellow && NextTo(c, Element.Yellow)),
                 // 첨탑 퍼즐에서는 번개 재점화(무작위 낙뢰)를 막는다: 풀이가 운이 되면 안 된다
                 Skill.Echo => t.Unit.IsBase() && t.UnitOwner == s && !(Rules.Solo && t.Unit == Element.Yellow),
                 Skill.Beacon => t.Owner == s && t.Beacon == Side.None,
@@ -258,6 +262,13 @@ namespace ChromaFrontier.Core
         }
 
         public bool CanTarget(Side s, Skill skill, Cell c) => CanTarget(s, Card.Of(skill), c);
+
+        private bool NextTo(Cell c, Element e)
+        {
+            foreach (var d in Cell.Orthogonal)
+                if (Board.InBounds(c + d) && Board[c + d].Unit == e) return true;
+            return false;
+        }
 
         private bool HasSplitRoom(Side s, Cell c)
         {
@@ -289,7 +300,7 @@ namespace ChromaFrontier.Core
             var r = Resolver.PlaceUnit(Board, _rng, Current, at, element, dir, LevelOf(Current.Opponent(), Card.Of(Skill.Mine)));
             LastResult = r;
             AfterResolve(r);
-            var extra = r.ExtraTurn;
+            var extra = r.ExtraTurn || _castExtra;
             if (!extra && _bonusTurn && Current == Side.Player)
             {
                 extra = true;
@@ -308,24 +319,27 @@ namespace ChromaFrontier.Core
         {
             var deck = DeckOf(Current);
             var card = deck.Hand[handIndex];
-            var echoDir = card.Skill == Skill.Echo && Board[target].Unit == Element.Blue ? BestEchoDirection(target) : Cell.Orthogonal[0];
+            // 물이 흐를 방향 (재점화한 물, 물로 바꾼 유닛의 해일): 가장 많이 먹는 쪽
+            var water = card.Skill == Skill.Echo ? Board[target].Unit == Element.Blue : card.Skill == Skill.Transmute && card.Element == Element.Blue;
+            var echoDir = water ? BestCastDirection(card, target) : Cell.Orthogonal[0];
             deck.Play(handIndex);
             var r = Resolver.CastSkill(Board, _rng, Current, card, target, target2, echoDir, LevelOf(Current, card));
             LastResult = r;
             SkillUsed = true;
+            if (r.ExtraTurn) _castExtra = true; // 스킬은 차례를 안 끝내므로 흑색의 한 번 더는 유닛을 놓은 뒤
             AfterResolve(r);
             CheckStuck(); // 공간 왜곡으로 내 전선이 사라졌을 수도 있다
             return r;
         }
 
-        private Cell BestEchoDirection(Cell at)
+        private Cell BestCastDirection(Card card, Cell at)
         {
             var best = Cell.Orthogonal[0];
             var bestScore = int.MinValue;
             foreach (var d in Cell.Orthogonal)
             {
                 var b = Board.Clone();
-                Resolver.CastSkill(b, _rng.Clone(), Current, Card.Of(Skill.Echo), at, default, d, LevelOf(Current, Card.Of(Skill.Echo)));
+                Resolver.CastSkill(b, _rng.Clone(), Current, card, at, default, d, LevelOf(Current, card));
                 var score = b.Count(Current) - b.Count(Current.Opponent());
                 if (score > bestScore)
                 {
@@ -522,6 +536,7 @@ namespace ChromaFrontier.Core
         private void EndTurn(bool extraTurn)
         {
             TurnsTaken++;
+            _castExtra = false;
             DeckOf(Current).Refill(_rng, HoldLockFor(extraTurn));
             Board.TickTimers();
             SkillUsed = false;

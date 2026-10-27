@@ -151,7 +151,7 @@ namespace ChromaFrontier.Client
                 Skill.Lock => "잠글 3x3 구역의 가운데 칸을 누르세요.",
                 Skill.Bleach => "무력화할 유닛을 누르세요.",
                 Skill.Mine => "지뢰를 묻을 빈 칸을 누르세요. 상대가 밟으면 주변이 내 땅! (상대에게 안 보임)",
-                Skill.Transmute => $"{Ro(Name(c.Element))} 바꿀 유닛을 누르세요. 상대 유닛도 바꿀 수 있어요.",
+                Skill.Transmute => $"{Ro(Name(c.Element))} 바꿀 유닛을 누르세요. 옆 유닛과 바로 융합·공명해요 (상대 유닛도 바꿀 수 있어요).",
                 Skill.Echo => "효과를 한 번 더 낼 내 1단계 유닛을 누르세요.",
                 Skill.Beacon => "깃발을 꽂을 내 땅을 누르세요. 라운드마다 주변 한 칸을 차지하고, 빼앗기면 무너져요.",
                 Skill.Surge => "폭주시킬 내 유닛을 누르세요. 주변 3x3 이 내 땅이 돼요 (유닛은 남아요).",

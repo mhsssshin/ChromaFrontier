@@ -103,7 +103,13 @@ namespace ChromaFrontier.Client
                         break;
                     case Skill.Transmute:
                         _view.Flash(new[] { at });
-                        Message += $" — {Palette.Name(r.Bleached)} 유닛이 {Palette.Ro(Palette.Name(Game.Board[at].Unit))} 바뀌었다";
+                        if (r.Fused != Element.None)
+                            Message += $" — {Palette.Name(r.Bleached)} → {Palette.Name(r.Placed)}, 이웃과 반응! " + (r.Boosted ? $"★★ 3차 조합! {Palette.Name(r.Fused)}" : $"★ {Palette.Name(r.Fused)} 융합!")
+                                       + $" +{r.Captured.Count}칸" + (r.ExtraTurn ? "   유닛을 놓으면 한 번 더!" : "");
+                        else if (r.Resonance)
+                            Message += $" — {Palette.Name(r.Bleached)} → {Palette.Name(r.Placed)}, ★ 공명! {Palette.ResonanceName(r.Placed)} +{r.Captured.Count}칸";
+                        else
+                            Message += $" — {Palette.Name(r.Bleached)} 유닛이 {Palette.Ro(Palette.Name(Game.Board[at].Unit))} 바뀌었다";
                         break;
                     case Skill.Echo:
                         _view.Flash(r.Captured);
@@ -280,6 +286,7 @@ namespace ChromaFrontier.Client
             var white = Color.white;
             var pos = _view.ToWorld(at);
             var lift = new Vector3(0f, 0.35f, 0f);
+            var reacted = r.Skill == Skill.Transmute && (r.Fused != Element.None || r.Resonance);
 
             if (r.Skill != Skill.None)
             {
@@ -342,7 +349,8 @@ namespace ChromaFrontier.Client
                         _shake = 0.45f;
                         break;
                 }
-                if (r.Skill != Skill.Echo && r.Skill != Skill.Surge && r.Skill != Skill.Siphon && r.Skill != Skill.Quake) return; // 재점화는 아래에서 점유한 칸 연출까지 이어간다
+                if (reacted) PlayUnitEffects(actor, r, at, pos, lift); // 변환한 유닛이 이웃과 반응: 놓은 유닛과 같은 융합·공명 연출
+                else if (r.Skill != Skill.Echo && r.Skill != Skill.Surge && r.Skill != Skill.Siphon && r.Skill != Skill.Quake) return; // 재점화는 아래에서 점유한 칸 연출까지 이어간다
             }
             else if (r.MineTriggered)
             {
@@ -360,55 +368,7 @@ namespace ChromaFrontier.Client
                 }
                 _shake = 0.6f;
             }
-            else
-            {
-                switch (r.Placed)
-                {
-                    case Element.Red: _fx.Spawn(FxView.Burst, pos + lift, white, r.Resonance ? 2.2f : 1.2f, 0.12f); break;
-                    case Element.Blue: _fx.Spawn(FxView.Splash, pos + lift, white, r.Resonance ? 2.2f : 1.2f, 0.12f); break;
-                    case Element.Yellow: _fx.Spawn(FxView.Zap, pos + lift, white, r.Resonance ? 2.4f : 1.3f, 0.12f); break;
-                }
-                var fuseDelay = 0.3f;
-                if (r.Fused != Element.None)
-                {
-                    StartCine(actor, r, at);
-                    // 합쳐지는 순간: 재료 유닛에서 합성 칸으로 빛이 모인다
-                    foreach (var c in r.Catalysts)
-                        _fx.Spawn(FxView.Ring, _view.ToWorld(c), Color.Lerp(Palette.Of(r.Fused), Color.white, 0.4f), 1.6f, 0.05f);
-                    _fx.Spawn(FxView.Ring, pos, Color.white, CineStrong ? 4.5f : 3.4f, fuseDelay + 0.05f);
-                    _fx.Spawn(FxView.Sparkle, pos + lift * 2f, Color.white, CineStrong ? 2.6f : 2f, fuseDelay + 0.1f);
-                }
-                switch (r.Fused)
-                {
-                    case Element.Orange:
-                        _fx.Spawn(FxView.Burst, pos + lift, white, 2.4f, fuseDelay);
-                        _shake = 0.3f;
-                        break;
-                    case Element.Purple:
-                        _fx.Spawn(FxView.Zap, pos + lift * 2f, new Color(0.85f, 0.6f, 1f), 2f, fuseDelay);
-                        _fx.Spawn(FxView.Ring, pos, new Color(0.7f, 0.45f, 1f), 3f, fuseDelay);
-                        break;
-                    case Element.Green:
-                        _fx.Spawn(FxView.Smoke, pos + lift, new Color(0.6f, 1f, 0.6f), 2f, fuseDelay);
-                        _fx.Spawn(FxView.Ring, pos, new Color(0.5f, 1f, 0.5f), 3f, fuseDelay);
-                        break;
-                    case Element.White:
-                        _fx.Spawn(FxView.Holy, pos + lift, white, r.Boosted ? 3.6f : 2.6f, fuseDelay, 12f);
-                        _shake = 0.25f;
-                        break;
-                    case Element.Black:
-                        _fx.Spawn(FxView.Void, pos + lift, white, r.Boosted ? 4f : 3f, fuseDelay, 12f);
-                        _shake = 0.45f;
-                        break;
-                }
-                foreach (var c in r.Catalysts)
-                    _fx.Spawn(FxView.Sparkle, _view.ToWorld(c) + lift, Palette.Of(r.Fused != Element.None ? r.Fused : r.Placed), 1f, fuseDelay * 0.5f);
-                if (r.Resonance)
-                {
-                    _fx.Spawn(FxView.Ring, pos, Palette.Of(r.Placed), 3f, 0.15f);
-                    _shake = Mathf.Max(_shake, 0.2f);
-                }
-            }
+            else PlayUnitEffects(actor, r, at, pos, lift);
 
             // 점유된 칸: 가까운 칸부터 차례로 고리 + 반짝임 (팀 색)
             var owner = r.MineTriggered ? actor.Opponent() : actor;
@@ -420,6 +380,58 @@ namespace ChromaFrontier.Client
                 var p = _view.ToWorld(c);
                 _fx.Spawn(FxView.Ring, p, Color.Lerp(team, Color.white, 0.35f), 1f, d);
                 _fx.Spawn(FxView.Sparkle, p + lift, Color.Lerp(team, Color.white, 0.6f), 0.6f, d + 0.05f);
+            }
+        }
+
+        /// <summary>유닛의 원소 이펙트 → 융합(합성 연출)·공명 이펙트. 놓은 유닛과, 이웃과 반응한 원소 변환이 쓴다.</summary>
+        private void PlayUnitEffects(Side actor, PlayResult r, Cell at, Vector3 pos, Vector3 lift)
+        {
+            var white = Color.white;
+            switch (r.Placed)
+            {
+                case Element.Red: _fx.Spawn(FxView.Burst, pos + lift, white, r.Resonance ? 2.2f : 1.2f, 0.12f); break;
+                case Element.Blue: _fx.Spawn(FxView.Splash, pos + lift, white, r.Resonance ? 2.2f : 1.2f, 0.12f); break;
+                case Element.Yellow: _fx.Spawn(FxView.Zap, pos + lift, white, r.Resonance ? 2.4f : 1.3f, 0.12f); break;
+            }
+            var fuseDelay = 0.3f;
+            if (r.Fused != Element.None)
+            {
+                StartCine(actor, r, at);
+                // 합쳐지는 순간: 재료 유닛에서 합성 칸으로 빛이 모인다
+                foreach (var c in r.Catalysts)
+                    _fx.Spawn(FxView.Ring, _view.ToWorld(c), Color.Lerp(Palette.Of(r.Fused), Color.white, 0.4f), 1.6f, 0.05f);
+                _fx.Spawn(FxView.Ring, pos, Color.white, CineStrong ? 4.5f : 3.4f, fuseDelay + 0.05f);
+                _fx.Spawn(FxView.Sparkle, pos + lift * 2f, Color.white, CineStrong ? 2.6f : 2f, fuseDelay + 0.1f);
+            }
+            switch (r.Fused)
+            {
+                case Element.Orange:
+                    _fx.Spawn(FxView.Burst, pos + lift, white, 2.4f, fuseDelay);
+                    _shake = 0.3f;
+                    break;
+                case Element.Purple:
+                    _fx.Spawn(FxView.Zap, pos + lift * 2f, new Color(0.85f, 0.6f, 1f), 2f, fuseDelay);
+                    _fx.Spawn(FxView.Ring, pos, new Color(0.7f, 0.45f, 1f), 3f, fuseDelay);
+                    break;
+                case Element.Green:
+                    _fx.Spawn(FxView.Smoke, pos + lift, new Color(0.6f, 1f, 0.6f), 2f, fuseDelay);
+                    _fx.Spawn(FxView.Ring, pos, new Color(0.5f, 1f, 0.5f), 3f, fuseDelay);
+                    break;
+                case Element.White:
+                    _fx.Spawn(FxView.Holy, pos + lift, white, r.Boosted ? 3.6f : 2.6f, fuseDelay, 12f);
+                    _shake = 0.25f;
+                    break;
+                case Element.Black:
+                    _fx.Spawn(FxView.Void, pos + lift, white, r.Boosted ? 4f : 3f, fuseDelay, 12f);
+                    _shake = 0.45f;
+                    break;
+            }
+            foreach (var c in r.Catalysts)
+                _fx.Spawn(FxView.Sparkle, _view.ToWorld(c) + lift, Palette.Of(r.Fused != Element.None ? r.Fused : r.Placed), 1f, fuseDelay * 0.5f);
+            if (r.Resonance)
+            {
+                _fx.Spawn(FxView.Ring, pos, Palette.Of(r.Placed), 3f, 0.15f);
+                _shake = Mathf.Max(_shake, 0.2f);
             }
         }
 

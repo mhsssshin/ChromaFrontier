@@ -128,7 +128,7 @@ namespace ChromaFrontier.Core
             new() { Floor = 24, Name = "물의 사다리", Moves = 3, Hand = "B B B Tb",
                 Hint = "내 유닛을 물로 바꾸면 물이 줄줄이 공명해요.",
                 Map = new[] { ".~.AAA", "..~AA.", "...A..", "P.....", "PP...." },
-                Units = new[] { "......", "....y.", "......", "......", "YY...." } },
+                Units = new[] { "......", "....y.", "......", "......", ".Y...." } },
             // Warp@2,2↔1,4  Red@3,2[Orange!,slid]  Red@3,2[White+]  Red@0,1
             new() { Floor = 25, Name = "얼음 위의 묘수", Moves = 3, Hand = "R R R Wp",
                 Hint = "얼음 칸에서는 한 칸 더 미끄러져요. 공간 왜곡으로 미끄러질 곳을 준비하세요.",

@@ -116,6 +116,30 @@ namespace ChromaFrontier.Core
             return r;
         }
 
+        /// <summary>
+        /// 원소 변환 뒤 바뀐 유닛이 이웃과 반응한다 (놓은 유닛과 같은 규칙): 다른 원소 이웃과 융합할 수 있으면 융합,
+        /// 아니면 같은 원소 이웃과 공명(업화·해일·뇌우). 반응하면 그 유닛과 칸은 카드를 낸 쪽 것이 된다 (상대 유닛을 바꿨어도).
+        /// 이웃이 없으면 색만 바뀐다. 침묵 지대의 유닛은 반응하지 않는다.
+        /// </summary>
+        private static void React(Board board, Rng rng, Side side, Cell at, Element element, Cell blueDir, PlayResult r)
+        {
+            if (board[at].Terrain == Terrain.Silence) return;
+            var fuses = FindFusion(board, at, side, element, out var tier3, out var tier2);
+            var echo = fuses ? null : PickNeighbor(board, at, side, element);
+            if (!fuses && !echo.HasValue) return;
+            r.Placed = element;
+            board[at].UnitOwner = side;
+            Claim(board, at, side, r);
+            if (fuses)
+            {
+                ApplyFusion(board, at, side, element, tier3, tier2, r);
+                return;
+            }
+            r.Resonance = true;
+            Consume(board, echo.Value, side, r);
+            BaseEffect(board, rng, side, at, element, blueDir, true, r);
+        }
+
         /// <summary>지뢰 폭발 범위: Lv1 3x3, Lv2 3x3 + 십자 2칸, Lv3 5x5.</summary>
         public static bool InMineBlast(Cell c, Cell at, int level)
         {
@@ -223,6 +247,7 @@ namespace ChromaFrontier.Core
                     board[target].Unit = card.Element;
                     if (level >= 2) Claim(board, target, side, r);
                     if (level >= 3) ClaimAround(board, target, side, r);
+                    React(board, rng, side, target, card.Element, echoDir, r);
                     break;
                 case Skill.Echo:
                     r.Placed = board[target].Unit;
