@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using ChromaFrontier.Core;
 using UnityEngine;
 
 namespace ChromaFrontier.Client
@@ -11,6 +12,7 @@ namespace ChromaFrontier.Client
         public string uid = "", name = "", deck = "", skin = "", emote = "";
         public bool ready, left;
         public bool Empty => string.IsNullOrEmpty(uid);
+        public bool IsBot => PvpBots.IsBot(uid);
     }
 
     [Serializable]
@@ -19,6 +21,7 @@ namespace ChromaFrontier.Client
         public string id = "", title = "", host = "", status = "wait", map = "";
         public int size = 1, seed;
         public double created;
+        public bool locked, quick; // 비번방, 빠른 대전 방
         public SeatInfo[] seats = Array.Empty<SeatInfo>();
 
         public int Filled
@@ -36,10 +39,25 @@ namespace ChromaFrontier.Client
     [Serializable]
     internal sealed class NetMsg
     {
-        public string t = "", uid = "", name = "", provider = "", err = "", move = "", localSummary = "", remoteSummary = "";
+        public string t = "", uid = "", name = "", provider = "", err = "", move = "", localSummary = "", remoteSummary = "", key = "", text = "";
         public int n;
         public RoomInfo room;
         public RoomInfo[] rooms;
+    }
+
+    /// <summary>방 만들기 설정 (net.js createRoom 에 JSON 으로 넘긴다). pw 가 비어 있으면 공개방.</summary>
+    [Serializable]
+    internal sealed class RoomOptions
+    {
+        public string title = "", map = "", deck = "", skin = "", pw = "";
+        public int size = 1;
+        public bool quick;
+    }
+
+    [Serializable]
+    internal sealed class BotSeat
+    {
+        public string uid = "", name = "", deck = "", skin = "";
     }
 
     /// <summary>
@@ -95,6 +113,9 @@ namespace ChromaFrontier.Client
 
         /// <summary>클라우드 기록을 이 기기로 받아 Progress 를 다시 읽어야 한다.</summary>
         public static event Action Reloaded;
+
+        /// <summary>Ask 로 물은 글의 답 (키, 글). 취소하면 오지 않는다.</summary>
+        public static event Action<string, string> Answered;
 
         public static bool SignedIn => !string.IsNullOrEmpty(Uid);
         public static bool IsGuest => Provider == "guest";
@@ -183,6 +204,7 @@ namespace ChromaFrontier.Client
                     if (m.rooms != null) Rooms.AddRange(m.rooms);
                     break;
                 case "room":
+                    if (Room == null) Error = ""; // 방에 들어왔으면 그 전 오류(비밀번호 틀림 등)는 지운다
                     Room = m.room;
                     MySeat = m.n;
                     break;
@@ -194,6 +216,9 @@ namespace ChromaFrontier.Client
                     break;
                 case "move":
                     Moves.Enqueue(new KeyValuePair<int, string>(m.n, m.move));
+                    break;
+                case "answer":
+                    Answered?.Invoke(m.key, m.text);
                     break;
             }
         }
@@ -209,6 +234,7 @@ namespace ChromaFrontier.Client
             "PERMISSION_DENIED" or "permission_denied" => "DB 권한이 없어요 (보안 규칙 확인 필요).",
             "room-full" => "자리가 없거나 이미 시작한 방이에요.",
             "not-ready" => "모두 자리에 앉고 준비해야 시작할 수 있어요.",
+            "bad-password" => "비밀번호가 맞지 않아요.",
             _ => code != null && code.Contains("ermission") ? "DB 권한이 없어요 (보안 규칙 확인 필요)." : "온라인 오류: " + code,
         };
 
@@ -233,8 +259,23 @@ namespace ChromaFrontier.Client
         public static void SaveNow() => Call("saveNow");
 
         public static void WatchRooms(bool on) => Call("watchRooms", on ? "1" : "");
-        public static void CreateRoom(string title, int size, string map, string deck, string skin) => Call("createRoom", title, size.ToString(), map, deck, skin);
+        /// <summary>방을 만든다. password 가 비어 있으면 공개방, 있으면 비번방 (목록에 자물쇠, 들어올 때 묻는다).</summary>
+        public static void CreateRoom(string title, int size, string map, string deck, string skin, string password, bool quick = false) =>
+            Call("createRoom", JsonUtility.ToJson(new RoomOptions { title = title, size = size, map = map, deck = deck, skin = skin, pw = password ?? "", quick = quick }));
+
         public static void JoinRoom(string id, string deck, string skin) => Call("joinRoom", id, deck, skin);
+
+        /// <summary>빠른 대전: 자리가 빈 공개방에 들어가고, 없으면 빠른 대전 방을 만든다 (봇이 채워 준다).</summary>
+        public static void QuickJoin(int size, string deck, string skin, string map) => Call("quickJoin", size.ToString(), deck, skin, map);
+
+        public static void BotJoin(PvpBot bot) =>
+            Call("botJoin", JsonUtility.ToJson(new BotSeat { uid = bot.Uid, name = bot.Name, deck = bot.Deck, skin = bot.Skin }));
+
+        public static void BotReady(int seat) => CallInt("botReady", seat);
+        public static void BotEmote(int seat, int index) => Call("botEmote", seat.ToString(), index.ToString());
+
+        /// <summary>브라우저 입력 창으로 글을 묻는다. 답은 Answered 로 온다.</summary>
+        public static void Ask(string key, string question, string value = "") => Call("ask", key, question, value ?? "");
         public static void MoveSeat(int seat) => CallInt("moveSeat", seat);
         public static void SetReady(bool on) => CallBool("setReady", on);
         public static void SetMap(string map) => Call("setMap", map);

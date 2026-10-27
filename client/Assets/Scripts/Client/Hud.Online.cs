@@ -135,7 +135,21 @@ namespace ChromaFrontier.Client
 
         // ---------------------------------------------------------------- PvP 로비
 
+        private static readonly Color LockTint = new(0.95f, 0.75f, 0.3f);
+        private const int RoomsPerPage = 7;
+
+        /// <summary>
+        /// 대전 로비: 빠른 대전(1:1 / 2:2, 공개방에 자동으로 들어감), 검색(방 제목·이름 — 비번방도 찾음), 방 만들기, 열린 방 목록.
+        /// 비번방은 자물쇠 표시가 붙고 들어갈 때 비밀번호를 묻는다.
+        /// </summary>
         private static void DrawPvpLobby(GameBootstrap gb)
+        {
+            // 방 만들기 창이 떠 있으면 아래 로비는 그리기만 한다 (클릭을 받지 않게)
+            if (!gb.CreatingRoom || Event.current.type == EventType.Repaint) DrawLobbyBody(gb);
+            if (gb.CreatingRoom) DrawCreateRoom(gb);
+        }
+
+        private static void DrawLobbyBody(GameBootstrap gb)
         {
             Fill(R(0, 0, RefW, 130), "UI/fade_top", Color.white);
             if (PillButton(R(14, 14, 100, 44), "← 홈", 16)) gb.ShowHome();
@@ -153,32 +167,141 @@ namespace ChromaFrontier.Client
 
             Text(R(20, 64, RefW - 40, 26), $"{Online.Name}  ·  전적 {Progress.PvpWins}승 {Progress.PvpDraws}무 {Progress.PvpLosses}패", 16, Color.white);
             Text(R(20, 88, RefW - 40, 22), $"이기면 결정 {PvpCatalog.WinGems}, 비기면 {PvpCatalog.DrawGems}, 지면 {PvpCatalog.LoseGems}  ·  덱은 편성 그대로, 강화는 적용 안 돼요", 13, Soft, TextAnchor.MiddleCenter, 0f);
-            if (CardButton(R(14, 116, 250, 72), new Color(0.36f, 0.62f, 1f), "1:1 방 만들기", 22)) gb.CreateRoom(1);
-            if (CardButton(R(276, 116, 250, 72), new Color(0.95f, 0.5f, 0.35f), "2:2 방 만들기", 22)) gb.CreateRoom(2);
 
-            var list = R(14, 200, RefW - 28, 700);
-            Nine(list, "UI/panel", 28, Color.white);
-            Text(R(30, 204, 300, 36), "열린 방", 20, Gold, TextAnchor.MiddleLeft, 0.6f);
-            if (Online.Rooms.Count == 0)
-                Text(R(30, 400, RefW - 60, 80), "열린 방이 없어요.\n방을 만들고 친구에게 들어오라고 하세요!", 18, Soft);
-            for (var i = 0; i < Online.Rooms.Count && i < 8; i++)
+            // 빠른 대전
+            var matching = gb.MatchingSince >= 0f;
+            for (var k = 0; k < 2; k++)
             {
-                var room = Online.Rooms[i];
-                var r = R(26, 246 + i * 80, RefW - 52, 72);
-                var full = room.Filled >= room.seats.Length;
-                if (!full && HotGlow(r)) Image(Inset(r, -10), "UI/glow", new Color(1f, 1f, 1f, 0.3f));
-                Nine(r, "UI/glass", 28, full ? new Color(0.7f, 0.72f, 0.8f, 0.6f) : Color.white);
-                var chip = new Rect(r.x + 10 * _s, r.y + 16 * _s, 56 * _s, 40 * _s);
-                Nine(chip, "UI/button", 22, room.size == 2 ? new Color(0.85f, 0.45f, 0.3f) : new Color(0.3f, 0.6f, 1f));
-                Text(chip, room.size == 2 ? "2:2" : "1:1", 17, Color.white, TextAnchor.MiddleCenter, 0f);
-                Text(new Rect(r.x + 76 * _s, r.y + 6 * _s, r.width - 210 * _s, 32 * _s), room.title, 18, Color.white, TextAnchor.MiddleLeft, 0.5f);
-                Text(new Rect(r.x + 76 * _s, r.y + 38 * _s, r.width - 210 * _s, 26 * _s), $"{PvpCatalog.Find(room.size, room.map).Name}  ·  {room.Filled}/{room.seats.Length}명", 14, Soft, TextAnchor.MiddleLeft, 0f);
-                GUI.enabled = !full;
-                if (Button(new Rect(r.xMax - 124 * _s, r.y + 12 * _s, 112 * _s, 48 * _s), new Color(1f, 0.55f, 0.2f), full ? "꽉 참" : "입장", 19)) gb.JoinRoom(room);
+                var r = R(14 + k * 262, 114, 250, 76);
+                var size = k + 1;
+                if (CardButton(r, k == 0 ? new Color(0.36f, 0.62f, 1f) : new Color(0.95f, 0.5f, 0.35f), "", 22, !matching)) gb.QuickMatch(size);
+                Text(new Rect(r.x, r.y + 8 * _s, r.width, 36 * _s), $"{size}:{size} 빠른 대전", 22, Color.white, TextAnchor.MiddleCenter, 0.6f);
+                Text(new Rect(r.x, r.y + 44 * _s, r.width, 24 * _s), matching ? "방을 찾는 중" + Dots : "공개방에 바로 들어가요", 13, Color.white, TextAnchor.MiddleCenter, 0.5f);
+            }
+
+            // 검색 · 방 만들기
+            var searching = gb.RoomSearch != "";
+            var search = R(14, 200, searching ? 282 : 360, 48);
+            if (HotGlow(search)) Image(Inset(search, -8), "UI/glow", new Color(1f, 1f, 1f, 0.3f));
+            Nine(search, "UI/pill", 22, Color.white);
+            Text(Inset(search, 6), searching ? $"찾기: {gb.RoomSearch}" : "방 제목·이름으로 찾기 (비번방도)", 15, searching ? Color.white : Soft, TextAnchor.MiddleCenter, 0.4f);
+            if (GUI.Button(search, GUIContent.none, GUIStyle.none)) gb.AskRoomSearch();
+            if (searching && PillButton(R(302, 200, 72, 48), "지우기", 14)) gb.ClearRoomSearch();
+            if (CardButton(R(382, 198, 144, 52), new Color(0.3f, 0.75f, 0.55f), "방 만들기", 19)) gb.OpenCreateRoom();
+
+            // 방 목록
+            var rooms = gb.VisibleRooms;
+            var list = R(14, 258, RefW - 28, 632);
+            Nine(list, "UI/panel", 28, Color.white);
+            Text(R(30, 262, 300, 36), searching ? $"검색 결과 {rooms.Count}" : $"열린 방 {rooms.Count}", 20, Gold, TextAnchor.MiddleLeft, 0.6f);
+            var pages = Mathf.Max(1, (rooms.Count + RoomsPerPage - 1) / RoomsPerPage);
+            gb.RoomPage = Mathf.Clamp(gb.RoomPage, 0, pages - 1);
+            if (pages > 1)
+            {
+                GUI.enabled = gb.RoomPage > 0;
+                if (PillButton(R(332, 266, 50, 28), "◀", 14)) gb.RoomPage--;
+                GUI.enabled = gb.RoomPage < pages - 1;
+                if (PillButton(R(458, 266, 50, 28), "▶", 14)) gb.RoomPage++;
                 GUI.enabled = true;
+                Text(R(382, 266, 76, 28), $"{gb.RoomPage + 1} / {pages}", 14, Color.white, TextAnchor.MiddleCenter, 0.5f);
+            }
+            if (rooms.Count == 0)
+                Text(R(30, 460, RefW - 60, 80), searching ? "찾는 방이 없어요.\n제목이나 이름을 다시 확인해 주세요." : "열린 방이 없어요.\n빠른 대전을 누르거나 방을 만들어 보세요!", 18, Soft);
+            for (var k = 0; k < RoomsPerPage; k++)
+            {
+                var i = gb.RoomPage * RoomsPerPage + k;
+                if (i >= rooms.Count) break;
+                DrawRoomRow(gb, rooms[i], R(26, 302 + k * 80, RefW - 52, 72));
             }
             if (Time.time < gb.ToastUntil) Text(R(20, 856, RefW - 40, 30), gb.Toast, 16, Gold, TextAnchor.MiddleCenter, 0.7f);
-            OnlineError(904);
+            OnlineError(900);
+        }
+
+        private static void DrawRoomRow(GameBootstrap gb, RoomInfo room, Rect r)
+        {
+            var full = room.Filled >= room.seats.Length;
+            if (!full && HotGlow(r)) Image(Inset(r, -10), "UI/glow", new Color(1f, 1f, 1f, 0.3f));
+            Nine(r, "UI/glass", 28, full ? new Color(0.7f, 0.72f, 0.8f, 0.6f) : Color.white);
+            var chip = new Rect(r.x + 10 * _s, r.y + 16 * _s, 56 * _s, 40 * _s);
+            Nine(chip, "UI/button", 22, room.size == 2 ? new Color(0.85f, 0.45f, 0.3f) : new Color(0.3f, 0.6f, 1f));
+            Text(chip, room.size == 2 ? "2:2" : "1:1", 17, Color.white, TextAnchor.MiddleCenter, 0f);
+            var x = r.x + 76 * _s;
+            if (room.locked)
+            {
+                var tag = new Rect(x, r.y + 10 * _s, 44 * _s, 24 * _s);
+                Nine(tag, "UI/button", 22, LockTint);
+                Text(tag, "비번", 13, Color.white, TextAnchor.MiddleCenter, 0.3f);
+                x += 50 * _s;
+            }
+            Text(new Rect(x, r.y + 6 * _s, r.xMax - 134 * _s - x, 32 * _s), room.title, 18, Color.white, TextAnchor.MiddleLeft, 0.5f);
+            var note = $"{PvpCatalog.Find(room.size, room.map).Name}  ·  {room.Filled}/{room.seats.Length}명" + (room.quick ? "  ·  빠른 대전" : "");
+            Text(new Rect(r.x + 76 * _s, r.y + 38 * _s, r.width - 210 * _s, 26 * _s), note, 14, Soft, TextAnchor.MiddleLeft, 0f);
+            GUI.enabled = !full;
+            if (Button(new Rect(r.xMax - 124 * _s, r.y + 12 * _s, 112 * _s, 48 * _s), room.locked ? LockTint : new Color(1f, 0.55f, 0.2f), full ? "꽉 참" : "입장", 19))
+                gb.JoinRoom(room);
+            GUI.enabled = true;
+        }
+
+        /// <summary>방 만들기 창: 인원(1:1 / 2:2), 공개방 / 비번방, 제목, 비밀번호. 글은 브라우저 입력 창으로 받는다.</summary>
+        private static void DrawCreateRoom(GameBootstrap gb)
+        {
+            Dim(0.55f);
+            var panel = R(30, 210, RefW - 60, 520);
+            Nine(panel, "UI/panel", 28, Color.white);
+            Text(R(46, 222, 300, 44), "방 만들기", 30, Gold, TextAnchor.MiddleLeft, 0.7f);
+            if (PillButton(R(RefW - 130, 224, 84, 42), "닫기", 17)) gb.CreatingRoom = false;
+
+            void Toggle(Rect r, bool on, Color tint, string label)
+            {
+                if (on)
+                {
+                    Image(Inset(r, -8), "UI/glow", new Color(1f, 0.9f, 0.5f, 0.45f));
+                    Nine(r, "UI/button", 22, tint);
+                }
+                else Nine(r, "UI/pill", 22, Color.white);
+                Text(r, label, 18, Color.white, TextAnchor.MiddleCenter, on ? 0.5f : 0f);
+            }
+
+            Text(R(50, 278, 110, 48), "인원", 17, new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft, 0f);
+            for (var k = 0; k < 2; k++)
+            {
+                var r = R(160 + k * 170, 278, 160, 48);
+                Toggle(r, gb.NewRoomSize == k + 1, k == 0 ? new Color(0.3f, 0.6f, 1f) : new Color(0.85f, 0.45f, 0.3f), k == 0 ? "1:1" : "2:2");
+                if (GUI.Button(r, GUIContent.none, GUIStyle.none)) gb.NewRoomSize = k + 1;
+            }
+
+            Text(R(50, 338, 110, 48), "공개", 17, new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft, 0f);
+            for (var k = 0; k < 2; k++)
+            {
+                var r = R(160 + k * 170, 338, 160, 48);
+                Toggle(r, gb.NewRoomLocked == (k == 1), k == 0 ? new Color(0.3f, 0.7f, 0.55f) : LockTint, k == 0 ? "공개방" : "비번방");
+                if (GUI.Button(r, GUIContent.none, GUIStyle.none)) gb.NewRoomLocked = k == 1;
+            }
+
+            void Field(float y, string label, string value, string placeholder, System.Action ask)
+            {
+                Text(R(50, y, 110, 52), label, 17, new Color(0.75f, 0.9f, 1f), TextAnchor.MiddleLeft, 0f);
+                var r = R(160, y, 330, 52);
+                if (HotGlow(r)) Image(Inset(r, -8), "UI/glow", new Color(1f, 1f, 1f, 0.3f));
+                Nine(r, "UI/glass", 28, Color.white);
+                Text(Inset(r, 8), value != "" ? value : placeholder, 17, value != "" ? Color.white : Soft, TextAnchor.MiddleLeft, 0.4f);
+                if (GUI.Button(r, GUIContent.none, GUIStyle.none)) ask();
+            }
+
+            Field(398, "방 제목", gb.NewRoomTitle, gb.DefaultRoomTitle + "  (눌러서 바꾸기)", gb.AskRoomTitle);
+            if (gb.NewRoomLocked)
+            {
+                Field(460, "비밀번호", gb.NewRoomPassword, "눌러서 정하기", gb.AskRoomPassword);
+                Text(R(46, 518, RefW - 92, 44), "비번방은 빠른 대전에 안 잡혀요. 목록에 자물쇠로 보이고, 친구는 방 제목으로 찾아 비밀번호를 넣고 들어와요.", 13, Soft, TextAnchor.MiddleCenter, 0f);
+            }
+            else
+                Text(R(46, 470, RefW - 92, 60), "공개방은 누구나 목록에서 들어오고, 빠른 대전으로도 사람이 들어와요.", 14, Soft, TextAnchor.MiddleCenter, 0f);
+
+            GUI.enabled = gb.CanCreateRoom;
+            if (CardButton(R(130, 600, RefW - 260, 76), new Color(1f, 0.55f, 0.2f), "만들기", 26, gb.CanCreateRoom)) gb.CreateRoom();
+            GUI.enabled = true;
+            if (!gb.CanCreateRoom) Text(R(40, 680, RefW - 80, 30), "비번방은 비밀번호를 정해야 만들 수 있어요.", 14, new Color(1f, 0.85f, 0.6f), TextAnchor.MiddleCenter, 0f);
+            SwallowInput();
         }
 
         // ---------------------------------------------------------------- PvP 방
@@ -194,6 +317,13 @@ namespace ChromaFrontier.Client
             var me = Game.SideOfSeat(Mathf.Max(0, Online.MySeat));
             if (PillButton(R(14, 14, 90, 44), "나가기", 16)) gb.LeaveRoom();
             Text(R(110, 14, RefW - 220, 44), room.title, 20, Color.white, TextAnchor.MiddleCenter, 0.7f);
+            if (room.locked || room.quick)
+            {
+                var tagText = room.locked ? (gb.IsHost && gb.MyRoomPassword != "" ? $"비번방  ·  비밀번호 {gb.MyRoomPassword}" : "비번방") : "빠른 대전";
+                var tag = R(RefW * 0.5f - 120, 58, 240, 28);
+                Nine(tag, "UI/pill", 22, room.locked ? LockTint : Color.white);
+                Text(tag, tagText, 14, Color.white, TextAnchor.MiddleCenter, 0.4f);
+            }
             var mode = R(RefW - 104, 14, 90, 44);
             Nine(mode, "UI/button", 22, room.size == 2 ? new Color(0.85f, 0.45f, 0.3f) : new Color(0.3f, 0.6f, 1f));
             Text(mode, room.size == 2 ? "2:2" : "1:1", 20, Color.white);
@@ -241,6 +371,19 @@ namespace ChromaFrontier.Client
 
             var orderY = 458 + room.size * 118 + 4;
             Text(R(14, orderY, RefW - 28, 26), room.size == 2 ? "차례: 1팀 → 2팀 → 1팀 짝 → 2팀 짝 (같은 팀은 땅을 함께 써요)" : "차례: 1팀이 먼저 둬요", 14, Soft, TextAnchor.MiddleCenter, 0f);
+            if (gb.QuickRoom)
+            {
+                var filled = room.Filled;
+                var all = room.seats.Length;
+                var wait = filled < all ? $"함께할 사람을 찾는 중{Dots}  ({filled}/{all})" : "모두 모였어요! 곧 시작해요";
+                var r = R(110, 844, RefW - 220, 80);
+                Image(Inset(r, -14), "UI/glow", new Color(1f, 0.85f, 0.4f, 0.25f + 0.15f * Mathf.Sin(Time.unscaledTime * 3f)));
+                Nine(r, "UI/mode_card", 28, new Color(0.36f, 0.62f, 1f));
+                Text(r, wait, 19, Color.white, TextAnchor.MiddleCenter, 0.6f);
+                Text(R(14, 806, RefW - 28, 30), "빠른 대전은 모두 모이면 저절로 시작해요.", 15, Color.white, TextAnchor.MiddleCenter, 0.5f);
+                OnlineError(764);
+                return;
+            }
             Text(R(14, 806, RefW - 28, 30), gb.IsHost ? "모두 준비하면 시작할 수 있어요." : "준비를 누르고 방장이 시작하기를 기다려요.", 15, Color.white, TextAnchor.MiddleCenter, 0.5f);
             if (gb.IsHost)
             {

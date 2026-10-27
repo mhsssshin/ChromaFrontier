@@ -26,6 +26,13 @@ namespace ChromaFrontier.Client
         public string[] SeenEmote;           // 자리마다 마지막으로 본 이모티콘 값 (처음 값은 띄우지 않음)
         public readonly List<EmoteShow> Emotes = new(); // 지금 떠 있는 이모티콘
         public int[] Claim;                  // 2:2: 칸마다 마지막으로 차지한 자리 (-1 = 모름) — 그 사람 재질로 그린다
+        public int BotFor = -1;              // 봇 생각 시간을 잡아 둔 수 번호
+        public float BotAt;                  // 봇이 수를 낼 시각 (실제 시간)
+        public readonly Rng BotRng = new(System.Environment.TickCount);
+        public readonly List<EmoteShow> BotEmotes = new(); // 봇이 보낼 이모티콘 (At = 보낼 시각)
+        public float[] BotEmotedAt;          // 자리마다 봇이 마지막으로 이모티콘을 보낸 시각
+        public bool IsBot(int seat) => seat < Room.seats.Length && Room.seats[seat].IsBot;
+        public PvpBot BotOf(int seat) => seat < Room.seats.Length ? PvpBots.Find(Room.seats[seat].uid) : null;
         public string SkinOf(int seat) => seat < Room.seats.Length && !string.IsNullOrEmpty(Room.seats[seat].skin) ? Room.seats[seat].skin : TileSkins.Default;
 
         public int Seats => Room.size * 2;
@@ -180,20 +187,110 @@ namespace ChromaFrontier.Client
             _view = null;
             _fx?.Destroy();
             _fx = null;
+            CreatingRoom = false;
+            MatchingSince = -1f;
             Online.WatchRooms(true);
         }
 
         public static string MyDeckCodes => PvpCatalog.SkillCodes(Progress.Cards);
 
-        public void CreateRoom(int teamSize)
+        // 방 만들기 창 (로비 위에 뜬다)
+        public bool CreatingRoom { get; set; }
+        public int NewRoomSize { get; set; } = 1;
+        public bool NewRoomLocked { get; set; }
+        public string NewRoomTitle { get; private set; } = "";
+        public string NewRoomPassword { get; private set; } = "";
+        public string DefaultRoomTitle => $"{Online.Name}의 방";
+
+        /// <summary>방 목록 검색어 (방 제목·사람 이름). 비번방도 찾을 수 있다.</summary>
+        public string RoomSearch { get; private set; } = "";
+        public int RoomPage { get; set; }
+
+        /// <summary>빠른 대전을 눌러 방을 찾는 중 (방에 들어가면 끝).</summary>
+        public float MatchingSince { get; private set; } = -1f;
+
+        /// <summary>내가 만든 비번방의 비밀번호 (방 화면에 보여 줘서 친구에게 알려 줄 수 있게).</summary>
+        public string MyRoomPassword { get; private set; } = "";
+
+        public void OpenCreateRoom()
         {
-            if (!Online.SignedIn) return;
-            Online.CreateRoom($"{Online.Name}의 방", teamSize, PvpCatalog.MapsFor(teamSize)[0].Id, MyDeckCodes, Progress.SeatSkin);
+            CreatingRoom = true;
+            NewRoomTitle = "";
+            NewRoomPassword = "";
+        }
+
+        public void AskRoomTitle() => Online.Ask("title", "방 제목 (24자까지)", NewRoomTitle == "" ? DefaultRoomTitle : NewRoomTitle);
+        public void AskRoomPassword() => Online.Ask("password", "비밀번호 (12자까지)", NewRoomPassword);
+        public void AskRoomSearch() => Online.Ask("search", "찾을 방 제목이나 이름", RoomSearch);
+
+        public void ClearRoomSearch()
+        {
+            RoomSearch = "";
+            RoomPage = 0;
+        }
+
+        private void OnAnswer(string key, string text)
+        {
+            switch (key)
+            {
+                case "title": NewRoomTitle = text; break;
+                case "password": NewRoomPassword = text.Length > 12 ? text.Substring(0, 12) : text; break;
+                case "search":
+                    RoomSearch = text;
+                    RoomPage = 0;
+                    break;
+            }
+        }
+
+        public bool CanCreateRoom => !NewRoomLocked || NewRoomPassword != "";
+
+        public void CreateRoom()
+        {
+            if (!Online.SignedIn || !CanCreateRoom) return;
+            var title = NewRoomTitle == "" ? DefaultRoomTitle : NewRoomTitle;
+            var pw = NewRoomLocked ? NewRoomPassword : "";
+            MyRoomPassword = pw;
+            Online.CreateRoom(title, NewRoomSize, PvpCatalog.MapsFor(NewRoomSize)[0].Id, MyDeckCodes, Progress.SeatSkin, pw);
+            CreatingRoom = false;
+        }
+
+        /// <summary>빠른 대전: 자리가 빈 공개방에 들어가고, 없으면 빠른 대전 방을 만든다. 사람이 안 오면 봇이 채운다.</summary>
+        public void QuickMatch(int teamSize)
+        {
+            if (!Online.SignedIn || MatchingSince >= 0f) return;
+            MatchingSince = Time.unscaledTime;
+            MyRoomPassword = "";
+            var maps = PvpCatalog.MapsFor(teamSize);
+            Online.QuickJoin(teamSize, MyDeckCodes, Progress.SeatSkin, maps[Random.Range(0, maps.Length)].Id);
         }
 
         public void JoinRoom(RoomInfo r)
         {
-            if (Online.SignedIn) Online.JoinRoom(r.id, MyDeckCodes, Progress.SeatSkin);
+            if (!Online.SignedIn) return;
+            MyRoomPassword = "";
+            Online.JoinRoom(r.id, MyDeckCodes, Progress.SeatSkin);
+        }
+
+        /// <summary>검색어에 맞는 방 (제목 또는 자리에 앉은 사람 이름). 검색어가 없으면 전부.</summary>
+        public List<RoomInfo> VisibleRooms
+        {
+            get
+            {
+                var list = new List<RoomInfo>();
+                var q = RoomSearch.Trim();
+                foreach (var r in Online.Rooms)
+                {
+                    if (q == "" || r.title.IndexOf(q, System.StringComparison.OrdinalIgnoreCase) >= 0) list.Add(r);
+                    else
+                        foreach (var s in r.seats)
+                            if (!s.Empty && s.name.IndexOf(q, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                list.Add(r);
+                                break;
+                            }
+                }
+                return list;
+            }
         }
 
         private string _roomMap = "";
@@ -202,7 +299,11 @@ namespace ChromaFrontier.Client
         {
             Mode = AppScreen.PvpRoom;
             Online.WatchRooms(false);
+            CreatingRoom = false;
+            MatchingSince = -1f;
             _roomMap = "";
+            _botJoinAt = _autoStartAt = -1f;
+            _botReadyAt.Clear();
             UpdateRoomPreview();
         }
 
@@ -251,6 +352,7 @@ namespace ChromaFrontier.Client
             if (Mode == AppScreen.PvpLobby)
             {
                 if (Online.Room != null) ShowPvpRoom();
+                else if (MatchingSince >= 0f && (Online.ErrorAt > MatchingSince || Time.unscaledTime - MatchingSince > 15f)) MatchingSince = -1f;
                 return;
             }
             // 방
@@ -266,10 +368,147 @@ namespace ChromaFrontier.Client
                 StartPvpBattle(Online.Room);
                 return;
             }
+            UpdateRoomBots(Online.Room);
             Palette.Viewer = Game.SideOfSeat(Mathf.Max(0, Online.MySeat)); // 미리보기도 내 팀 시작 땅이 파랑
             UpdateRoomPreview();
             RoomSkins(Online.Room, Mathf.Max(0, Online.MySeat), out var mineSkin, out var foeSkin);
             BoardView.UseSkins(mineSkin, foeSkin);
+        }
+
+        // ---------------------------------------------------------------- 빠른 대전 방: 봇 채우기·자동 시작
+
+        private float _botJoinAt = -1f, _autoStartAt = -1f;
+        private readonly Dictionary<string, float> _botReadyAt = new();
+
+        /// <summary>빠른 대전 방이면 저절로 시작한다 (준비 버튼 없음).</summary>
+        public bool QuickRoom => Online.Room != null && Online.Room.quick;
+
+        /// <summary>
+        /// 빠른 대전 방의 방장 기기: 사람이 안 오면 빈 자리에 봇을 하나씩 앉힌다(처음은 6~13초, 다음은 2~7초 뒤 — 사람이 들어오는 것처럼).
+        /// 봇은 1~4초 뒤 준비하고, 모두 준비되면 잠시 뒤 시작한다.
+        /// </summary>
+        private void UpdateRoomBots(RoomInfo r)
+        {
+            if (!IsHost || !r.quick || r.status != "wait") return;
+            var now = Time.unscaledTime;
+            var empty = 0;
+            var bots = 0;
+            foreach (var s in r.seats)
+            {
+                if (s.Empty) empty++;
+                else if (s.IsBot) bots++;
+            }
+            if (empty == 0) _botJoinAt = -1f;
+            else if (_botJoinAt < 0f) _botJoinAt = now + (bots == 0 ? Random.Range(6f, 13f) : Random.Range(2f, 7f));
+            else if (now >= _botJoinAt)
+            {
+                _botJoinAt = -1f;
+                var bot = PickBot(r);
+                if (bot != null) Online.BotJoin(bot);
+            }
+
+            for (var i = 0; i < r.seats.Length; i++)
+            {
+                var s = r.seats[i];
+                if (!s.IsBot || s.ready) continue;
+                if (!_botReadyAt.TryGetValue(s.uid, out var at)) _botReadyAt[s.uid] = now + Random.Range(1f, 4f);
+                else if (now >= at)
+                {
+                    _botReadyAt[s.uid] = now + 5f; // 혹시 안 바뀌면 다시
+                    Online.BotReady(i);
+                }
+            }
+
+            if (!CanStartRoom) _autoStartAt = -1f;
+            else if (_autoStartAt < 0f) _autoStartAt = now + 1.5f;
+            else if (now >= _autoStartAt)
+            {
+                _autoStartAt = now + 5f;
+                Online.StartGame();
+            }
+        }
+
+        private static PvpBot PickBot(RoomInfo r)
+        {
+            var free = new List<PvpBot>();
+            foreach (var b in PvpBots.All)
+            {
+                var taken = false;
+                foreach (var s in r.seats) taken |= s.uid == b.Uid;
+                if (!taken) free.Add(b);
+            }
+            return free.Count == 0 ? null : free[Random.Range(0, free.Count)];
+        }
+
+        // ---------------------------------------------------------------- PvP 판: 봇
+
+        /// <summary>
+        /// 봇 차례면 봇을 맡은 기기(나가지 않은 사람 중 가장 앞 자리)가 생각 시간만큼 기다렸다가 봇의 수를 보낸다.
+        /// 그 번호가 비어 있을 때만 쓰므로 맡은 기기가 바뀌는 순간 둘이 보내도 하나만 남는다.
+        /// </summary>
+        private void UpdateBots(PvpSession p, bool caughtUp)
+        {
+            var now = Time.unscaledTime;
+            var driver = ProxyWriter(p);
+            // 미뤄 둔 이모티콘
+            for (var i = p.BotEmotes.Count - 1; i >= 0; i--)
+            {
+                var e = p.BotEmotes[i];
+                if (now < e.At) continue;
+                p.BotEmotes.RemoveAt(i);
+                if (driver) Online.BotEmote(e.Seat, e.Index);
+            }
+
+            if (BattleOver || !caughtUp || !driver) return;
+            var seat = Game.CurrentSeat;
+            var bot = p.IsBot(seat) ? p.BotOf(seat) : null;
+            if (bot == null) return;
+            if (p.BotFor != p.Applied)
+            {
+                p.BotFor = p.Applied;
+                p.BotAt = now + PvpBots.ThinkSeconds(Game, bot, p.BotRng);
+                return;
+            }
+            if (now < p.BotAt || p.ProxySent == p.Applied || _aiTimer > 0f) return;
+            p.ProxySent = p.Applied;
+            Online.SendMove(p.Applied, PvpBots.ChooseMove(Game, bot, p.BotRng).Encode(), true);
+        }
+
+        /// <summary>봇 자리의 이모티콘을 잠시 뒤 보내도록 걸어 둔다 (봇마다 8초에 한 번까지, 성격대로 안 보낼 수도 있다).</summary>
+        private void QueueBotEmote(PvpSession p, int seat, BotMood mood, float minDelay, float maxDelay)
+        {
+            var bot = p.BotOf(seat);
+            if (bot == null || !ProxyWriter(p)) return;
+            p.BotEmotedAt ??= new float[p.Seats];
+            var at = Time.unscaledTime + Random.Range(minDelay, maxDelay);
+            if (at - p.BotEmotedAt[seat] < 8f) return;
+            var idx = PvpBots.Reaction(bot, mood, p.BotRng);
+            if (idx < 0 || idx >= EmoteCount) return;
+            p.BotEmotedAt[seat] = at;
+            p.BotEmotes.Add(new EmoteShow(seat, idx, at));
+        }
+
+        /// <summary>수 하나가 판을 크게 바꿨으면 봇 하나가 반응한다: 자기 수로 많이 얻으면 기뻐하고, 상대 수에 많이 잃으면 속상해한다.</summary>
+        private void BotReact(PvpSession p, int actorSeat, int[] before)
+        {
+            var b = Game.Board;
+            var gain = new int[2];
+            for (var t = 0; t < 2; t++)
+            {
+                var side = Game.SideOfSeat(t);
+                gain[t] = b.Count(side) - before[t] - (b.Count(side.Opponent()) - before[1 - t]);
+            }
+            var candidates = new List<(int seat, BotMood mood)>();
+            for (var i = 0; i < p.Seats; i++)
+            {
+                if (!p.IsBot(i)) continue;
+                var g = gain[i % 2];
+                if (i == actorSeat && g >= 6) candidates.Add((i, BotMood.Good));
+                else if (Game.SideOfSeat(actorSeat) != Game.SideOfSeat(i) && g <= -6) candidates.Add((i, BotMood.Hurt));
+            }
+            if (candidates.Count == 0) return;
+            var pick = candidates[Random.Range(0, candidates.Count)];
+            QueueBotEmote(p, pick.seat, pick.mood, 0.8f, 2.5f);
         }
 
         // ---------------------------------------------------------------- PvP 판
@@ -290,6 +529,8 @@ namespace ChromaFrontier.Client
                 if (i != pvp.MySeat && Game.SideOfSeat(i) == Me) mates.Add(pvp.NameOf(i));
             Message = $"{map.Name} — {map.Note}\n" + (Game.SideOfSeat(pvp.MySeat) == Side.Player ? "우리 팀이 먼저 둬요." : "상대 팀이 먼저 둬요.")
                 + (mates.Count > 0 ? $" 짝: {mates[0]}" : "");
+            for (var i = 0; i < pvp.Seats; i++)
+                if (pvp.IsBot(i)) QueueBotEmote(pvp, i, BotMood.Start, 2f, 7f);
         }
 
         /// <summary>처음부터 다시 재생한다 (이미 둔 번호의 수가 바뀌었을 때). 연출 없이.</summary>
@@ -333,11 +574,13 @@ namespace ChromaFrontier.Client
                 p.Applied++;
                 var actor = Game.Current;
                 var seat = Game.CurrentSeat;
+                var before = new[] { Game.Board.Count(Side.Player), Game.Board.Count(Side.Ai) };
                 if (PvpMove.TryDecode(next, out var m) && ApplyPvpMove(m))
                 {
                     _actorSeat = seat;
                     if (seat == p.MySeat) Deselect();
                     AfterMove(actor, m.At, m.Kind == PvpMoveKind.Cast ? m.Extra : default);
+                    BotReact(p, seat, before);
                 }
             }
             if (_aiTimer > 0f) _aiTimer -= Time.deltaTime;
@@ -376,7 +619,7 @@ namespace ChromaFrontier.Client
                         Message = "시간 초과 — 패 버리기로 차례를 넘겼어요";
                     }
                 }
-                else if (Game.CurrentSeat != p.MySeat && p.ProxySent != p.Applied && ProxyWriter(p)
+                else if (Game.CurrentSeat != p.MySeat && !p.IsBot(Game.CurrentSeat) && p.ProxySent != p.Applied && ProxyWriter(p)
                          && (p.Left(Game.CurrentSeat) ? waited > 1.5f : waited > PvpCatalog.TurnSeconds + 20f))
                 {
                     // 나간 사람(또는 응답 없는 사람)의 차례는 남은 사람 중 가장 앞 자리가 패 버리기로 넘긴다.
@@ -386,11 +629,15 @@ namespace ChromaFrontier.Client
                 }
             }
 
+            UpdateBots(p, caughtUp);
+
             // 결과
             if (BattleOver && !p.Recorded)
             {
                 p.Recorded = true;
                 var winner = p.ForfeitWinner != Side.None ? p.ForfeitWinner : Game.Winner;
+                for (var i = 0; i < p.Seats; i++)
+                    if (p.IsBot(i)) QueueBotEmote(p, i, winner == Game.SideOfSeat(i) ? BotMood.Win : BotMood.Lose, 1f, 4f);
                 LastGems = Progress.RecordPvp(winner, Me);
                 if (IsHost) Online.Finish();
                 Deselect();
@@ -484,11 +731,11 @@ namespace ChromaFrontier.Client
             return true;
         }
 
-        /// <summary>대신 넘기는 수를 쓰는 사람: 나가지 않은 자리 중 가장 앞.</summary>
+        /// <summary>대신 넘기는 수·봇의 수를 쓰는 사람: 나가지 않은 사람 자리 중 가장 앞.</summary>
         private static bool ProxyWriter(PvpSession p)
         {
             for (var i = 0; i < p.Seats; i++)
-                if (!p.Left(i)) return i == p.MySeat;
+                if (!p.Left(i) && !p.IsBot(i)) return i == p.MySeat;
             return false;
         }
 

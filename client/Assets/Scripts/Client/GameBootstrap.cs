@@ -70,6 +70,7 @@ namespace ChromaFrontier.Client
             // 아주 옛 버전이 PlayerPrefs 에만 남긴 값을 클라우드에 올리기 전에 localStorage 로 옮겨 둔다 (읽으면 옮겨진다)
             _ = Progress.AllStars() + Progress.Gems + (Progress.TutorialDone ? 1 : 0);
             Online.Reloaded += OnReloaded;
+            Online.Answered += OnAnswer;
             Online.Start();
             ShowSplash();
         }

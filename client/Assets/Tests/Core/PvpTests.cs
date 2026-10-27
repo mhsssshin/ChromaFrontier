@@ -88,5 +88,56 @@ namespace ChromaFrontier.Core.Tests
             Assert.AreEqual(3, list.Count);
             Assert.AreEqual(2, list.FindAll(c => c.Skill == Skill.Mine).Count);
         }
+
+        /// <summary>봇 10명: 덱·스킨·이모티콘이 올바르고, 생각 시간은 차례 제한 안이다.</summary>
+        [Test]
+        public void Bots_HaveValidDecksSkinsAndEmotes()
+        {
+            Assert.AreEqual(10, PvpBots.All.Length);
+            var ids = new HashSet<string>();
+            foreach (var b in PvpBots.All)
+            {
+                Assert.IsTrue(ids.Add(b.Id), b.Id);
+                Assert.IsTrue(PvpBots.IsBot(b.Uid));
+                Assert.AreSame(b, PvpBots.Find(b.Uid));
+                Assert.AreEqual(b.Deck.Split(',').Length, PvpCatalog.ParseSkills(b.Deck).Count, b.Id + " 덱에 버려지는 카드가 있다");
+                TileSkins.Split(b.Skin, out var mat, out var color);
+                Assert.AreEqual(b.Skin.Split(':')[0], mat, b.Id);
+                Assert.AreEqual(b.Skin.Split(':')[1], color, b.Id);
+                Assert.AreEqual(b.Skin.Split(':')[2], TileSkins.UnitPart(b.Skin), b.Id);
+                foreach (var pool in new[] { b.Good, b.Hurt, b.Win, b.Lose, b.Hello })
+                    foreach (var e in pool) Assert.That(e, Is.InRange(0, EmotePacks.Total - 1), b.Id);
+            }
+            Assert.IsFalse(PvpBots.IsBot("abc"));
+            Assert.IsNull(PvpBots.Find("bot:nobody"));
+        }
+
+        /// <summary>봇끼리 모든 대전 맵을 끝까지 둔다: 봇이 고른 수는 늘 규칙에 맞고, 생각 시간은 차례 제한보다 짧다.</summary>
+        [Test]
+        public void Bots_PlayEveryMapToTheEnd_WithLegalMoves([Values(1, 2)] int teamSize)
+        {
+            var rng = new Rng(11);
+            var k = 0;
+            foreach (var map in PvpCatalog.MapsFor(teamSize))
+            {
+                var bots = new PvpBot[teamSize * 2];
+                var decks = new string[bots.Length];
+                for (var i = 0; i < bots.Length; i++)
+                {
+                    bots[i] = PvpBots.All[k++ % PvpBots.All.Length];
+                    decks[i] = bots[i].Deck;
+                }
+                var g = PvpCatalog.CreateGame(map, decks, 99 + k);
+                for (var guard = 0; !g.IsOver && guard < 300; guard++)
+                {
+                    var bot = bots[g.CurrentSeat];
+                    var think = PvpBots.ThinkSeconds(g, bot, rng);
+                    Assert.That(think, Is.InRange(0.5f, PvpCatalog.TurnSeconds - 5f), bot.Id);
+                    var move = PvpBots.ChooseMove(g, bot, rng);
+                    Assert.IsTrue(move.TryApply(g), map.Id + " " + bot.Id + " " + move.Encode());
+                }
+                Assert.IsTrue(g.IsOver, map.Id);
+            }
+        }
     }
 }

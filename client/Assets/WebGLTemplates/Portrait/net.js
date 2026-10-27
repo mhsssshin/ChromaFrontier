@@ -7,7 +7,9 @@
 //   users/{uid}/name            대전에 보이는 이름
 //   users/{uid}/save            { at, data } — data 는 localStorage 의 cf.* 값 전부(JSON 문자열)
 //   rooms/{id}                  { title, size(팀 인원 1|2), host, status(wait|play|done), map, seed, created,
+//                                 lock(비번방이면 비밀번호 해시), quick(빠른 대전으로 만든 공개방),
 //                                 seats/{0..3}: { uid, name, ready, left, deck, skin, emote } }  emote = "번호:시각" (대전 이모티콘)  짝수 자리 = 1팀, 홀수 자리 = 2팀
+//                                 uid 가 "bot:" 으로 시작하면 봇 자리 — 방장 기기가 앉히고, 판에서는 사람 기기 하나가 대신 둔다
 //   moves/{id}/{n}              n 번째 수 (Core PvpMove 문자열). 한 번 쓰면 못 바꾼다 (보안 규칙)
 (function () {
   'use strict';
@@ -21,6 +23,21 @@
   function errText(e) { return String((e && (e.code || e.message)) || e); }
   function fail(e) { console.warn('[CFNet]', e); emit({ t: 'err', err: errText(e) }); }
   function rand(n) { return Math.floor(Math.random() * n); }
+  function isBot(uid) { return String(uid || '').indexOf('bot:') === 0; }
+
+  // 비밀번호 해시 (cyrb53). 방 번호를 섞어 같은 비밀번호도 방마다 다르다. 서버 판정이 없어 막아 두는 정도의 잠금이다
+  // (crypto.subtle 은 https 가 아닌 주소 — 같은 Wi-Fi 휴대폰 시험 — 에서 못 쓴다).
+  function hashPw(id, pw) {
+    var str = id + ':' + pw, h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (var i = 0; i < str.length; i++) {
+      var ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+  }
 
   function loadScript(src) {
     return new Promise(function (resolve, reject) {
@@ -302,7 +319,10 @@
     return list;
   }
   function info(id, r) {
-    return { id: id, title: r.title || '', size: r.size || 1, host: r.host || '', status: r.status || 'wait', map: r.map || '', seed: r.seed || 0, created: r.created || 0, seats: seatsOf(r) };
+    return {
+      id: id, title: r.title || '', size: r.size || 1, host: r.host || '', status: r.status || 'wait', map: r.map || '', seed: r.seed || 0,
+      created: r.created || 0, locked: !!r.lock, quick: !!r.quick, seats: seatsOf(r),
+    };
   }
   function findSeat(r, uid) {
     var n = (r.size || 1) * 2;
@@ -374,6 +394,41 @@
         db.remove('moves/' + id).catch(function () { });
       }
     });
+  }
+
+  function createRoom(o) {
+    var size = +o.size === 2 ? 2 : 1;
+    var id = db.key();
+    var title = String(o.title || '').replace(/[<>]/g, '').trim().slice(0, 24) || (user.name + '의 방');
+    var r = { title: title, size: size, host: user.uid, status: 'wait', map: o.map || '', seed: 0, created: Date.now(), seats: {} };
+    var pw = String(o.pw || '').trim();
+    if (pw && !o.quick) r.lock = hashPw(id, pw);
+    if (o.quick) r.quick = true;
+    r.seats[0] = { uid: user.uid, name: user.name, ready: true, left: false, deck: o.deck || '', skin: o.skin || '' };
+    db.set('rooms/' + id, r).then(function () { enterRoom(id); }).catch(fail);
+  }
+
+  // 빈 자리에 앉는다 (트랜잭션). ready 면 바로 준비 (빠른 대전). 앉았으면 true
+  function tryJoin(id, deck, skin, ready) {
+    var seat = -1;
+    return db.txn('rooms/' + id, function (r) {
+      if (!r) return r; // 캐시가 비었으면 서버 값으로 다시 불린다
+      if (r.status !== 'wait') return undefined;
+      var n = (r.size || 1) * 2;
+      r.seats = r.seats || {};
+      if (findSeat(r, user.uid) >= 0) { seat = findSeat(r, user.uid); return r; }
+      for (var i = 0; i < n; i++) {
+        if (!r.seats[i]) {
+          r.seats[i] = { uid: user.uid, name: user.name, ready: !!ready, left: false, deck: deck, skin: skin || '' };
+          seat = i;
+          return r;
+        }
+      }
+      return undefined;
+    }).then(function (res) {
+      if (res.committed && seat >= 0) { enterRoom(id); return true; }
+      return false;
+    }).catch(function (e) { fail(e); return false; });
   }
 
   // ------------------------------------------------------------------ Unity 에서 부르는 함수
@@ -475,40 +530,82 @@
         var list = [];
         Object.keys(all).forEach(function (id) { if (all[id] && all[id].status === 'wait') list.push(info(id, all[id])); });
         list.sort(function (a, b) { return b.created - a.created; });
-        emit({ t: 'rooms', rooms: list.slice(0, 30) });
+        emit({ t: 'rooms', rooms: list.slice(0, 80) });
       });
     },
 
-    createRoom: function (title, size, map, deck, skin) {
+    // opts(JSON): { title, size, map, deck, skin, pw(비어 있으면 공개방), quick(빠른 대전) }
+    createRoom: function (optsJson) {
       if (!user) return;
-      size = +size === 2 ? 2 : 1;
-      var id = db.key();
-      var r = { title: title, size: size, host: user.uid, status: 'wait', map: map, seed: 0, created: Date.now(), seats: {} };
-      r.seats[0] = { uid: user.uid, name: user.name, ready: true, left: false, deck: deck, skin: skin || '' };
-      db.set('rooms/' + id, r).then(function () { enterRoom(id); }).catch(fail);
+      var o = {};
+      try { o = JSON.parse(optsJson) || {}; } catch (e) { }
+      createRoom(o);
     },
 
+    // 방에 들어간다. 비번방이면 비밀번호를 묻는다 (틀리면 bad-password)
     joinRoom: function (id, deck, skin) {
       if (!user) return;
-      var seat = -1;
-      db.txn('rooms/' + id, function (r) {
-        if (!r) return r; // 캐시가 비었으면 서버 값으로 다시 불린다
-        if (r.status !== 'wait') return undefined;
-        var n = (r.size || 1) * 2;
+      db.get('rooms/' + id).then(function (r) {
+        if (!r || r.status !== 'wait') { emit({ t: 'err', err: 'room-full' }); return; }
+        if (r.lock && findSeat(r, user.uid) < 0) {
+          var pw = window.prompt('비밀번호를 입력하세요', '');
+          if (pw === null) return;
+          if (hashPw(id, pw.trim()) !== r.lock) { emit({ t: 'err', err: 'bad-password' }); return; }
+        }
+        tryJoin(id, deck, skin, false).then(function (ok) { if (!ok) emit({ t: 'err', err: 'room-full' }); });
+      }).catch(fail);
+    },
+
+    // 빠른 대전: 자리가 빈 공개방(빠른 대전 방 먼저, 빈 자리가 적은 방 먼저)에 들어가고, 없으면 빠른 대전 방을 만든다.
+    quickJoin: function (size, deck, skin, map) {
+      if (!user) return;
+      size = +size === 2 ? 2 : 1;
+      db.get('rooms').then(function (all) {
+        all = all || {};
+        var now = Date.now(), list = [];
+        Object.keys(all).forEach(function (id) {
+          var r = all[id];
+          if (!r || r.status !== 'wait' || r.lock || (r.size || 1) !== size || (r.created || 0) < now - 3600 * 1000) return;
+          var free = 0;
+          for (var i = 0; i < size * 2; i++) if (!r.seats || !r.seats[i]) free++;
+          if (free > 0) list.push({ id: id, quick: r.quick ? 1 : 0, free: free, created: r.created || 0 });
+        });
+        list.sort(function (a, b) { return (b.quick - a.quick) || (a.free - b.free) || (b.created - a.created); });
+        var next = function (i) {
+          if (i >= list.length) {
+            createRoom({ title: user.name + '의 빠른 대전', size: size, map: map, deck: deck, skin: skin, quick: true });
+            return;
+          }
+          tryJoin(list[i].id, deck, skin, !!list[i].quick).then(function (ok) { if (!ok) next(i + 1); });
+        };
+        next(0);
+      }).catch(fail);
+    },
+
+    // 봇을 빈 자리(앞 자리부터)에 앉힌다. 방장만. bot(JSON): { uid, name, deck, skin }
+    botJoin: function (botJson) {
+      if (!roomId || !room || room.host !== user.uid) return;
+      var b = {};
+      try { b = JSON.parse(botJson) || {}; } catch (e) { return; }
+      if (!isBot(b.uid)) return;
+      db.txn('rooms/' + roomId, function (r) {
+        if (!r) return r;
+        if (r.status !== 'wait' || findSeat(r, b.uid) >= 0) return undefined;
         r.seats = r.seats || {};
-        if (findSeat(r, user.uid) >= 0) { seat = findSeat(r, user.uid); return r; }
-        for (var i = 0; i < n; i++) {
+        for (var i = 0; i < (r.size || 1) * 2; i++) {
           if (!r.seats[i]) {
-            r.seats[i] = { uid: user.uid, name: user.name, ready: false, left: false, deck: deck, skin: skin || '' };
-            seat = i;
+            r.seats[i] = { uid: b.uid, name: b.name, ready: false, left: false, deck: b.deck || '', skin: b.skin || '' };
             return r;
           }
         }
         return undefined;
-      }).then(function (res) {
-        if (res.committed && seat >= 0) enterRoom(id);
-        else emit({ t: 'err', err: 'room-full' });
       }).catch(fail);
+    },
+
+    botReady: function (seat) {
+      seat = +seat;
+      if (!roomId || !room || room.host !== user.uid || !room.seats || !room.seats[seat] || !isBot(room.seats[seat].uid)) return;
+      db.set('rooms/' + roomId + '/seats/' + seat + '/ready', true).catch(fail);
     },
 
     moveSeat: function (to) {
@@ -567,6 +664,20 @@
       db.set('rooms/' + roomId + '/seats/' + mySeat + '/emote', (+index) + ':' + Date.now()).catch(fail);
     },
 
+    // 봇 자리의 이모티콘 (봇을 대신 두는 기기가 보낸다)
+    botEmote: function (seat, index) {
+      seat = +seat;
+      if (!roomId || !room || !room.seats || !room.seats[seat] || !isBot(room.seats[seat].uid)) return;
+      db.set('rooms/' + roomId + '/seats/' + seat + '/emote', (+index) + ':' + Date.now()).catch(fail);
+    },
+
+    // 글 입력 (방 제목·비밀번호·검색어). 답은 { t: 'answer', key, text } 로 온다. 취소하면 답이 없다
+    ask: function (key, question, value) {
+      var v = window.prompt(question, value || '');
+      if (v === null) return;
+      emit({ t: 'answer', key: key, text: v.replace(/[<>]/g, '').trim().slice(0, 24) });
+    },
+
     finish: function () {
       if (!roomId || !room || room.host !== user.uid) return;
       db.set('rooms/' + roomId + '/status', 'done').catch(function () { });
@@ -590,7 +701,7 @@
         .then(function () { return db.get('rooms/' + id); })
         .then(function (cur) {
           var n = cur ? (cur.size || 1) * 2 : 0;
-          for (var i = 0; i < n; i++) if (cur.seats && cur.seats[i] && !cur.seats[i].left) return;
+          for (var i = 0; i < n; i++) if (cur.seats && cur.seats[i] && !cur.seats[i].left && !isBot(cur.seats[i].uid)) return;
           db.remove('rooms/' + id).catch(function () { });
           db.remove('moves/' + id).catch(function () { });
         }).catch(fail);
