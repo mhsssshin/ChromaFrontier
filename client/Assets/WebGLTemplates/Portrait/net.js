@@ -9,7 +9,8 @@
 //   rooms/{id}                  { title, size(팀 인원 1|2), host, status(wait|play|done), map, seed, created,
 //                                 lock(비번방이면 비밀번호 해시), quick(빠른 대전으로 만든 공개방),
 //                                 seats/{0..3}: { uid, name, ready, left, deck, skin, emote } }  emote = "번호:시각" (대전 이모티콘)  짝수 자리 = 1팀, 홀수 자리 = 2팀
-//                                 uid 가 "bot:" 으로 시작하면 봇 자리 — 방장 기기가 앉히고, 판에서는 사람 기기 하나가 대신 둔다
+//                                 봇 자리도 uid 가 사람 계정과 같은 모양이다 (봇 목록은 C# 이 setBots 로 알려 줌).
+//                                 봇이 방장인 방(봇이 미리 만든 방)은 사람이 들어갈 때 같은 번호로 만들어진다 — 방 관리는 앞 자리 사람 기기가 한다
 //   moves/{id}/{n}              n 번째 수 (Core PvpMove 문자열). 한 번 쓰면 못 바꾼다 (보안 규칙)
 (function () {
   'use strict';
@@ -23,7 +24,20 @@
   function errText(e) { return String((e && (e.code || e.message)) || e); }
   function fail(e) { console.warn('[CFNet]', e); emit({ t: 'err', err: errText(e) }); }
   function rand(n) { return Math.floor(Math.random() * n); }
-  function isBot(uid) { return String(uid || '').indexOf('bot:') === 0; }
+  var bots = {};
+  function isBot(uid) { return !!bots[uid]; }
+
+  // 방을 관리하는 기기의 uid: 방장이 사람이면 방장, 봇이면 앞 자리 사람 (봇 자리 채우기·준비·시작·끝내기)
+  function manager(r) {
+    if (!r) return '';
+    if (r.host && !isBot(r.host)) return r.host;
+    for (var i = 0; i < (r.size || 1) * 2; i++) {
+      var s = r.seats && r.seats[i];
+      if (s && s.uid && !isBot(s.uid)) return s.uid;
+    }
+    return '';
+  }
+  function hasHuman(r) { return !!manager(r); }
 
   // 비밀번호 해시 (cyrb53). 방 번호를 섞어 같은 비밀번호도 방마다 다르다. 서버 판정이 없어 막아 두는 정도의 잠금이다
   // (crypto.subtle 은 https 가 아닌 주소 — 같은 Wi-Fi 휴대폰 시험 — 에서 못 쓴다).
@@ -389,7 +403,8 @@
     var now = Date.now();
     Object.keys(rooms).forEach(function (id) {
       var r = rooms[id];
-      if (r && (r.created || 0) < now - 3 * 3600 * 1000) {
+      // 3시간 넘은 방, 사람이 모두 나간 대기 방 (봇이 만든 방은 목록에 다시 그대로 보인다)
+      if (r && ((r.created || 0) < now - 3 * 3600 * 1000 || (r.status === 'wait' && r.seats && !hasHuman(r)))) {
         db.remove('rooms/' + id).catch(function () { });
         db.remove('moves/' + id).catch(function () { });
       }
@@ -408,10 +423,23 @@
     db.set('rooms/' + id, r).then(function () { enterRoom(id); }).catch(fail);
   }
 
-  // 빈 자리에 앉는다 (트랜잭션). ready 면 바로 준비 (빠른 대전). 앉았으면 true
-  function tryJoin(id, deck, skin, ready) {
+  // 봇이 미리 만든 방(C# BotRoom → JSON)을 DB 방 모양으로. 비밀번호는 해시로만 남긴다
+  function toRoom(v, id) {
+    var r = { title: v.title, size: +v.size === 2 ? 2 : 1, host: v.host, status: 'wait', map: v.map, seed: 0, created: +v.created || Date.now(), seats: {} };
+    if (v.quick) r.quick = true;
+    if (v.pw) r.lock = hashPw(id, v.pw);
+    (v.seats || []).forEach(function (s, i) {
+      if (s && s.uid) r.seats[i] = { uid: s.uid, name: s.name, ready: !!s.ready, left: false, deck: s.deck || '', skin: s.skin || '' };
+    });
+    return r;
+  }
+
+  // 빈 자리에 앉는다 (트랜잭션). ready 면 바로 준비 (빠른 대전). plan 이 있으면 DB 에 방이 없을 때 그 방을 만들며 앉는다. 앉았으면 true
+  function tryJoin(id, deck, skin, ready, plan) {
     var seat = -1;
     return db.txn('rooms/' + id, function (r) {
+      // 없으면 봇 방은 그 내용으로 만든다. 이미 서버에 있으면(다른 사람이 먼저 들어감) Firebase 가 서버 값으로 다시 부른다
+      if (!r && plan) r = JSON.parse(JSON.stringify(plan));
       if (!r) return r; // 캐시가 비었으면 서버 값으로 다시 불린다
       if (r.status !== 'wait') return undefined;
       var n = (r.size || 1) * 2;
@@ -461,6 +489,7 @@
 
   window.CFNet = {
     poll: function () { return queue.length ? queue.shift() : null; },
+    setBots: function (csv) { bots = {}; String(csv || '').split(',').forEach(function (u) { if (u) bots[u] = true; }); },
     available: function () { return true; },
 
     init: function (configJson) {
@@ -528,9 +557,9 @@
         all = all || {};
         purgeOld(all);
         var list = [];
-        Object.keys(all).forEach(function (id) { if (all[id] && all[id].status === 'wait') list.push(info(id, all[id])); });
+        Object.keys(all).forEach(function (id) { if (all[id] && all[id].status === 'wait' && hasHuman(all[id])) list.push(info(id, all[id])); });
         list.sort(function (a, b) { return b.created - a.created; });
-        emit({ t: 'rooms', rooms: list.slice(0, 80) });
+        emit({ t: 'rooms', rooms: list.slice(0, 80), ids: Object.keys(all) });
       });
     },
 
@@ -542,17 +571,21 @@
       createRoom(o);
     },
 
-    // 방에 들어간다. 비번방이면 비밀번호를 묻는다 (틀리면 bad-password)
-    joinRoom: function (id, deck, skin) {
+    // 방에 들어간다. 비번방이면 비밀번호를 묻는다 (틀리면 bad-password).
+    // botRoom(JSON): 봇이 미리 만든 방 — DB 에 아직 없으면 그 내용(같은 번호)으로 만들면서 들어간다
+    joinRoom: function (id, deck, skin, botRoomJson) {
       if (!user) return;
+      var plan = null;
+      if (botRoomJson) try { plan = toRoom(JSON.parse(botRoomJson), id); } catch (e) { plan = null; }
       db.get('rooms/' + id).then(function (r) {
+        r = r || plan;
         if (!r || r.status !== 'wait') { emit({ t: 'err', err: 'room-full' }); return; }
         if (r.lock && findSeat(r, user.uid) < 0) {
           var pw = window.prompt('비밀번호를 입력하세요', '');
           if (pw === null) return;
           if (hashPw(id, pw.trim()) !== r.lock) { emit({ t: 'err', err: 'bad-password' }); return; }
         }
-        tryJoin(id, deck, skin, false).then(function (ok) { if (!ok) emit({ t: 'err', err: 'room-full' }); });
+        tryJoin(id, deck, skin, !!r.quick, plan).then(function (ok) { if (!ok) emit({ t: 'err', err: 'room-full' }); });
       }).catch(fail);
     },
 
@@ -565,7 +598,7 @@
         var now = Date.now(), list = [];
         Object.keys(all).forEach(function (id) {
           var r = all[id];
-          if (!r || r.status !== 'wait' || r.lock || (r.size || 1) !== size || (r.created || 0) < now - 3600 * 1000) return;
+          if (!r || r.status !== 'wait' || r.lock || (r.size || 1) !== size || (r.created || 0) < now - 3600 * 1000 || !hasHuman(r)) return;
           var free = 0;
           for (var i = 0; i < size * 2; i++) if (!r.seats || !r.seats[i]) free++;
           if (free > 0) list.push({ id: id, quick: r.quick ? 1 : 0, free: free, created: r.created || 0 });
@@ -584,7 +617,7 @@
 
     // 봇을 빈 자리(앞 자리부터)에 앉힌다. 방장만. bot(JSON): { uid, name, deck, skin }
     botJoin: function (botJson) {
-      if (!roomId || !room || room.host !== user.uid) return;
+      if (!roomId || !room || manager(room) !== user.uid) return;
       var b = {};
       try { b = JSON.parse(botJson) || {}; } catch (e) { return; }
       if (!isBot(b.uid)) return;
@@ -604,7 +637,7 @@
 
     botReady: function (seat) {
       seat = +seat;
-      if (!roomId || !room || room.host !== user.uid || !room.seats || !room.seats[seat] || !isBot(room.seats[seat].uid)) return;
+      if (!roomId || !room || manager(room) !== user.uid || !room.seats || !room.seats[seat] || !isBot(room.seats[seat].uid)) return;
       db.set('rooms/' + roomId + '/seats/' + seat + '/ready', true).catch(fail);
     },
 
@@ -638,7 +671,7 @@
     },
 
     start: function () {
-      if (!roomId || !room || room.host !== user.uid) return;
+      if (!roomId || !room || manager(room) !== user.uid) return;
       db.txn('rooms/' + roomId, function (r) {
         if (!r) return r;
         if (r.status !== 'wait') return undefined;
@@ -679,7 +712,7 @@
     },
 
     finish: function () {
-      if (!roomId || !room || room.host !== user.uid) return;
+      if (!roomId || !room || manager(room) !== user.uid) return;
       db.set('rooms/' + roomId + '/status', 'done').catch(function () { });
     },
 
@@ -692,7 +725,11 @@
         if (r.host === user.uid) {
           db.remove('rooms/' + id).catch(fail);
           db.remove('moves/' + id).catch(function () { });
-        } else if (seat >= 0) db.remove('rooms/' + id + '/seats/' + seat).catch(fail);
+        } else if (seat >= 0) {
+          db.remove('rooms/' + id + '/seats/' + seat).then(function () { return db.get('rooms/' + id); })
+            .then(function (cur) { if (cur && cur.status === 'wait' && !hasHuman(cur)) db.remove('rooms/' + id).catch(function () { }); })
+            .catch(fail);
+        }
         return;
       }
       // 판 중이거나 끝난 방: 나감으로 표시하고, 모두 나갔으면 방을 지운다

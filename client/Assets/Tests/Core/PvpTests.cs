@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 
 namespace ChromaFrontier.Core.Tests
@@ -138,6 +139,51 @@ namespace ChromaFrontier.Core.Tests
                 }
                 Assert.IsTrue(g.IsOver, map.Id);
             }
+        }
+
+        /// <summary>봇 방 일정: 같은 시각이면 어느 기기에서나 같은 방, 한 봇은 한 번에 한 방에만, 방 번호는 진짜 방과 같은 모양.</summary>
+        [Test]
+        public void BotRooms_AreDeterministic_AndBotsAreInOneRoomAtATime()
+        {
+            var start = 1_790_000_000_000L; // 2026년 어느 날
+            var counts = new List<int>();
+            var ids = new HashSet<string>();
+            for (var m = 0; m < 24 * 60; m += 3)
+            {
+                var now = start + m * PvpBotRooms.Minute + 17_000;
+                var rooms = PvpBotRooms.Open(now);
+                var again = PvpBotRooms.Open(now);
+                Assert.AreEqual(rooms.Count, again.Count);
+                for (var i = 0; i < rooms.Count; i++) Assert.AreEqual(rooms[i].Id, again[i].Id);
+
+                var seated = new HashSet<string>();
+                var busy = PvpBotRooms.Busy(now);
+                foreach (var r in rooms)
+                {
+                    ids.Add(r.Id);
+                    Assert.AreEqual(20, r.Id.Length);
+                    Assert.AreEqual('-', r.Id[0]);
+                    Assert.IsNotEmpty(r.Title);
+                    Assert.AreEqual(r.Size * 2, r.Seats.Length);
+                    Assert.AreEqual(r.MapId, PvpCatalog.Find(r.Size, r.MapId).Id);
+                    Assert.IsTrue(r.Seated(0, now), "방장은 늘 있다");
+                    Assert.Less(r.Created, r.EndsAt);
+                    for (var i = 0; i < r.Seats.Length; i++)
+                    {
+                        if (!r.Seated(i, now)) continue;
+                        Assert.IsTrue(seated.Add(r.Seats[i].Uid), $"{r.Seats[i].Name} 가 두 방에 동시에 있다");
+                        Assert.IsTrue(busy.Contains(r.Seats[i].Uid));
+                    }
+                }
+                counts.Add(rooms.Count);
+            }
+            var avg = 0.0;
+            foreach (var c in counts) avg += c;
+            avg /= counts.Count;
+            var none = counts.FindAll(c => c == 0).Count;
+            TestContext.WriteLine($"열린 봇 방: 평균 {avg:F1}, 최대 {counts.Max()}, 빈 목록 {none}/{counts.Count}번, 하루 방 {ids.Count}개");
+            Assert.That(avg, Is.InRange(2.0, 8.0));
+            Assert.Less(none, counts.Count / 20, "목록이 비어 있는 때가 너무 많다");
         }
     }
 }

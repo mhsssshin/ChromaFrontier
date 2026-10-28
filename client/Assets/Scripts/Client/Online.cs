@@ -22,6 +22,9 @@ namespace ChromaFrontier.Client
         public int size = 1, seed;
         public double created;
         public bool locked, quick; // 비번방, 빠른 대전 방
+
+        /// <summary>봇이 미리 만든 방(아직 DB 에 없음)이면 그 일정. 들어가면 같은 번호로 만들어진다.</summary>
+        [NonSerialized] public BotRoom Bot;
         public SeatInfo[] seats = Array.Empty<SeatInfo>();
 
         public int Filled
@@ -43,6 +46,7 @@ namespace ChromaFrontier.Client
         public int n;
         public RoomInfo room;
         public RoomInfo[] rooms;
+        public string[] ids; // DB 에 있는 모든 방 번호 (판 중인 방 포함)
     }
 
     /// <summary>방 만들기 설정 (net.js createRoom 에 JSON 으로 넘긴다). pw 가 비어 있으면 공개방.</summary>
@@ -58,6 +62,18 @@ namespace ChromaFrontier.Client
     internal sealed class BotSeat
     {
         public string uid = "", name = "", deck = "", skin = "";
+        public bool ready;
+    }
+
+    /// <summary>봇이 미리 만든 방을 net.js 에 넘기는 모양 (DB 에 없으면 이대로 만든다).</summary>
+    [Serializable]
+    internal sealed class BotRoomPlan
+    {
+        public string title = "", host = "", map = "", pw = "";
+        public int size = 1;
+        public long created;
+        public bool quick;
+        public BotSeat[] seats = Array.Empty<BotSeat>();
     }
 
     /// <summary>
@@ -104,6 +120,7 @@ namespace ChromaFrontier.Client
         public static string ConflictRemote { get; private set; }
 
         public static readonly List<RoomInfo> Rooms = new();
+        public static readonly HashSet<string> RoomIds = new(); // DB 에 있는 모든 방 (봇 방이 이미 만들어졌으면 목록에서 뺀다)
         public static RoomInfo Room { get; private set; }   // 들어가 있는 방 (없으면 null)
         public static int MySeat { get; private set; } = -1;
         public static bool RoomGone { get; private set; }   // 방이 사라졌다 (방장이 나감 등). 읽으면 지운다
@@ -132,6 +149,7 @@ namespace ChromaFrontier.Client
         {
             if (_started || !Available) return;
             _started = true;
+            Call("setBots", PvpBots.UidList());
             Call("init", FirebaseConfig);
         }
 
@@ -202,6 +220,8 @@ namespace ChromaFrontier.Client
                 case "rooms":
                     Rooms.Clear();
                     if (m.rooms != null) Rooms.AddRange(m.rooms);
+                    RoomIds.Clear();
+                    if (m.ids != null) RoomIds.UnionWith(m.ids);
                     break;
                 case "room":
                     if (Room == null) Error = ""; // 방에 들어왔으면 그 전 오류(비밀번호 틀림 등)는 지운다
@@ -264,6 +284,18 @@ namespace ChromaFrontier.Client
             Call("createRoom", JsonUtility.ToJson(new RoomOptions { title = title, size = size, map = map, deck = deck, skin = skin, pw = password ?? "", quick = quick }));
 
         public static void JoinRoom(string id, string deck, string skin) => Call("joinRoom", id, deck, skin);
+
+        /// <summary>봇이 미리 만든 방에 들어간다 (DB 에 없으면 그 방을 같은 번호로 만들면서).</summary>
+        public static void JoinBotRoom(BotRoom b, long now, string deck, string skin)
+        {
+            var plan = new BotRoomPlan { title = b.Title, host = b.Host.Uid, map = b.MapId, pw = b.Password, size = b.Size, created = b.Created, quick = b.Quick };
+            plan.seats = new BotSeat[b.Seats.Length];
+            for (var i = 0; i < b.Seats.Length; i++)
+                plan.seats[i] = b.Seated(i, now)
+                    ? new BotSeat { uid = b.Seats[i].Uid, name = b.Seats[i].Name, deck = b.Seats[i].Deck, skin = b.Seats[i].Skin, ready = b.ReadyAt[i] <= now }
+                    : new BotSeat();
+            Call("joinRoom", b.Id, deck, skin, JsonUtility.ToJson(plan));
+        }
 
         /// <summary>빠른 대전: 자리가 빈 공개방에 들어가고, 없으면 빠른 대전 방을 만든다 (봇이 채워 준다).</summary>
         public static void QuickJoin(int size, string deck, string skin, string map) => Call("quickJoin", size.ToString(), deck, skin, map);

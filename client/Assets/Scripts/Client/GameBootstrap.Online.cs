@@ -261,14 +261,62 @@ namespace ChromaFrontier.Client
             MatchingSince = Time.unscaledTime;
             MyRoomPassword = "";
             var maps = PvpCatalog.MapsFor(teamSize);
-            Online.QuickJoin(teamSize, MyDeckCodes, Progress.SeatSkin, maps[Random.Range(0, maps.Length)].Id);
+            // 사람이 기다리는 공개방이 있으면 net.js 가 고르고, 없으면 봇이 만든 공개방에, 그것도 없으면 새로 만든다
+            RoomInfo bot = null;
+            foreach (var r in VisibleRooms)
+            {
+                if (r.size != teamSize || r.locked || r.Filled >= r.seats.Length) continue;
+                if (r.Bot == null)
+                {
+                    bot = null;
+                    break;
+                }
+                if (bot == null || (r.quick && !bot.quick) || (r.quick == bot.quick && r.Filled > bot.Filled)) bot = r;
+            }
+            if (bot != null) JoinRoom(bot);
+            else Online.QuickJoin(teamSize, MyDeckCodes, Progress.SeatSkin, maps[Random.Range(0, maps.Length)].Id);
         }
 
         public void JoinRoom(RoomInfo r)
         {
             if (!Online.SignedIn) return;
             MyRoomPassword = "";
-            Online.JoinRoom(r.id, MyDeckCodes, Progress.SeatSkin);
+            if (r.Bot != null)
+            {
+                _enteredBotRooms.Add(r.id);
+                Online.JoinBotRoom(r.Bot, NowMs, MyDeckCodes, Progress.SeatSkin);
+            }
+            else Online.JoinRoom(r.id, MyDeckCodes, Progress.SeatSkin);
+        }
+
+        public static long NowMs => System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        private List<RoomInfo> _botRooms = new();
+        private readonly HashSet<string> _enteredBotRooms = new(); // 들어갔던 봇 방: 나온 뒤 목록에 그대로 '기다리는 중'으로 다시 뜨지 않게
+        private long _botRoomsAt = -1;
+
+        /// <summary>봇이 미리 만든 방 (1초마다 다시 계산). 이미 DB 에 만들어진 번호는 뺀다.</summary>
+        private List<RoomInfo> BotRooms()
+        {
+            var now = NowMs;
+            if (now / 1000 == _botRoomsAt) return _botRooms;
+            _botRoomsAt = now / 1000;
+            _botRooms = new List<RoomInfo>();
+            foreach (var b in PvpBotRooms.Open(now))
+            {
+                if (Online.RoomIds.Contains(b.Id) || _enteredBotRooms.Contains(b.Id)) continue;
+                var info = new RoomInfo
+                {
+                    id = b.Id, title = b.Title, host = b.Host.Uid, map = b.MapId, size = b.Size, created = b.Created,
+                    locked = b.Locked, quick = b.Quick, Bot = b, seats = new SeatInfo[b.Seats.Length],
+                };
+                for (var i = 0; i < b.Seats.Length; i++)
+                    info.seats[i] = b.Seated(i, now)
+                        ? new SeatInfo { uid = b.Seats[i].Uid, name = b.Seats[i].Name, deck = b.Seats[i].Deck, skin = b.Seats[i].Skin, ready = b.ReadyAt[i] <= now }
+                        : new SeatInfo();
+                _botRooms.Add(info);
+            }
+            return _botRooms;
         }
 
         /// <summary>검색어에 맞는 방 (제목 또는 자리에 앉은 사람 이름). 검색어가 없으면 전부.</summary>
@@ -278,7 +326,10 @@ namespace ChromaFrontier.Client
             {
                 var list = new List<RoomInfo>();
                 var q = RoomSearch.Trim();
-                foreach (var r in Online.Rooms)
+                var all = new List<RoomInfo>(Online.Rooms);
+                all.AddRange(BotRooms());
+                all.Sort((a, b) => b.created.CompareTo(a.created));
+                foreach (var r in all)
                 {
                     if (q == "" || r.title.IndexOf(q, System.StringComparison.OrdinalIgnoreCase) >= 0) list.Add(r);
                     else
@@ -319,6 +370,20 @@ namespace ChromaFrontier.Client
         }
 
         public bool IsHost => Online.Room != null && Online.Room.host == Online.Uid;
+
+        /// <summary>방을 관리하는 기기인가: 방장이 사람이면 방장, 봇이 방장이면 앞 자리 사람 (봇 자리·시작·끝내기).</summary>
+        public bool IsManager
+        {
+            get
+            {
+                var r = Online.Room;
+                if (r == null || !Online.SignedIn) return false;
+                if (!PvpBots.IsBot(r.host)) return r.host == Online.Uid;
+                foreach (var s in r.seats)
+                    if (!s.Empty && !s.IsBot) return s.uid == Online.Uid;
+                return false;
+            }
+        }
 
         public bool CanStartRoom
         {
@@ -383,13 +448,22 @@ namespace ChromaFrontier.Client
         /// <summary>빠른 대전 방이면 저절로 시작한다 (준비 버튼 없음).</summary>
         public bool QuickRoom => Online.Room != null && Online.Room.quick;
 
+        /// <summary>모두 앉고 준비했다 (방장은 준비가 필요 없음).</summary>
+        private static bool AllReady(RoomInfo r)
+        {
+            foreach (var s in r.seats)
+                if (s.Empty || (!s.ready && s.uid != r.host)) return false;
+            return true;
+        }
+
         /// <summary>
-        /// 빠른 대전 방의 방장 기기: 사람이 안 오면 빈 자리에 봇을 하나씩 앉힌다(처음은 6~13초, 다음은 2~7초 뒤 — 사람이 들어오는 것처럼).
-        /// 봇은 1~4초 뒤 준비하고, 모두 준비되면 잠시 뒤 시작한다.
+        /// 빠른 대전 방·봇이 방장인 방을 관리하는 기기: 사람이 안 오면 빈 자리에 봇을 하나씩 앉힌다(처음은 6~13초, 다음은 2~7초 뒤 — 사람이 들어오는 것처럼).
+        /// 봇은 1~4초 뒤 준비하고, 모두 준비되면 잠시 뒤 시작한다 (봇 방장이 시작 버튼을 누르는 것처럼 1.5~4초).
         /// </summary>
         private void UpdateRoomBots(RoomInfo r)
         {
-            if (!IsHost || !r.quick || r.status != "wait") return;
+            var botHost = PvpBots.IsBot(r.host);
+            if (!IsManager || !(r.quick || botHost) || r.status != "wait") return;
             var now = Time.unscaledTime;
             var empty = 0;
             var bots = 0;
@@ -419,8 +493,8 @@ namespace ChromaFrontier.Client
                 }
             }
 
-            if (!CanStartRoom) _autoStartAt = -1f;
-            else if (_autoStartAt < 0f) _autoStartAt = now + 1.5f;
+            if (!AllReady(r)) _autoStartAt = -1f;
+            else if (_autoStartAt < 0f) _autoStartAt = now + (botHost ? Random.Range(1.5f, 4f) : 1.5f);
             else if (now >= _autoStartAt)
             {
                 _autoStartAt = now + 5f;
@@ -428,16 +502,22 @@ namespace ChromaFrontier.Client
             }
         }
 
+        /// <summary>방에 부를 봇: 이 방에 없고, 되도록 다른 봇 방에 있거나 판을 하고 있지 않은 봇 (한 사람이 두 곳에 있으면 티가 난다).</summary>
         private static PvpBot PickBot(RoomInfo r)
         {
+            var busy = PvpBotRooms.Busy(NowMs);
             var free = new List<PvpBot>();
+            var idle = new List<PvpBot>();
             foreach (var b in PvpBots.All)
             {
                 var taken = false;
                 foreach (var s in r.seats) taken |= s.uid == b.Uid;
-                if (!taken) free.Add(b);
+                if (taken) continue;
+                free.Add(b);
+                if (!busy.Contains(b.Uid)) idle.Add(b);
             }
-            return free.Count == 0 ? null : free[Random.Range(0, free.Count)];
+            var pool = idle.Count > 0 ? idle : free;
+            return pool.Count == 0 ? null : pool[Random.Range(0, pool.Count)];
         }
 
         // ---------------------------------------------------------------- PvP 판: 봇
@@ -639,7 +719,7 @@ namespace ChromaFrontier.Client
                 for (var i = 0; i < p.Seats; i++)
                     if (p.IsBot(i)) QueueBotEmote(p, i, winner == Game.SideOfSeat(i) ? BotMood.Win : BotMood.Lose, 1f, 4f);
                 LastGems = Progress.RecordPvp(winner, Me);
-                if (IsHost) Online.Finish();
+                if (IsManager) Online.Finish();
                 Deselect();
             }
         }
